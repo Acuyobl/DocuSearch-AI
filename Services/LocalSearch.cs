@@ -65,6 +65,7 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
         var snapshot = await documents.LoadAsync();
         await documents.LogQueryAsync("AGENT_QUERY", "Consulta del asistente; contenido omitido por privacidad.");
         var extracted = AnswerFromSources(query, snapshot.Documents, session);
+        if (assistant is not null) await assistant.EnsureLoadedAsync();
         var profile = assistant?.Active;
         var engine = profile?.Engine?.ToLowerInvariant()
             ?? (UseOpenCode ? "opencode" : ollama.Enabled ? "ollama" : "extractive");

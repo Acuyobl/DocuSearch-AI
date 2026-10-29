@@ -17,7 +17,7 @@ public sealed class OpenCodeOptions
     public string Username { get; set; } = "opencode";
     public string Password { get; set; } = "";
     /// <summary>Agente de OpenCode. Debe tener las herramientas desactivadas para uso documental.</summary>
-    public string Agent { get; set; } = "zodiac-asistente";
+    public string Agent { get; set; } = "";
     public string ProviderId { get; set; } = "ollama";
     public string ModelId { get; set; } = "qwen3:4b";
     public int TimeoutSeconds { get; set; } = 120;
@@ -35,6 +35,9 @@ public sealed class OpenCodeClient
     private static readonly string[] LocalProviders = ["ollama", "lmstudio", "llamacpp"];
     private readonly HttpClient http;
     private readonly OpenCodeOptions settings;
+    private readonly object toolGate = new();
+    private string[]? toolIds;
+    private DateTimeOffset toolIdsExpires;
 
     public bool Enabled => settings.Enabled;
     public string Agent => settings.Agent;
@@ -61,15 +64,15 @@ public sealed class OpenCodeClient
             if (string.IsNullOrWhiteSpace(settings.Password))
                 throw new InvalidOperationException("Un servidor OpenCode fuera de loopback exige OpenCode:Password (se envía con autenticación básica).");
         }
-        if (string.IsNullOrWhiteSpace(settings.Agent) || string.IsNullOrWhiteSpace(settings.ProviderId) || string.IsNullOrWhiteSpace(settings.ModelId))
-            throw new InvalidOperationException("Configura OpenCode:Agent, OpenCode:ProviderId y OpenCode:ModelId.");
+        if (string.IsNullOrWhiteSpace(settings.ProviderId) || string.IsNullOrWhiteSpace(settings.ModelId))
+            throw new InvalidOperationException("Configura OpenCode:ProviderId y OpenCode:ModelId.");
         if (settings.TimeoutSeconds is < 5 or > 600)
             throw new InvalidOperationException("OpenCode:TimeoutSeconds debe estar entre 5 y 600.");
 
         this.http = http;
         http.BaseAddress = endpoint;
         http.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
-        http.MaxResponseContentBufferSize = 4 * 1024 * 1024;
+        http.MaxResponseContentBufferSize = 64 * 1024 * 1024;
         if (!string.IsNullOrWhiteSpace(settings.Password))
         {
             var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{settings.Username}:{settings.Password}"));
@@ -77,16 +80,41 @@ public sealed class OpenCodeClient
         }
     }
 
-    /// <summary>Comprueba que el servidor responde y que el agente configurado existe.</summary>
+    /// <summary>Comprueba que el servidor responde y, si se indicó un agente, que existe.</summary>
     public async Task CheckAsync(string? agent = null)
     {
         if (!Enabled) return;
         var expectedAgent = string.IsNullOrWhiteSpace(agent) ? settings.Agent : agent;
         var health = await GetAsync<HealthResponse>("global/health");
         if (!health.Healthy) throw new InvalidOperationException("El servidor OpenCode no se declara saludable.");
+        if (string.IsNullOrWhiteSpace(expectedAgent)) return;
         var agents = await GetAsync<AgentInfo[]>("agent");
         if (agents.All(candidate => !string.Equals(candidate.Name, expectedAgent, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"El servidor OpenCode no tiene el agente «{expectedAgent}». Revísalo en opencode.json.");
+    }
+
+    /// <summary>Catálogo de proveedores/modelos del OpenCode local (para el selector de motores).</summary>
+    public async Task<OpenCodeCatalog> FetchCatalogAsync()
+    {
+        if (!Enabled) throw new InvalidOperationException("OpenCode está desactivado en la configuración.");
+        var response = await GetAsync<ProviderListResponse>("provider");
+        var providers = (response.All ?? [])
+            .Where(provider => !string.IsNullOrWhiteSpace(provider.Id))
+            .Select(provider => new OpenCodeProvider(
+                provider.Id!,
+                string.IsNullOrWhiteSpace(provider.Name) ? provider.Id! : provider.Name!,
+                provider.Options?.BaseUrl,
+                (provider.Models ?? []).Values
+                    .Where(model => !string.IsNullOrWhiteSpace(model.Id))
+                    .Select(model => new OpenCodeModel(
+                        model.Id!,
+                        string.IsNullOrWhiteSpace(model.Name) ? model.Id! : model.Name!,
+                        model.Cost?.Input ?? 0,
+                        model.Cost?.Output ?? 0,
+                        model.Status))
+                    .ToList()))
+            .ToList();
+        return new OpenCodeCatalog(providers, response.Connected ?? []);
     }
 
     public Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources) =>
@@ -119,13 +147,15 @@ public sealed class OpenCodeClient
             throw new InvalidOperationException("OpenCode no devolvió el identificador de sesión.");
         try
         {
-            var message = new
+            var tools = await GetDisabledToolsAsync();
+            var message = new Dictionary<string, object?>
             {
-                agent = agentName,
-                model = new { providerID = provider, modelID = model },
-                system = AssistantPrompt.System,
-                parts = new[] { new { type = "text", text = payload } }
+                ["model"] = new { providerID = provider, modelID = model },
+                ["system"] = AssistantPrompt.System,
+                ["tools"] = tools,
+                ["parts"] = new[] { new { type = "text", text = payload } }
             };
+            if (!string.IsNullOrWhiteSpace(agentName)) message["agent"] = agentName;
             var response = await PostAsync<MessageResponse>($"session/{Uri.EscapeDataString(sessionId)}/message", message);
             var text = string.Concat((response?.Parts ?? [])
                 .Where(part => part.Type == "text" && !string.IsNullOrWhiteSpace(part.Text))
@@ -159,6 +189,23 @@ public sealed class OpenCodeClient
         {
             await DeleteSessionAsync(sessionId);
         }
+    }
+
+    private async Task<Dictionary<string, bool>> GetDisabledToolsAsync()
+    {
+        string[]? ids;
+        lock (toolGate)
+            ids = toolIds is not null && DateTimeOffset.UtcNow < toolIdsExpires ? toolIds : null;
+        if (ids is null)
+        {
+            ids = await GetAsync<string[]>("experimental/tool/ids");
+            lock (toolGate)
+            {
+                toolIds = ids;
+                toolIdsExpires = DateTimeOffset.UtcNow.AddMinutes(5);
+            }
+        }
+        return ids.ToDictionary(id => id, _ => false);
     }
 
     private static string? ExtractJsonObject(string text)
@@ -242,4 +289,18 @@ public sealed class OpenCodeClient
     private sealed record MessagePart(string? Type, string? Text);
     private sealed record MessageResponse(MessageInfo? Info, MessagePart[]? Parts);
     private sealed record GeneratedAnswer(string? Answer, int[]? Citations);
+    private sealed record ProviderListResponse(ProviderResponse[]? All, string[]? Connected, Dictionary<string, string>? Default);
+    private sealed record ProviderResponse(string? Id, string? Name, string? Source, ProviderOptions? Options, Dictionary<string, ModelResponse>? Models);
+    private sealed record ProviderOptions([property: JsonPropertyName("baseURL")] string? BaseUrl);
+    private sealed record ModelResponse(string? Id, string? Name, ModelCost? Cost, string? Status);
+    private sealed record ModelCost(decimal? Input, decimal? Output);
 }
+
+/// <summary>Modelo descubierto en el servidor OpenCode local.</summary>
+public sealed record OpenCodeModel(string Id, string Name, decimal InputCost, decimal OutputCost, string? Status);
+
+/// <summary>Proveedor descubierto en el servidor OpenCode local.</summary>
+public sealed record OpenCodeProvider(string Id, string Name, string? BaseUrl, IReadOnlyList<OpenCodeModel> Models);
+
+/// <summary>Catálogo completo: proveedores con sus modelos y los que están conectados.</summary>
+public sealed record OpenCodeCatalog(IReadOnlyList<OpenCodeProvider> Providers, IReadOnlyList<string> Connected);

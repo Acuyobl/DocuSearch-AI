@@ -14,7 +14,7 @@ jobs:
   compilacion-y-checks:
     name: Compilación y checks
 # Windows: la aplicación y la suite están pensadas para Windows (SQL Server, autenticación
-# de Windows, rutas del worker Python). Los 78 checks sin servicios también corren aquí.
+# de Windows, rutas del worker Python). Los 80 checks sin servicios también corren aquí.
     runs-on: windows-latest
 
     steps:

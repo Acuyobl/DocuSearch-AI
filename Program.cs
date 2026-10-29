@@ -264,6 +264,27 @@ app.MapGet("/health", async (IDbContextFactory<AppDbContext> factory, ILogger<Pr
         return Results.Json(new { status = "unavailable", database = "SQL Server", instruction = "Configura la conexión y ejecuta dotnet run -- --initialize-database." }, statusCode: 503);
     }
 });
+// Catálogo del selector de motores: lo lee el panel del asistente y sirve para
+// comprobar desde fuera que la lista gratis/local se descubrió en este OpenCode.
+app.MapGet("/assistant/engines", async (AssistantRuntime runtime) =>
+{
+    await runtime.EnsureLoadedAsync();
+    return Results.Ok(new
+    {
+        active = runtime.Active.Id,
+        loadedAt = runtime.LoadedAt,
+        error = runtime.LastError,
+        groups = runtime.Profiles.GroupBy(profile => profile.Group).Select(group => new
+        {
+            group = group.Key,
+            models = group.Select(profile => new
+            {
+                id = profile.Id, engine = profile.Engine, provider = profile.ProviderId,
+                model = profile.ModelId, available = profile.Available, label = profile.Label
+            })
+        })
+    });
+});
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();

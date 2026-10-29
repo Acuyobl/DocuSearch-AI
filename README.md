@@ -242,41 +242,48 @@ Configuración en `appsettings.json` (o variables `OpenCode__*`):
 
 | Clave | Valor de referencia | Nota |
 |---|---|---|
-| `Enabled` | `true` | Con `true` tiene prioridad sobre LangChain/Ollama |
+| `Enabled` | `true` | Con `true` el asistente usa el catálogo de OpenCode |
 | `BaseUrl` | `http://127.0.0.1:4097` | Debe ser loopback salvo `AllowNonLoopback=true` |
 | `Username` / `Password` | `opencode` / *(vacío)* | Basic auth de `OPENCODE_SERVER_PASSWORD`; la contraseña no se versiona |
-| `Agent` | `zodiac-asistente` | Debe existir en `opencode.json` y no tener herramientas |
-| `ProviderId` / `ModelId` | `ollama` / `qwen3:4b` | Local por defecto; ver abajo el modo remoto |
+| `Agent` | *(vacío)* | Si está vacío se usa el agente por defecto de OpenCode; en cada consulta se envían **todas las herramientas desactivadas**. Si se indica un nombre, debe existir en `opencode.json` |
+| `ProviderId` / `ModelId` | `ollama` / `qwen3:4b` | Solo valores de reserva para llamadas sin perfil; el selector usa el catálogo descubierto |
 | `TimeoutSeconds` | `120` | 5–600 |
 | `AllowNonLoopback` | `false` | Necesario para `host.docker.internal`; exige contraseña |
 
-Selección de modelo (ambos soportados):
+### Modelos gratis y locales: catálogo dinámico (funciona en cualquier equipo)
 
-- **Local (privacidad):** `ProviderId=ollama`, `ModelId=qwen3:4b`. Requiere Ollama activo
-  y el modelo descargado. Ningún fragmento sale del equipo.
-- **Remoto:** `ProviderId=deepseek`, `ModelId=deepseek-flash`, `Agent=zodiac-asistente`.
-  Los fragmentos autorizados salen del equipo y la interfaz muestra un aviso rojo; no
-  debe usarse con expedientes confidenciales o secretos.
+No hay modelos escritos a mano. Al abrir el asistente (y al pulsar **Actualizar motores**)
+la aplicación consulta `GET /provider` del OpenCode local y construye el selector con
+**dos grupos**, según lo que cada usuario tenga configurado en su OpenCode:
 
-### Selector de motor en la interfaz
+- **Locales** — proveedores locales (`ollama`, `lmstudio`, `llamacpp` o con `baseURL` de
+  loopback). Se listan sus modelos; si el servidor local no está arrancado aparecen como
+  «sin conexión». Ningún fragmento sale del equipo.
+- **Gratis** — modelos con `cost.input = 0` y `cost.output = 0` de proveedores
+  **conectados**, excluyendo los locales. En un OpenCode recién instalado suelen ser los
+  `*-free` del proveedor `opencode`; si el usuario conecta otros proveedores con modelos
+  gratuitos, aparecen automáticamente.
+- **Sin LLM** — modo extractivo por reglas, siempre disponible.
 
-El **administrador general** puede cambiar de motor sin editar archivos ni reiniciar:
-en la cabecera del asistente hay un selector **Motor** junto a *Comprobar conexión*.
-Los perfiles se declaran en `Assistant:Profiles` de `appsettings.json`; el valor inicial
-es `Assistant:DefaultProfile`. El cambio es inmediato, afecta a todas las consultas y
-vive en memoria (al reiniciar se vuelve al perfil por defecto). Los perfiles de
-referencia son:
+El catálogo depende del OpenCode de cada máquina, no del repositorio; por eso funciona
+igual en otro equipo. Límites y preferencias:
 
-| Id | Motor | Privacidad |
+| Clave | Valor | Efecto |
 |---|---|---|
-| `qwen-local` | OpenCode + `ollama/qwen3:4b` | Local; requiere Ollama activo |
-| `deepseek` | OpenCode + `deepseek/deepseek-flash` | Remoto; aviso en la interfaz |
-| `ollama-direct` | LangChain/Ollama directo | Local |
-| `extractive` | Sin LLM (reglas) | Sin generación |
+| `Assistant:DefaultProfile` | *(vacío)* | Id preferido (`free:opencode/…`, `local:ollama/…`, `extractive`). Si está vacío: modelo gratis preferido, luego primero gratis, luego local conectado |
+| `Assistant:MaxFreeModels` | `40` | Máximo de modelos gratis listados |
+| `Assistant:MaxLocalModels` | `20` | Máximo de modelos locales listados |
 
-Un usuario sin rol de administración general ve el motor activo y su aviso, pero no
-puede cambiarlo. El servidor no confía en el navegador: la selección se aplica como
-estado del servidor (`AssistantRuntime`) y cada consulta la vuelve a resolver el host.
+El **administrador general** cambia de motor en el selector **Motor** de la cabecera del
+asistente, sin editar archivos ni reiniciar; el cambio es inmediato y vive en memoria.
+Un usuario normal ve el motor activo y su aviso. La lista se puede inspeccionar sin abrir
+la interfaz con `GET /assistant/engines` (requiere sesión autenticada).
+
+**Aviso sobre los modelos gratis:** dependen de la cuota del proveedor en OpenCode (por
+ejemplo, el proveedor `opencode` puede responder «Free usage exceeded»). Si un modelo
+gratis falla o agota cuota, elige un modelo local (con Ollama/LM Studio activo) o el modo
+extractivo; la interfaz muestra el error sin cambiar de proveedor por su cuenta. Los
+modelos remotos envían los fragmentos fuera del equipo y la interfaz lo advierte.
 
 La aplicación crea una sesión por consulta (`POST /session`), envía pregunta + fuentes a
 `POST /session/:id/message`, valida que la respuesta sea JSON con citas dentro de las
@@ -494,13 +501,13 @@ dotnet build
 dotnet run --project .\tests\DocuSearch.Checks.csproj
 ```
 
-78 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
+80 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
 HTML, PDF reales, límites exactos, esquema SQL Server, TOTP y Ollama/OpenCode con HTTP
 simulado: privacidad, contexto acotado, citas, errores y liberación del estado ocupado.
 Un fallo produce código de salida no cero.
 
 La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta
-la compilación y las 78 comprobaciones sin servicios.
+la compilación y las 80 comprobaciones sin servicios.
 
 Para añadir una generación real con el modelo local, usando únicamente una fuente sintética:
 
@@ -536,7 +543,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database
 
 La suite exige el sufijo `_tests` y restablece sus ejemplos. **No la apuntes a datos que
 quieras conservar.** La base se crea automáticamente si la identidad tiene permisos.
-La suite con `--database --langchain` ejecuta 92 comprobaciones: las 78 sin
+La suite con `--database --langchain` ejecuta 94 comprobaciones: las 80 sin
 servicios, tres de LangChain real y once de SQL Server. Incluye inicialización idempotente, cargas,
 original persistente, metadatos, notas, reproceso, permisos reales, cuotas, agente, importación,
 notas concurrentes, rollback de importaciones fallidas, contexto autorizado del consultor

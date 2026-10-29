@@ -15,22 +15,39 @@
     {
         <label class="inline">Motor
             <select @bind="selectedProfile" @bind:after="ApplyProfile" disabled="@State.Busy" aria-label="Elegir el motor del asistente">
-                @foreach (var profile in Runtime.Profiles)
+                @foreach (var group in Runtime.Profiles.GroupBy(profile => profile.Group))
                 {
-                    <option value="@profile.Id">@profile.Label</option>
+                    <optgroup label="@group.Key">
+                        @foreach (var profile in group)
+                        {
+                            <option value="@profile.Id">@profile.Label</option>
+                        }
+                    </optgroup>
                 }
             </select>
         </label>
     }
-    <button disabled="@State.Busy" @onclick="CheckConnection"><AppIcon Name="refresh" />Comprobar conexión</button>
+    <button disabled="@State.Busy" @onclick="CheckConnection"><AppIcon Name="refresh" />Actualizar motores</button>
 </div>
+@if (Runtime.LastError is not null)
+{
+    <div class="alert error" role="alert">@Runtime.LastError</div>
+}
+else
+{
+    <small class="assistant-hint">@ProfileSummary — catálogo leído de tu servidor OpenCode (@Runtime.LoadedAt.ToLocalTime().ToString("HH:mm")).</small>
+}
+@if (!Active.Available)
+{
+    <div class="alert error" role="alert">El modelo «@Active.Label» está configurado pero su proveedor local no está conectado. Inicia Ollama/LM Studio y pulsa «Actualizar motores».</div>
+}
 @if (IsRemote)
 {
     <div class="alert error" role="alert">Motor remoto seleccionado («@Active.Label»): los fragmentos autorizados se envían a «@Active.ProviderId/@Active.ModelId» a través de OpenCode. No consultes expedientes confidenciales ni secretos en este modo.</div>
 }
 else if (CanSelectProfile)
 {
-    <small class="assistant-hint">Cambia el motor con el selector de arriba; solo administración puede modificarlo y afecta a todas las consultas del asistente.</small>
+    <small class="assistant-hint">Solo administración general puede cambiar el motor; el cambio afecta a todas las consultas y se resuelve en el servidor.</small>
 }
 <section class="conversation" @ref="conversation" aria-label="Conversación documental" aria-live="polite">
     @if (messages.Count == 0)
@@ -70,12 +87,23 @@ else if (CanSelectProfile)
     private AssistantProfile Active => Runtime.Active;
     private bool CanSelectProfile => State.Data is { } snapshot && Permissions.CanAdmin(snapshot.Actor);
     private bool IsRemote => AssistantRuntime.IsRemote(Active);
-    private string EngineLabel => Runtime.Describe(Active);
+    private string EngineLabel => Runtime.Describe(Active) + (Active.Available ? "" : " · sin conexión");
+    private string ProfileSummary
+    {
+        get
+        {
+            var locals = Runtime.Profiles.Count(profile => profile.Group == "Locales");
+            var free = Runtime.Profiles.Count(profile => profile.Group == "Gratis");
+            return $"{locals} modelo(s) local(es) · {free} gratis";
+        }
+    }
     private string EngineDetail => Active.Engine.ToLowerInvariant() switch
     {
-        "opencode" => IsRemote
-            ? $"Perfil «{Active.Label}»: modelo remoto; los fragmentos autorizados salen del equipo."
-            : $"Perfil «{Active.Label}»: el modelo se ejecuta en tu equipo.",
+        "opencode" => !Active.Available
+            ? $"Perfil «{Active.Label}»: el proveedor local no está conectado."
+            : IsRemote
+                ? $"Perfil «{Active.Label}»: modelo remoto; los fragmentos autorizados salen del equipo."
+                : $"Perfil «{Active.Label}»: el modelo se ejecuta en tu equipo.",
         "ollama" => $"Perfil «{Active.Label}»: LangChain/Ollama local, sin servicios externos.",
         _ => "Modo extractivo local: respuestas por reglas, sin modelo generativo."
     };
@@ -90,15 +118,23 @@ else if (CanSelectProfile)
     private sealed record ChatMessage(bool IsUser, string Text, List<SearchHit> Sources, string Provider = "");
     protected override async Task OnInitializedAsync()
     {
+        await Runtime.EnsureLoadedAsync();
         selectedProfile = Runtime.Active.Id;
-        await CheckConnection();
+        await CheckActiveEngineCoreAsync();
     }
     private Task RefreshDocuments() => State.RunAsync(State.RefreshAsync);
-    private Task CheckConnection() => State.RunAsync(CheckActiveEngineAsync);
-    private async Task CheckActiveEngineAsync()
+    private Task CheckConnection() => State.RunAsync(async () =>
+    {
+        await Runtime.RefreshAsync(force: true);
+        if (!Runtime.Profiles.Any(profile => string.Equals(profile.Id, selectedProfile, StringComparison.OrdinalIgnoreCase)))
+            selectedProfile = Runtime.Active.Id;
+        await CheckActiveEngineCoreAsync();
+    });
+    private async Task CheckActiveEngineCoreAsync()
     {
         await State.RefreshAsync();
         modelVerified = false;
+        if (Runtime.LastError is not null) return;
         switch (Active.Engine.ToLowerInvariant())
         {
             case "opencode":
@@ -115,8 +151,8 @@ else if (CanSelectProfile)
     private Task ApplyProfile() => State.RunAsync(async () =>
     {
         if (!Runtime.TrySelect(selectedProfile, out _))
-            throw new InvalidOperationException("El perfil de motor seleccionado no existe en la configuración.");
-        await CheckActiveEngineAsync();
+            throw new InvalidOperationException("El motor seleccionado ya no existe; pulsa «Actualizar motores» y vuelve a elegir.");
+        await CheckActiveEngineCoreAsync();
     }, "Motor del asistente actualizado.");
     private Task Send() => State.RunAsync(async () =>
     {

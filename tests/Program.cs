@@ -73,11 +73,11 @@ var policy = seed.Documents.Single(d => d.InternalCode == "POL-2025-0012");
 var pdf = PdfFixture.Create("Cloud contract SLA 99.99%. Annual price $450000 USD.");
 var processor = new PdfProcessor();
 OllamaClient Ollama(HttpClient http, bool enabled = true) => new(http, Options.Create(new OllamaOptions { Enabled = enabled }));
-OpenCodeClient OpenCodeFor(HttpClient http, bool enabled = true, string password = "secreto", string provider = "ollama", string model = "qwen3:4b") =>
+OpenCodeClient OpenCodeFor(HttpClient http, bool enabled = true, string password = "secreto", string provider = "ollama", string model = "qwen3:4b", string agent = "zodiac-asistente") =>
     new(http, Options.Create(new OpenCodeOptions
     {
         Enabled = enabled, BaseUrl = "http://127.0.0.1:4097", Password = password,
-        Agent = "zodiac-asistente", ProviderId = provider, ModelId = model
+        Agent = agent, ProviderId = provider, ModelId = model
     }));
 HttpClient OpenCodeMock(string answerText, Action<HttpRequestMessage>? capture = null) =>
     new(new TestHttpHandler((request, _) =>
@@ -89,12 +89,40 @@ HttpClient OpenCodeMock(string answerText, Action<HttpRequestMessage>? capture =
         {
             "/global/health" => """{"healthy":true,"version":"1.18.32"}""",
             "/agent" => """[{"name":"build"},{"name":"zodiac-asistente"}]""",
+            "/experimental/tool/ids" => """["bash","read"]""",
             "/session" => """{"id":"ses_test"}""",
             "/session/ses_test/message" => "{\"info\":{\"tokens\":{\"input\":10,\"output\":5}},\"parts\":[{\"type\":\"text\",\"text\":" + JsonSerializer.Serialize(answerText) + "}]}",
             _ => "{}"
         };
         return Task.FromResult(JsonResponse(body));
     }));
+HttpClient OpenCodeCatalogMock(string providerJson) =>
+    new(new TestHttpHandler((request, _) =>
+    {
+        var path = request.RequestUri!.AbsolutePath;
+        var body = path switch
+        {
+            "/global/health" => """{"healthy":true,"version":"1.18.32"}""",
+            "/agent" => """[{"name":"build"}]""",
+            "/provider" => providerJson,
+            "/experimental/tool/ids" => """["bash","read"]""",
+            _ => "{}"
+        };
+        return Task.FromResult(JsonResponse(body));
+    }));
+const string catalogJson = """
+    {"all":[
+      {"id":"opencode","name":"OpenCode","options":{"baseURL":""},"models":{
+        "free-model":{"id":"free-model","name":"Free Model","cost":{"input":0,"output":0},"status":"active"},
+        "paid-model":{"id":"paid-model","name":"Paid Model","cost":{"input":1,"output":2},"status":"active"}}},
+      {"id":"ollama","name":"Ollama (local)","options":{"baseURL":"http://127.0.0.1:11434/v1"},"models":{
+        "qwen3:4b":{"id":"qwen3:4b","name":"Qwen3 4B","cost":{"input":0,"output":0},"status":"active"}}},
+      {"id":"lmstudio","name":"LM Studio","options":{"baseURL":"http://localhost:1234/v1"},"models":{
+        "local-model":{"id":"local-model","name":"Local Model","cost":{"input":0,"output":0},"status":"active"}}},
+      {"id":"deepseek","name":"DeepSeek","options":{"baseURL":""},"models":{
+        "deepseek-flash":{"id":"deepseek-flash","name":"DeepSeek Flash","cost":{"input":1,"output":2},"status":"active"}}}
+    ],"connected":["opencode","ollama"],"default":{}}
+    """;
 const string localModelJson = """{"details":{"format":"gguf"},"capabilities":["completion"]}""";
 string ChatJson(string content, bool done = true, string reason = "stop") =>
     JsonSerializer.Serialize(new { done, done_reason = reason, message = new { content } });
@@ -477,6 +505,20 @@ if (args.Contains("--opencode"))
         await client.CheckAsync();
         Console.WriteLine($"INFO OpenCode real conectado: {client.Engine} · agente {client.Agent}");
     });
+    await Check("OpenCode real: catálogo de gratis y locales", async () =>
+    {
+        var catalog = await client.FetchCatalogAsync();
+        var connected = catalog.Connected.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var locals = catalog.Providers
+            .Where(provider => provider.Id is "ollama" or "lmstudio" or "llamacpp")
+            .SelectMany(provider => provider.Models).Count();
+        var free = catalog.Providers
+            .Where(provider => connected.Contains(provider.Id) && provider.Id is not ("ollama" or "lmstudio" or "llamacpp"))
+            .SelectMany(provider => provider.Models)
+            .Count(candidate => candidate.InputCost == 0 && candidate.OutputCost == 0);
+        Assert(free > 0 || locals > 0);
+        Console.WriteLine($"INFO OpenCode real: {catalog.Providers.Count} proveedores, {connected.Count} conectados, {free} gratis, {locals} locales");
+    });
     await Check("OpenCode real: genera respuesta con cita autorizada", async () =>
     {
         var document = new DocumentItem { InternalCode = "TEST-2026-OPENCODE", Title = "Prueba sintética OpenCode" };
@@ -613,25 +655,43 @@ await Check("OpenCode: usa el modelo del perfil seleccionado", async () =>
         body.Contains("\"modelID\":\"deepseek-flash\"", StringComparison.Ordinal));
     Assert(answer.Provider.Contains("deepseek/deepseek-flash", StringComparison.Ordinal));
 });
-await Check("Asistente: el selector de motor cambia de perfil y marca los remotos", () => Sync(() =>
+await Check("Asistente: catálogo dinámico separa gratis y locales", async () =>
 {
-    var options = Options.Create(new AssistantOptions
+    var runtime = new AssistantRuntime(Options.Create(new AssistantOptions()), OpenCodeFor(OpenCodeCatalogMock(catalogJson)),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
+    await runtime.RefreshAsync(force: true);
+    var locals = runtime.Profiles.Where(profile => profile.Group == "Locales").ToList();
+    var free = runtime.Profiles.Where(profile => profile.Group == "Gratis").ToList();
+    Assert(locals.Count == 2 && free.Count == 1);
+    Assert(locals.Any(profile => profile.ProviderId == "ollama" && profile.Available));
+    Assert(locals.Any(profile => profile.ProviderId == "lmstudio" && !profile.Available));
+    Assert(free.Single().ModelId == "free-model" && AssistantRuntime.IsRemote(free.Single()));
+    Assert(!runtime.Profiles.Any(profile => profile.ModelId == "paid-model"));
+    Assert(runtime.Active.Group == "Gratis" && runtime.Active.ModelId == "free-model");
+    Assert(runtime.TrySelect(free.Single().Id, out var selected) && selected!.ModelId == "free-model");
+    Assert(!runtime.TrySelect("local:no/existe", out _));
+    Assert(runtime.Profiles.Any(profile => profile.Engine == "extractive"));
+});
+await Check("Asistente: sin OpenCode queda solo el modo extractivo", async () =>
+{
+    var runtime = new AssistantRuntime(Options.Create(new AssistantOptions()), OpenCodeFor(new HttpClient(), enabled: false),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
+    await runtime.RefreshAsync(force: true);
+    Assert(runtime.Profiles.Count == 1 && runtime.Active.Engine == "extractive" && runtime.LastError is not null);
+});
+await Check("OpenCode: desactiva herramientas y omite agente vacío", async () =>
+{
+    string? body = null;
+    using var http = OpenCodeMock("{\"answer\":\"ok\",\"citations\":[1]}", request =>
     {
-        DefaultProfile = "local",
-        Profiles =
-        [
-            new AssistantProfile { Id = "local", Label = "Local", Engine = "opencode", ProviderId = "ollama", ModelId = "qwen3:4b", Agent = "zodiac-asistente" },
-            new AssistantProfile { Id = "remote", Label = "Remoto", Engine = "opencode", ProviderId = "deepseek", ModelId = "deepseek-flash", Agent = "zodiac-asistente" },
-            new AssistantProfile { Id = "rules", Label = "Reglas", Engine = "extractive" }
-        ]
+        if (request.RequestUri!.AbsolutePath.EndsWith("/message", StringComparison.Ordinal))
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
     });
-    var runtime = new AssistantRuntime(options, Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
-    Assert(runtime.Active.Id == "local" && !AssistantRuntime.IsRemote(runtime.Active));
-    Assert(runtime.TrySelect("remote", out var remote) && remote!.Id == "remote" && AssistantRuntime.IsRemote(remote));
-    Assert(!runtime.TrySelect("desconocido", out _));
-    Assert(runtime.TrySelect("rules", out _) && runtime.Active.Engine == "extractive");
-    Assert(runtime.Profiles.Count == 3 && runtime.Describe(remote!).Contains("remoto", StringComparison.Ordinal));
-}));
+    var document = new DocumentItem { InternalCode = "CNT-2025-0892", Title = "Contrato" };
+    await OpenCodeFor(http, agent: "").GenerateAsync("q", [new(document, 1, "texto", 100)]);
+    Assert(body is not null && body.Contains("\"tools\":{\"bash\":false,\"read\":false}", StringComparison.Ordinal));
+    Assert(!body!.Contains("\"agent\":", StringComparison.Ordinal));
+});
 if (args.Contains("--database"))
 {
     var connection = Environment.GetEnvironmentVariable("DOCUSEARCH_TEST_CONNECTION")
