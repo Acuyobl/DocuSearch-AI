@@ -1,0 +1,101 @@
+@inject WorkspaceState State
+@inject DocumentService Service
+<div class="module-page smart-search">
+<div class="segmented-control search-modes" role="group" aria-label="Herramientas del buscador">
+    <button type="button" aria-pressed="@(!showAssistant)" aria-controls="document-search" class="@(!showAssistant ? "active" : "")" @onclick="() => SelectAssistant(false)"><AppIcon Name="search" />Buscar documentos</button>
+    <button type="button" aria-pressed="@showAssistant" aria-controls="search-assistant" class="@(showAssistant ? "active" : "")" @onclick="() => SelectAssistant(true)"><AppIcon Name="agent" />Asistente IA</button>
+</div>
+<div id="document-search" hidden="@showAssistant">
+<div class="module-page">
+<header class="search-hero">
+    <span class="module-kicker"><AppIcon Name="search" />Búsqueda Contextual por Términos &amp; Texto Exacto</span>
+    <h1>Exploración Inteligente del Contenido Documental</h1>
+    <p>Localiza conceptos clave, cláusulas y fragmentos específicos con fuentes verificables por página.</p>
+    <div class="segmented-control" aria-label="Modo de búsqueda"><button type="button" aria-pressed="@(!exact)" class="@(!exact ? "active" : "")" @onclick="() => SetMode(false)"><AppIcon Name="agent" />Lenguaje Natural (por términos)</button><button type="button" aria-pressed="@exact" class="@(exact ? "active" : "")" @onclick="() => SetMode(true)"><AppIcon Name="search" />Coincidencia Textual Exacta</button></div>
+    <form @onsubmit="Execute" @onsubmit:preventDefault>
+        <div class="central-search"><AppIcon Name="search" /><input aria-label="Consulta documental" maxlength="2000" placeholder="Pregunta o busca algo (ej. SLA 99.99%, ISO 27001, EBITDA)…" @bind="query" /><button class="primary" disabled="@State.Busy">Buscar</button></div>
+    </form>
+    <div class="suggestions">
+        <small>Sugerencias rápidas:</small>
+        @foreach (var suggestion in new[] { "SLA 99.99%", "ISO 27001 contraseñas", "EBITDA Q4 2024", "Teletrabajo" })
+        { <button disabled="@State.Busy" @onclick="() => Suggest(suggestion)">@suggestion</button> }
+    </div>
+    @if (history.Count > 0)
+    {
+        <div class="suggestions"><small>Recientes:</small>@foreach (var recent in history) { <button @onclick="() => Suggest(recent)">@recent</button> }</div>
+    }
+</header>
+<section class="panel search-panel">
+    <div class="section-heading"><strong><AppIcon Name="search" />Filtros de exploración</strong><label class="inline">Relevancia mínima <input type="number" min="1" max="100" @bind="minimum" @bind:after="Refilter" /> %</label></div>
+    <DocumentFilters Filter="filter" ShowText="false" OnChanged="Refilter" />
+</section>
+<div class="section-heading"><h2>@results.Count fragmento(s)</h2><span class="badge">@(exact ? "Texto exacto" : "Relevancia por términos") · @elapsed ms</span></div>
+@foreach (var hit in results.Take(limit))
+{
+    <article class="panel result">
+        <div class="section-heading"><span class="code">@hit.Document.InternalCode · página @hit.PageNumber</span><span class="badge success">@hit.Score%</span></div>
+        <h3><AppIcon Name="document" />@hit.Document.Title</h3><p class="result-snippet">@hit.Snippet</p>
+        <div class="section-heading"><small>@hit.Document.Department · @hit.Document.Category · @hit.Document.Confidentiality</small><button @onclick="() => OnView.InvokeAsync(hit)"><AppIcon Name="eye" />Abrir fuente →</button></div>
+    </article>
+}
+@if (results.Count == 0) { <div class="panel empty">Sin coincidencias. Prueba otros términos o ajusta los filtros.</div> }
+@if (results.Count > limit) { <button @onclick="() => limit += 20">Mostrar más resultados</button> }
+</div>
+</div>
+<div id="search-assistant" hidden="@(!showAssistant)">
+    @if (assistantOpened)
+    {
+        <p>El asistente consulta los documentos autorizados para tu perfil. Los filtros de la pestaña Buscar documentos no se aplican al chat.</p>
+        <AgentChat OnView="OnView" />
+    }
+</div>
+</div>
+@code {
+    [Parameter] public EventCallback<SearchHit> OnView { get; set; }
+    [Parameter] public bool OpenAssistant { get; set; }
+    private bool showAssistant;
+    private bool assistantOpened;
+    private bool? previousOpenAssistant;
+    private readonly DocumentFilter filter = new();
+    private string query = "";
+    private bool exact;
+    private int minimum = 10;
+    private int limit = 20;
+    private long elapsed;
+    private List<SearchHit> results = [];
+    private readonly List<string> history = [];
+    protected override void OnInitialized() => Refilter();
+    protected override void OnParametersSet()
+    {
+        if (previousOpenAssistant == OpenAssistant) return;
+        previousOpenAssistant = OpenAssistant;
+        SelectAssistant(OpenAssistant);
+    }
+    private void SelectAssistant(bool value)
+    {
+        showAssistant = value;
+        assistantOpened |= value;
+    }
+    private void SetMode(bool value) { exact = value; Refilter(); }
+    private void Refilter()
+    {
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        results = LocalSearch.Search(filter.Apply(State.Data!.Documents), query, exact, Math.Clamp(minimum, 1, 100));
+        elapsed = timer.ElapsedMilliseconds;
+        limit = 20;
+    }
+    private Task Execute() => State.RunAsync(async () =>
+    {
+        if (query.Length > 2000) throw new ValidationException("La consulta admite hasta 2000 caracteres.");
+        await State.RefreshAsync();
+        await Service.LogQueryAsync("SEARCH", $"{(exact ? "Exacta" : "Contextual")}: {query}");
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            history.Remove(query);
+            history.Insert(0, query);
+            if (history.Count > 5) history.RemoveAt(5);
+        }
+        Refilter();
+    });
+    private Task Suggest(string value) { query = value; return Execute(); }
+}

@@ -1,0 +1,36 @@
+@inject WorkspaceState State
+@inject IJSRuntime JS
+<div class="module-page reports-page">
+    <ModuleHeading Banner="true" Icon="reports" Badge="Inteligencia Operacional & Auditoría" Title="Reportes Ejecutivos & Exportación" Description="Consolidado operacional de ingesta documental, volumen procesado y estadísticas de consulta.">
+        <div class="actions no-print"><button class="primary" @onclick="ExportHtml" disabled="@State.Busy"><AppIcon Name="check" />Descargar Informe Ejecutivo</button><button @onclick="Print"><AppIcon Name="print" />Imprimir</button><button @onclick="ExportCsv" disabled="@State.Busy"><AppIcon Name="download" />Excel (.CSV)</button></div>
+    </ModuleHeading>
+    <section class="panel report-filters"><h2>Filtrar Reporte por Área y Clasificación</h2>
+    <DocumentFilters Filter="filter" OnChanged="() => StateHasChanged()" />
+    <small>Mostrando <strong>@Rows.Count</strong> expedientes seleccionados</small></section>
+    <div class="metrics report-metrics">
+        <article class="metric"><span>Expedientes en Reporte</span><strong>@Rows.Count</strong><small>Catálogo autorizado</small></article>
+        <article class="metric"><span>Total de Páginas</span><strong>@Rows.Sum(d => d.PageCount)</strong><small>Registradas en expedientes</small></article>
+        <article class="metric"><span>Volumen Almacenado</span><strong>@((Rows.Where(d => d.HasOriginal).Sum(d => d.FileSizeBytes) / 1048576d).ToString("N1")) <small>MB</small></strong><small>Solo PDF originales</small></article>
+        <article class="metric"><span>Consultas &amp; Lecturas</span><strong>@Rows.Sum(d => d.ViewsCount)</strong><small>@Rows.Sum(d => d.DownloadsCount) descargas acumuladas</small></article>
+    </div>
+    <section class="panel"><h2>Consolidado de Expedientes Documentales</h2>
+    <div class="table-scroll"><table class="module-table"><thead><tr><th>Código</th><th>Expediente</th><th>Departamento</th><th>Clasificación</th><th>Estado</th></tr></thead><tbody>
+        @foreach (var doc in Rows) { <tr><td class="code">@doc.InternalCode</td><td>@doc.Title</td><td>@doc.Department</td><td>@doc.Confidentiality</td><td>@doc.OcrStatus</td></tr> }
+    </tbody></table></div>
+    <p>Responsable: @State.Data!.Actor.Name · Generado: @DateTime.Now.ToString("g")</p><p class="print-only">Firma: ____________________________________</p>
+</section>
+</div>
+@code {
+    private DocumentFilter filter = new();
+    private List<DocumentItem> Rows => filter.Apply(State.Data!.Documents).ToList();
+    private Task Print() => JS.InvokeVoidAsync("docusearch.print").AsTask();
+    private Task ExportCsv() => Export(false);
+    private Task ExportHtml() => Export(true);
+    private Task Export(bool html) => State.RunAsync(async () =>
+    {
+        await State.RefreshAsync();
+        var bytes = html ? ReportExport.Html(Rows, State.Data!.Actor.Name) : ReportExport.CatalogCsv(Rows);
+        using var reference = new DotNetStreamReference(new MemoryStream(bytes));
+        await JS.InvokeVoidAsync("docusearch.download", reference, html ? "informe-docusearch.html" : "catalogo-docusearch.csv", html ? "text/html;charset=utf-8" : "text/csv;charset=utf-8");
+    });
+}

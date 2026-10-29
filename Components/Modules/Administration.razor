@@ -1,0 +1,138 @@
+@inject WorkspaceState State
+@inject DocumentService Service
+@inject LegacyImport Importer
+@inject IJSRuntime JS
+@{ var snapshot = State.Data ?? throw new InvalidOperationException("No hay datos de administración cargados."); }
+<div class="module-page administration-page">
+<ModuleHeading Banner="true" Icon="rbac" Badge="Centro de Gobernanza Corporativa & Seguridad" Title="Administración de Usuarios, RBAC & Departamentos" Description="Gestión de perfiles locales, asignación de privilegios y límites de almacenamiento.">
+<div class="segmented-control admin-tabs">
+    @foreach (var tab in new[] { "Usuarios", "Departamentos", "Permisos", "Migración y datos" })
+    { <button aria-pressed="@(active == tab)" class="@(active == tab ? "active" : "")" @onclick="() => active = tab"><AppIcon Name="@(tab == "Usuarios" ? "rbac" : tab == "Departamentos" ? "management" : tab == "Permisos" ? "audit" : "storage")" />@(tab == "Permisos" ? "Matriz RBAC" : tab)</button> }
+</div>
+</ModuleHeading>
+@if (active == "Usuarios")
+{
+    <section class="panel">
+        <div class="section-heading"><div><h2><AppIcon Name="rbac" />Directorio de Usuarios Corporativos</h2><p>Gestión de cuentas, roles y estado de acceso</p></div><button class="primary" disabled="@State.Busy" @onclick="NewUser"><AppIcon Name="plus" />Registrar Usuario</button></div>
+        <div class="user-filters"><label>Buscar usuario<input @bind="userSearch" @bind:event="oninput" placeholder="Buscar por nombre, correo o departamento…" /></label><label>Rol<select @bind="roleFilter"><option value="">Todos los roles</option>@foreach (var role in Catalog.Roles) { <option value="@role">@Catalog.RoleLabel(role)</option> }</select></label></div>
+        <div class="table-scroll"><table class="module-table"><thead><tr><th>Nombre &amp; Correo</th><th>Rol RBAC</th><th>Departamento</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+            @foreach (var user in FilteredUsers)
+            {
+                <tr><td><span class="user-name"><AppIcon Name="user" />@user.Name</span><small>@user.Email</small></td><td><span class="role-badge @user.Role">@Catalog.RoleLabel(user.Role)</span></td><td>@user.Department</td><td><span class="badge @(user.Status == "Activo" ? "success" : "")">@user.Status</span></td>
+                    <td><div class="actions"><button disabled="@State.Busy" @onclick="() => EditUser(user)">Editar</button><button disabled="@(State.Busy || user.Id == snapshot.Actor.Id)" @onclick="() => ToggleUser(user)">@(user.Status == "Activo" ? "Desactivar" : "Activar")</button><button class="danger" disabled="@(State.Busy || user.Id == snapshot.Actor.Id)" @onclick="() => DeleteUser(user)">Eliminar</button></div></td></tr>
+            }
+        </tbody></table></div>
+        @if (!FilteredUsers.Any()) { <p class="empty">No hay usuarios que coincidan con los filtros.</p> }
+    </section>
+}
+else if (active == "Departamentos")
+{
+    <div class="section-heading"><div><h2>Gobernanza de Departamentos &amp; Cuotas</h2><p>Responsables y capacidad de almacenamiento asignada</p></div><button class="primary" disabled="@State.Busy" @onclick="NewDepartment"><AppIcon Name="plus" />Nuevo departamento</button></div>
+    <div class="department-grid">
+        @foreach (var department in State.Data!.Departments)
+        {
+            var used = State.Data.Documents.Where(d => d.Department == department.Name && d.HasOriginal).Sum(d => d.FileSizeBytes) / 1048576d;
+            <section class="panel department-card"><span class="kpi-icon"><AppIcon Name="management" /></span><h3>@department.Name</h3><p>@department.Lead</p><span class="badge">@State.Data.Users.Count(u => u.Department == department.Name) usuarios</span>
+                <div class="bar-row"><span>@used.ToString("N1") MB ocupados</span><strong>@department.AllocatedStorageMB MB</strong></div>
+                <progress value="@used" max="@department.AllocatedStorageMB" aria-label="@department.Name"></progress>
+                <button disabled="@State.Busy" @onclick="() => EditDepartment(department)"><AppIcon Name="edit" />Editar responsable y cuota</button>
+            </section>
+        }
+    </div>
+}
+else if (active == "Permisos")
+{
+    <section class="panel"><h2><AppIcon Name="audit" />Matriz de Permisos Aplicada en Servidor</h2><p>Capacidades por rol; la lectura y las acciones sobre cada expediente respetan su clasificación y departamento.</p><div class="table-scroll"><table class="module-table permission-matrix"><thead><tr><th>Funcionalidad / Privilegio</th>@foreach (var role in Catalog.Roles) { <th>@Catalog.RoleLabel(role)</th> }</tr></thead><tbody>
+        @foreach (var permission in Matrix)
+        {
+            <tr><td>@permission.Label</td>@foreach (var role in Catalog.Roles)
+                {
+                    var allowed = permission.Allowed(new AppUser { Role = role, Department = snapshot.Actor.Department });
+                    <td><span class="permission-value @(allowed ? "allowed" : "")" aria-label="@(allowed ? "Permitido" : "No permitido")">@(allowed ? "✓" : "—")</span></td>
+                }</tr>
+        }
+    </tbody></table></div><p>La descarga explícita de documentos estrictamente secretos se reserva al administrador general. El auditor puede leerlos. Un visor PDF no constituye protección DRM.</p></section>
+}
+else
+{
+    <section class="panel"><h2>Importar el navegador anterior</h2><p>Abre el exportador en el mismo origen de la aplicación anterior (mismo protocolo, host y puerto). No borres los datos del navegador antes de verificar la importación.</p>
+        <a class="button" href="migrate.html" target="_blank">Abrir exportador de datos anteriores</a>
+        <label>Archivo JSON de respaldo (máximo 100 MB)<InputFile OnChange="Import" accept=".json,application/json" disabled="@State.Busy" /></label>
+        <p>La importación se realiza en una sola transacción SQL Server. Se reemplazan los expedientes del mismo ID; los originales existentes no se eliminan. Conflictos de códigos o correos se notifican como error y revierten todo el lote.</p>
+    </section>
+    <section class="panel"><h2>Restablecer datos de ejemplo</h2><p class="error-text">Elimina todos los PDF, notas, usuarios y departamentos actuales. Conserva la bitácora.</p><button class="danger" @onclick="Reset" disabled="@State.Busy">Restablecer con confirmación</button></section>
+}
+</div>
+@if (editingUser is not null)
+{
+    <div class="modal-backdrop"><section class="modal form-modal admin-form-modal" role="dialog" aria-modal="true" aria-labelledby="user-title"><div class="dialog-heading"><span class="dialog-icon"><AppIcon Name="user" /></span><div><h2 id="user-title">Perfil de Usuario</h2><p>Datos de contacto, departamento y privilegios</p></div></div>
+        <EditForm Model="editingUser" OnValidSubmit="SaveUser"><DataAnnotationsValidator /><ValidationSummary />
+            <div class="form-grid"><label>Nombre<InputText @bind-Value="editingUser.Name" /></label><label>Correo<InputText @bind-Value="editingUser.Email" /></label>
+                <label>Rol<InputSelect @bind-Value="editingUser.Role">@foreach (var r in Catalog.Roles) { <option value="@r">@Catalog.RoleLabel(r)</option> }</InputSelect></label>
+                <label>Departamento<InputSelect @bind-Value="editingUser.Department">@foreach (var d in State.Data!.Departments) { <option>@d.Name</option> }</InputSelect></label>
+                <label>Estado<InputSelect @bind-Value="editingUser.Status"><option>Activo</option><option>Inactivo</option></InputSelect></label></div>
+            @if (State.Error is not null) { <div class="alert error">@State.Error</div> }
+            <div class="modal-footer"><button type="button" disabled="@State.Busy" @onclick="() => editingUser = null">Cancelar</button><button class="primary" disabled="@State.Busy">Guardar</button></div>
+        </EditForm></section></div>
+}
+@if (editingDepartment is not null)
+{
+    <div class="modal-backdrop"><section class="modal form-modal admin-form-modal" role="dialog" aria-modal="true" aria-labelledby="dept-title"><div class="dialog-heading"><span class="dialog-icon"><AppIcon Name="management" /></span><div><h2 id="dept-title">Departamento</h2><p>Gobernanza de almacenamiento y responsables</p></div></div>
+        <EditForm Model="editingDepartment" OnValidSubmit="SaveDepartment"><DataAnnotationsValidator /><ValidationSummary />
+            <label>Nombre<InputText @bind-Value="editingDepartment.Name" disabled="@existingDepartment" /></label>
+            <label>Responsable<InputText @bind-Value="editingDepartment.Lead" /></label>
+            <label>Cuota (MB)<InputNumber @bind-Value="editingDepartment.AllocatedStorageMB" min="1" max="1048576" /></label>
+            @if (State.Error is not null) { <div class="alert error">@State.Error</div> }
+            <div class="modal-footer"><button type="button" disabled="@State.Busy" @onclick="() => editingDepartment = null">Cancelar</button><button class="primary" disabled="@State.Busy">Guardar</button></div>
+        </EditForm></section></div>
+}
+@code {
+    private string active = "Usuarios";
+    private static readonly (string Label, Func<AppUser, bool> Allowed)[] Matrix = [
+        ("Dashboard Ejecutivo", _ => true),
+        ("Gestión y Búsqueda de Expedientes", _ => true),
+        ("Carga de PDFs & Ingesta", Permissions.CanWrite),
+        ("Edición de Metadatos y Clasificación", Permissions.CanWrite),
+        ("Reprocesamiento de Texto y Entidades", Permissions.CanWrite),
+        ("Descargar Documentos Confidenciales", actor => Permissions.CanDownload(actor, new DocumentItem { Department = actor.Department, Confidentiality = "Confidencial" })),
+        ("Descargar Documentos Estrictamente Secretos", actor => Permissions.CanDownload(actor, new DocumentItem { Department = actor.Department, Confidentiality = "Estrictamente Secreto" })),
+        ("Eliminación de Expedientes", Permissions.CanAdmin),
+        ("Bitácora de Auditoría", Permissions.CanAudit),
+        ("Gestión de Usuarios, Roles & Departamentos", Permissions.CanAdmin)
+    ];
+    private string userSearch = "", roleFilter = "";
+    private IEnumerable<AppUser> FilteredUsers => State.Data!.Users.Where(u =>
+        (roleFilter.Length == 0 || u.Role == roleFilter) &&
+        TextAnalysis.Normalize($"{u.Name} {u.Email} {u.Department}").Contains(TextAnalysis.Normalize(userSearch.Trim()), StringComparison.Ordinal));
+    private AppUser? editingUser;
+    private DepartmentInfo? editingDepartment;
+    private bool existingDepartment;
+    private static T Copy<T>(T value) => System.Text.Json.JsonSerializer.Deserialize<T>(System.Text.Json.JsonSerializer.Serialize(value, Catalog.Json), Catalog.Json) ?? throw new InvalidDataException("No se pudieron copiar los datos.");
+    private void NewUser() => editingUser = new() { Department = State.Data!.Departments.First().Name };
+    private void EditUser(AppUser value) => editingUser = Copy(value);
+    private void NewDepartment() { existingDepartment = false; editingDepartment = new(); }
+    private void EditDepartment(DepartmentInfo value) { existingDepartment = true; editingDepartment = Copy(value); }
+    private Task SaveUser() => State.RunAsync(async () => { await Service.SaveUserAsync(editingUser!); editingUser = null; await State.RefreshAsync(); }, "Usuario guardado.");
+    private Task SaveDepartment() => State.RunAsync(async () => { await Service.SaveDepartmentAsync(editingDepartment!); editingDepartment = null; await State.RefreshAsync(); }, "Departamento guardado.");
+    private Task ToggleUser(AppUser value) => State.RunAsync(async () =>
+    {
+        var copy = Copy(value); copy.Status = value.Status == "Activo" ? "Inactivo" : "Activo";
+        await Service.SaveUserAsync(copy); await State.RefreshAsync();
+    }, "Estado actualizado.");
+    private Task DeleteUser(AppUser value) => State.RunAsync(async () =>
+    {
+        if (!await JS.InvokeAsync<bool>("docusearch.confirm", $"¿Eliminar el perfil de {value.Name}?")) return;
+        await Service.SaveUserAsync(Copy(value), true); await State.RefreshAsync();
+    });
+    private Task Reset() => State.RunAsync(async () =>
+    {
+        if (!await JS.InvokeAsync<bool>("docusearch.confirm", "Esta acción elimina todos los expedientes, PDF y perfiles actuales. ¿Restablecer los ejemplos?")) return;
+        await Service.ResetAsync(); await State.RefreshAsync();
+    });
+    private Task Import(InputFileChangeEventArgs args) => State.RunAsync(async () =>
+    {
+        await using var stream = args.File.OpenReadStream(100 * 1024 * 1024);
+        await Importer.ImportAsync(stream);
+        await State.RefreshAsync();
+    }, "Respaldo importado en SQL Server. Comprueba expedientes, notas y originales antes de borrar el navegador anterior.");
+}

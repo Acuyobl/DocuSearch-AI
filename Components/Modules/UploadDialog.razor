@@ -1,0 +1,115 @@
+@inject WorkspaceState State
+@inject DocumentService Service
+<div class="modal-backdrop">
+    <section class="modal form-modal upload-modal" role="dialog" aria-modal="true" aria-labelledby="upload-title">
+        <div class="dialog-heading"><span class="dialog-icon"><AppIcon Name="upload" /></span><div><h2 id="upload-title">Ingesta de Expedientes PDF</h2><p>Extracción de texto, entidades y persistencia SQL Server</p></div><button class="icon-button" aria-label="Cerrar" title="Cerrar" disabled="@State.Busy" @onclick="OnClose"><AppIcon Name="close" /></button></div>
+        <div class="dialog-body">
+        <div class="segmented-control upload-modes"><button aria-pressed="@single" class="@(single ? "active" : "")" disabled="@State.Busy" @onclick="() => SetMode(true)"><AppIcon Name="document" />Carga Individual</button><button aria-pressed="@(!single)" class="@(!single ? "active" : "")" disabled="@State.Busy" @onclick="() => SetMode(false)"><AppIcon Name="management" />Carga Masiva (Lote)</button></div>
+        <p>Hasta 20 archivos por lote, 25 MB y 500 páginas por PDF. Cada archivo se confirma de forma independiente en SQL Server.</p>
+        <div class="drop-zone">
+            <span class="drop-zone-icon"><AppIcon Name="document" /></span>
+            <label><strong>1. Selecciona los PDF de tu equipo</strong>
+                <span>Usa el botón de selección de archivos y confirma los PDF en la ventana del explorador.</span>
+                <InputFile @key="single" OnChange="SelectFiles" multiple="@(!single)" accept=".pdf,application/pdf" disabled="@State.Busy" aria-describedby="upload-selection-status" />
+            </label>
+            <p id="upload-selection-status" role="status">
+                @if (queue.Count == 0)
+                {
+                    <span>No hay archivos seleccionados. El botón «Procesar lote» se habilita cuando aparezcan aquí tus PDF.</span>
+                }
+                else
+                {
+                    <span>@queue.Count archivo(s) seleccionado(s). Revisa los datos y pulsa «Procesar lote».</span>
+                }
+            </p>
+            <small>Si el selector no se abre en la vista previa de VS Code, abre http://localhost:5068/ en Microsoft Edge o Chrome e inténtalo allí.</small>
+        </div>
+        <div class="form-grid">
+            @if (queue.Count == 1) { <label>Título<input @bind="metadata.Title" maxlength="300" /></label> }
+            <label>Autor<input @bind="metadata.Author" maxlength="200" /></label>
+            <label>Departamento<select @bind="metadata.Department">@foreach (var d in Departments) { <option>@d.Name</option> }</select></label>
+            <label>Categoría<select @bind="metadata.Category">@foreach (var c in Catalog.Categories) { <option>@c</option> }</select></label>
+            <label>Confidencialidad<select @bind="metadata.Confidentiality">@foreach (var l in Permissions.ReadableLevels(State.Data!.Actor)) { <option>@l</option> }</select></label>
+            <label>Versión<input @bind="metadata.Version" maxlength="40" /></label>
+        </div>
+        @foreach (var entry in queue)
+        {
+            <div class="queue-item"><div><strong>@entry.File.Name</strong><small role="status">@((entry.File.Size / 1048576d).ToString("N2")) MB · @entry.Status</small>
+                @if (entry.Error is not null) { <p class="error-text">@entry.Error</p> }
+            </div><progress value="@entry.Progress" max="100" aria-label="@entry.File.Name"></progress></div>
+        }
+        <div class="alert info">Los PDF escaneados se almacenan, pero sus páginas sin texto quedan marcadas como «Requiere OCR». El asistente no inventa su contenido.</div>
+        @if (State.Error is not null) { <div class="alert error" role="alert">@State.Error</div> }
+        @if (queue.Count > 0 && queue.All(q => q.Status == "Guardado en SQL Server"))
+        {
+            <div class="alert success upload-complete" role="status"><AppIcon Name="check" /><strong>Carga completada: @queue.Count archivo(s) guardado(s).</strong><span>Ya puedes cerrar esta ventana y consultarlos en Documentos.</span></div>
+        }
+        </div>
+        <div class="modal-footer"><button disabled="@State.Busy" @onclick="OnClose">Cerrar</button><button class="primary" title="@(queue.Count == 0 ? "Selecciona al menos un PDF primero" : "Procesar los PDF pendientes")" disabled="@(State.Busy || !queue.Any(q => q.Status == "Pendiente"))" @onclick="Upload">@(State.Busy ? "Procesando…" : "Procesar lote")</button></div>
+    </section>
+</div>
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+    private DocumentItem metadata = new();
+    private bool single = true;
+    private void SetMode(bool value)
+    {
+        if (single == value) return;
+        single = value;
+        queue.Clear();
+    }
+    private readonly List<QueueEntry> queue = [];
+    private IEnumerable<DepartmentInfo> Departments => State.Data!.Departments.Where(d => State.Data.Actor.Role != "admin_depto" || d.Name == State.Data.Actor.Department);
+    private sealed class QueueEntry(IBrowserFile file)
+    {
+        public IBrowserFile File { get; } = file;
+        public string Status { get; set; } = "Pendiente";
+        public double Progress { get; set; }
+        public string? Error { get; set; }
+    }
+    protected override void OnInitialized()
+    {
+        metadata.Author = State.Data!.Actor.Name;
+        metadata.Department = State.Data.Actor.Department;
+    }
+    private Task SelectFiles(InputFileChangeEventArgs args) => State.RunAsync(() =>
+    {
+        queue.Clear();
+        queue.AddRange(args.GetMultipleFiles(single ? 1 : 20).Select(f => new QueueEntry(f)));
+        if (queue.Count == 1) metadata.Title = Path.GetFileNameWithoutExtension(queue[0].File.Name);
+        return Task.CompletedTask;
+    });
+    private async Task Upload()
+    {
+        foreach (var entry in queue.Where(q => q.Status == "Pendiente").ToList())
+        {
+            await State.RunAsync(async () =>
+            {
+                if (!entry.File.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                    throw new ValidationException("Solo se admiten archivos con extensión PDF.");
+                entry.Status = "Leyendo archivo";
+                using var memory = new MemoryStream();
+                await using var input = entry.File.OpenReadStream(PdfProcessor.MaxFileBytes);
+                var buffer = new byte[64 * 1024];
+                int count;
+                while ((count = await input.ReadAsync(buffer)) > 0)
+                {
+                    await memory.WriteAsync(buffer.AsMemory(0, count));
+                    entry.Progress = 70d * memory.Length / Math.Max(1, entry.File.Size);
+                    StateHasChanged();
+                }
+                entry.Status = "Analizando y guardando";
+                await Service.UploadAsync(new DocumentItem
+                {
+                    Title = queue.Count == 1 ? metadata.Title : Path.GetFileNameWithoutExtension(entry.File.Name),
+                    Author = metadata.Author, Department = metadata.Department, Category = metadata.Category,
+                    Version = metadata.Version, Confidentiality = metadata.Confidentiality
+                }, memory.ToArray());
+                entry.Status = "Guardado en SQL Server";
+                entry.Progress = 100;
+                await State.RefreshAsync();
+            }, $"Documento «{entry.File.Name}» cargado y guardado correctamente en SQL Server.");
+            if (State.Error is not null) { entry.Status = "Error"; entry.Error = State.Error; }
+        }
+    }
+}

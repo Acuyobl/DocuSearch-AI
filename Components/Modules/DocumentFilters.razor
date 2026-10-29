@@ -1,0 +1,24 @@
+@inject WorkspaceState State
+<div class="filters @(Compact ? "repository-filter-fields" : "")">
+    @if (ShowText) { <label class="filter-search"><span class="filter-label">Buscar expediente</span>@if (Compact) { <AppIcon Name="search" /> }<input placeholder="Buscar por código, título o autor..." @bind="Filter.Text" @bind:event="oninput" @bind:after="Changed" /></label> }
+    <label><span class="filter-label">Departamento</span><select @bind="Filter.Department" @bind:after="Changed"><option value="">Todos los departamentos</option>
+        @foreach (var d in State.Data!.Departments) { <option>@d.Name</option> }
+    </select></label>
+    <label><span class="filter-label">Categoría</span><select @bind="Filter.Category" @bind:after="Changed"><option value="">Todas las categorías</option>
+        @foreach (var c in Catalog.Categories) { <option>@c</option> }
+    </select></label>
+    <label><span class="filter-label">Confidencialidad</span><select @bind="Filter.Level" @bind:after="Changed"><option value="">Toda confidencialidad</option>
+        @foreach (var c in Catalog.Levels) { <option>@c</option> }
+    </select></label>
+    @if (ShowYear) { <label><span class="filter-label">Año</span><select @bind="Filter.Year" @bind:after="Changed"><option value="">Todos</option>
+        @foreach (var y in State.Data!.Documents.Select(d => d.UploadDate.Year).Distinct().OrderDescending()) { <option>@y</option> }
+    </select></label> }
+</div>
+@code {
+    [Parameter, EditorRequired] public DocumentFilter Filter { get; set; } = new();
+    [Parameter] public bool ShowText { get; set; } = true;
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public bool ShowYear { get; set; } = true;
+    [Parameter] public EventCallback OnChanged { get; set; }
+    private Task Changed() => OnChanged.InvokeAsync();
+}

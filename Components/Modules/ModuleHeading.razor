@@ -1,0 +1,16 @@
+<header class="module-heading @(Banner ? "module-banner" : "")">
+    <div class="module-heading-copy">
+        @if (Badge is not null) { <span class="module-kicker"><AppIcon Name="@Icon" />@Badge</span> }
+        <h1>@if (!Banner) { <AppIcon Name="@Icon" /> }@Title</h1>
+        <p>@Description</p>
+    </div>
+    @if (ChildContent is not null) { <div class="module-heading-actions">@ChildContent</div> }
+</header>
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string Description { get; set; } = "";
+    [Parameter] public string Icon { get; set; } = "document";
+    [Parameter] public string? Badge { get; set; }
+    [Parameter] public bool Banner { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

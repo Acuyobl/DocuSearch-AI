@@ -1,0 +1,18 @@
+<div class="module-page architecture-page">
+<ModuleHeading Banner="true" Icon="architecture" Badge="Especificaciones de Ingeniería" Title="Arquitectura & Especificación Técnica" Description="Diseño actual del sistema documental: Blazor, ASP.NET Core y SQL Server Express. Sin dependencias de Node.js." />
+<section class="panel"><h2><AppIcon Name="architecture" />Arquitectura de Software por Capas</h2>
+    <div class="architecture-diagram">
+        <div><span>CAPA DE PRESENTACIÓN</span><h3>Blazor Interactive Server</h3><p>Componentes Razor · Dashboard · Tablas · Buscador · Visor</p></div>
+        <span class="diagram-connector">↕ Interacción servidor / navegador</span>
+        <div><span>CAPA DE APLICACIÓN</span><h3>ASP.NET Core · Servicios C#</h3><p>Permisos RBAC · DocumentService · Búsquedas · Asistente local</p></div>
+        <span class="diagram-connector">↕ EF Core / Procesamiento local</span>
+        <div class="grid two"><div><AppIcon Name="pipeline" /><h3>Procesamiento PDF</h3><p>PdfPig · SHA-256 · Resumen · Entidades</p></div><div><AppIcon Name="storage" /><h3>SQL Server Express</h3><p>Metadatos · JSON · PDF varbinary(max) · Auditoría</p></div></div>
+    </div>
+</section>
+<section class="panel architecture-notes">
+    <h3>Sin Node.js</h3><p>La aplicación se compila con el SDK de .NET y NuGet. El único JavaScript propio se ejecuta en el navegador para tema, archivos y exportación de datos anteriores. ASP.NET Core ejecuta un worker Python aislado con LangChain que prepara el contexto y solicita una respuesta estructurada a Ollama local. Sin Node.js, npm, OpenCode ni proveedores remotos. Los permisos, la recuperación de fuentes y la validación final de citas permanecen en C#.</p>
+    <h3>Procesamiento honesto</h3><ul><li>PdfPig extrae la capa de texto del PDF y calcula SHA-256.</li><li>La ingesta mantiene resúmenes extractivos y entidades por reglas. La búsqueda recupera fuentes por términos.</li><li>El asistente puede generar respuestas con un modelo Ollama local. Solo recibe fragmentos autorizados y sus citas se validan contra las fuentes enviadas; esto no garantiza exactitud factual.</li><li>Sin OCR de imágenes, embeddings ni búsqueda vectorial simulada.</li><li>Notas compartidas persistentes; actualízalas para ver cambios de otros circuitos.</li></ul>
+    <h3>Modo local</h3><p>El selector de perfiles sirve para demostrar RBAC. Todas las operaciones se vuelven a autorizar en servidor y el acceso HTTP se limita al equipo local. Antes de publicar en una red se requiere autenticación real, TLS y una política de usuarios.</p>
+    <h3>Persistencia</h3><p>Un contexto EF Core por operación; migración de esquema explícita y transacciones SQL Server. Autenticación de Windows contra ICEPALFLOR\SQLEXPRESS y base DocuSearch. Los originales se guardan junto con sus metadatos. Las cuotas, notas y contadores se actualizan bajo un bloqueo transaccional compartido.</p>
+</section>
+</div>

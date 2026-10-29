@@ -1,0 +1,326 @@
+Actúa como un Arquitecto de Software Senior, UX/UI Designer, Business Analyst y Product Owner experto en plataformas SaaS empresariales.
+
+Necesito diseñar y desarrollar una aplicación web moderna llamada:
+
+"DocuSearch AI"
+
+OBJETIVO DEL PROYECTO
+
+Crear una plataforma inteligente de gestión documental que permita a organizaciones almacenar, clasificar, transcribir, indexar y consultar documentos PDF mediante inteligencia artificial, OCR y búsqueda avanzada.
+
+La aplicación debe ofrecer una experiencia de usuario similar a Google para localizar información contenida dentro de documentos.
+
+GENERAR:
+
+1. Arquitectura completa del sistema.
+2. Diseño UX/UI profesional.
+3. Modelo de datos.
+4. Diseño de base de datos.
+5. Flujo de navegación.
+6. Casos de uso.
+7. Pantallas.
+8. APIs.
+9. Seguridad.
+10. Dashboard ejecutivo.
+
+--------------------------------------------------
+
+TIPO DE SISTEMA
+
+Aplicación Web SaaS Responsive
+
+Compatible con:
+
+- Desktop
+- Tablet
+- Mobile
+
+Diseño moderno similar a:
+
+- Google Workspace
+- Notion
+- Microsoft 365
+- Airtable
+
+--------------------------------------------------
+
+ROLES DEL SISTEMA
+
+Administrador General
+
+Puede:
+
+- Gestionar usuarios
+- Gestionar permisos
+- Gestionar departamentos
+- Acceder a todos los documentos
+- Ver auditorías
+- Ver reportes
+
+Administrador de Departamento
+
+Puede:
+
+- Gestionar usuarios de su área
+- Ver documentos de su departamento
+- Generar reportes
+
+Gestor Documental
+
+Puede:
+
+- Cargar documentos
+- Editar metadatos
+- Clasificar documentos
+
+Usuario Consulta
+
+Puede:
+
+- Realizar búsquedas
+- Visualizar documentos autorizados
+
+Auditor
+
+Puede:
+
+- Consultar bitácoras
+- Ver reportes
+- Exportar evidencia
+
+--------------------------------------------------
+
+MÓDULOS PRINCIPALES
+
+1. LOGIN
+
+Pantalla profesional con:
+
+- Usuario
+- Contraseña
+- Recuperar contraseña
+- MFA
+- Logo corporativo
+
+2. DASHBOARD PRINCIPAL
+
+Indicadores:
+
+- Total documentos
+- Documentos recientes
+- Documentos pendientes
+- Usuarios activos
+- Búsquedas realizadas
+- Alertas
+
+Gráficos:
+
+- Documentos por departamento
+- Documentos por tipo
+- Tendencias de uso
+- Documentos más consultados
+
+3. GESTIÓN DOCUMENTAL
+
+Permitir:
+
+- Arrastrar PDF
+- Carga masiva
+- Validaciones
+- Vista previa
+- OCR automático
+- Extracción de texto
+- Detección de idioma
+
+Metadatos:
+
+- Código
+- Título
+- Autor
+- Departamento
+- Categoría
+- Fecha
+- Nivel de confidencialidad
+- Versión
+
+4. OCR E IA
+
+Al cargar un documento:
+
+- Detectar si es PDF o escaneado
+- Extraer texto
+- Generar resumen inteligente
+- Detectar palabras clave
+- Extraer fechas
+- Extraer entidades
+- Clasificar automáticamente el documento
+
+5. BUSCADOR TIPO GOOGLE
+
+Barra central de búsqueda.
+
+Debe permitir:
+
+- Palabras clave
+- Frases completas
+- Filtros avanzados
+
+Mostrar:
+
+- Documento
+- Página encontrada
+- Fragmento relevante
+- Relevancia
+
+Opcional:
+
+Búsquedas con lenguaje natural.
+
+Ejemplos:
+
+"Mostrar contratos firmados en 2025"
+
+"Documentos relacionados con recursos humanos"
+
+"Políticas de seguridad vigentes"
+
+6. VISOR DOCUMENTAL
+
+Características:
+
+- Visualización PDF
+- Resaltar coincidencias
+- Navegación por páginas
+- Comentarios
+- Descarga según permisos
+
+7. REPORTES
+
+Generar:
+
+- PDF
+- Excel
+
+Reportes:
+
+- Documentos cargados
+- Documentos por departamento
+- Usuarios más activos
+- Búsquedas realizadas
+- Documentos más consultados
+- OCR procesados
+
+8. BITÁCORA DE AUDITORÍA
+
+Registrar:
+
+- Login
+- Logout
+- Búsquedas
+- Descargas
+- Modificaciones
+- Eliminaciones
+
+Mostrar:
+
+- Usuario
+- Fecha
+- Acción
+- Resultado
+- Dirección IP
+
+--------------------------------------------------
+
+BASE DE DATOS
+
+Diseñar completamente:
+
+Tablas:
+
+- Usuarios
+- Roles
+- Permisos
+- Departamentos
+- Documentos
+- VersionesDocumentos
+- Metadatos
+- OCR
+- Búsquedas
+- Bitácora
+- Reportes
+
+Incluir:
+
+- PK
+- FK
+- Índices
+- Restricciones
+
+--------------------------------------------------
+
+SEGURIDAD
+
+Implementar:
+
+- JWT
+- MFA
+- RBAC
+- Cifrado
+- Logs
+- Protección OWASP Top 10
+- Auditoría completa
+
+--------------------------------------------------
+
+TECNOLOGÍA RECOMENDADA
+
+Frontend
+
+- React
+- Next.js
+- Tailwind
+
+Backend
+
+- ASP.NET Core
+- Node.js
+
+Base de Datos
+
+- SQL Server
+- PostgreSQL
+
+Buscador
+
+- Elasticsearch
+o
+- Azure AI Search
+
+OCR
+
+- Azure Document Intelligence
+- Tesseract
+
+--------------------------------------------------
+
+ENTREGABLES
+
+Generar:
+
+1. Arquitectura de software.
+2. Diseño UI/UX.
+3. Wireframes.
+4. Diagramas de navegación.
+5. Casos de uso.
+6. Modelo entidad relación.
+7. Estructura de proyectos.
+8. APIs REST.
+9. Historias de usuario.
+10. Backlog completo.
+11. Roadmap de desarrollo.
+12. Producto Mínimo Viable (MVP).
+13. Estimación de fases.
+14. Riesgos del proyecto.
+15. Recomendaciones de escalabilidad.
+
+Generar la solución como si fuera un producto comercial listo para vender a organizaciones públicas y privadas.

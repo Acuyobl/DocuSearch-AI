@@ -1,0 +1,41 @@
+@inject WorkspaceState State
+@inject AgentObservability ObservabilityService
+<div class="module-page">
+<ModuleHeading Icon="audit" Title="Observabilidad del agente" Description="Metadatos locales · C# y SQL Server · sin contenido documental ni servicios externos">
+    <button disabled="@State.Busy" @onclick="Reload"><AppIcon Name="refresh" />Actualizar métricas</button>
+</ModuleHeading>
+<section class="panel">
+    <p>Últimas 500 consultas. Se registran al terminar, incluidas las fallidas. Sin preguntas, respuestas, nombres, códigos ni fragmentos. Los tokens son los reportados por Ollama; «—» significa que no están disponibles, no cero.</p>
+    @if (traces.Count == 0)
+    {
+        <p class="empty">No hay trazas disponibles todavía. Realiza una consulta en el asistente y actualiza las métricas.</p>
+    }
+    else
+    {
+        <div class="grid two">
+            <div><h3>@traces.Count consultas registradas</h3><p>@traces.Count(t => t.Status == "error") errores · @traces.Count(t => t.Status == "no_sources") sin fuentes</p></div>
+            <div><h3>Duración media: @(traces.Average(t => t.DurationMs).ToString("N0")) ms</h3><p>p95: @P95 ms · Incluye recuperación, comprobaciones y generación; excluye persistir la traza.</p></div>
+        </div>
+        <p>Tokens reportados: entrada @traces.Sum(t => t.InputTokens ?? 0).ToString("N0") · salida @traces.Sum(t => t.OutputTokens ?? 0).ToString("N0") · @traces.Count(t => t.InputTokens.HasValue && t.OutputTokens.HasValue) consultas con ambos contadores.</p>
+        <div class="table-scroll"><table>
+            <thead><tr><th>Fecha local</th><th>Traza</th><th>Motor</th><th>Modelo</th><th>Estado</th><th>Duración (ms)</th><th>Tokens entrada</th><th>Tokens salida</th><th>Error (categoría)</th></tr></thead>
+            <tbody>@foreach (var trace in traces)
+            {
+                <tr><td>@trace.StartedUtc.ToLocalTime().ToString("dd/MM HH:mm:ss")</td><td><small>@trace.Id</small></td><td>@trace.Engine</td><td>@trace.Model</td><td>@StatusLabel(trace.Status)</td><td>@trace.DurationMs</td><td>@(trace.InputTokens?.ToString("N0") ?? "—")</td><td>@(trace.OutputTokens?.ToString("N0") ?? "—")</td><td>@trace.ErrorCode</td></tr>
+            }</tbody>
+        </table></div>
+    }
+</section>
+</div>
+@code {
+    private List<AgentTrace> traces = [];
+    private long P95 => traces.Select(t => t.DurationMs).Order().ElementAt((int)Math.Ceiling(traces.Count * .95) - 1);
+    protected override Task OnInitializedAsync() => Reload();
+    private Task Reload() => State.RunAsync(async () => traces = await ObservabilityService.LoadAsync());
+    private static string StatusLabel(string status) => status switch
+    {
+        "success" => "Correcta",
+        "no_sources" => "Sin fuentes",
+        _ => "Error"
+    };
+}

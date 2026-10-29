@@ -1,0 +1,28 @@
+﻿@page "/Error"
+@using System.Diagnostics
+
+<PageTitle>Error</PageTitle>
+
+<h1 class="error-text">No se pudo procesar la solicitud.</h1>
+<h2>Revisa el registro del servidor para conocer el detalle.</h2>
+
+@if (ShowRequestId)
+{
+    <p>
+        <strong>Identificador de solicitud:</strong> <code>@RequestId</code>
+    </p>
+}
+
+<p>No compartas trazas de errores que puedan contener datos confidenciales. La aplicación conserva los errores detallados en la consola del servidor.</p>
+<a href="/">Volver al panel</a>
+
+@code{
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

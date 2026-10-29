@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1340 520" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="12" fill="#0f172a">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1340" height="520" fill="#f8fafc"/>
+
+  <!-- Subgrafos -->
+  <rect x="16" y="10" width="180" height="220" rx="10" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5,4"/>
+  <text x="106" y="28" text-anchor="middle" font-size="11" font-weight="bold" fill="#475569">ENTRADA</text>
+
+  <rect x="214" y="20" width="262" height="380" rx="10" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5,4"/>
+  <text x="230" y="40" font-size="11" font-weight="bold" fill="#475569">INGESTA — SERVICIOS C# LOCALES</text>
+
+  <rect x="700" y="20" width="240" height="350" rx="10" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5,4"/>
+  <text x="714" y="40" font-size="11" font-weight="bold" fill="#475569">CONSUMO Y OPERACIÓN</text>
+
+  <rect x="970" y="20" width="270" height="312" rx="10" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5,4"/>
+  <text x="984" y="40" font-size="11" font-weight="bold" fill="#475569">SEGURIDAD</text>
+
+  <!-- ENTRADA -->
+  <ellipse cx="106" cy="52" rx="72" ry="22" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.2"/>
+  <text x="106" y="57" text-anchor="middle">Usuario corporativo</text>
+
+  <polygon points="50,96 162,96 176,118 162,140 50,140 36,118" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.2"/>
+  <text x="106" y="114" text-anchor="middle" font-size="11.5" font-weight="bold">Selector de rol (RBAC)</text>
+  <text x="106" y="129" text-anchor="middle" font-size="10.5" fill="#312e81">5 roles · permisos por rol</text>
+
+  <rect x="36" y="164" width="140" height="56" rx="8" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.2"/>
+  <text x="106" y="186" text-anchor="middle" font-weight="bold">Blazor Server</text>
+  <text x="106" y="204" text-anchor="middle" font-size="11">ASP.NET Core 10</text>
+
+  <line x1="106" y1="74" x2="106" y2="96" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="106" y1="140" x2="106" y2="164" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <!-- INGESTA -->
+  <rect x="235" y="50" width="220" height="44" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.2"/>
+  <text x="345" y="70" text-anchor="middle" font-weight="bold">Carga de PDF</text>
+  <text x="345" y="86" text-anchor="middle" font-size="11" fill="#78350f">individual o masiva (hasta 20 PDF)</text>
+
+  <rect x="235" y="110" width="220" height="44" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.2"/>
+  <text x="345" y="132" text-anchor="middle">1. Validación criptográfica</text>
+  <text x="345" y="148" text-anchor="middle" font-size="11" fill="#78350f">Hash SHA-256 del archivo original</text>
+
+  <rect x="235" y="166" width="220" height="44" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.2"/>
+  <text x="345" y="188" text-anchor="middle">2. Extracción de texto</text>
+  <text x="345" y="204" text-anchor="middle" font-size="11" fill="#78350f">PdfPig · capa de texto, no OCR</text>
+
+  <rect x="235" y="222" width="220" height="44" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.2"/>
+  <text x="345" y="244" text-anchor="middle">3. Resumen extractivo</text>
+  <text x="345" y="260" text-anchor="middle" font-size="11" fill="#78350f">Frases relevantes del texto</text>
+
+  <rect x="235" y="278" width="220" height="44" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.2"/>
+  <text x="345" y="300" text-anchor="middle">4. Entidades y palabras clave</text>
+  <text x="345" y="316" text-anchor="middle" font-size="11" fill="#78350f">Reglas locales · sin embeddings</text>
+
+  <rect x="235" y="334" width="220" height="44" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.2"/>
+  <text x="345" y="356" text-anchor="middle">5. Persistencia transaccional</text>
+  <text x="345" y="372" text-anchor="middle" font-size="11" fill="#78350f">Metadatos y PDF en SQL Server</text>
+
+  <line x1="345" y1="94" x2="345" y2="110" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="345" y1="154" x2="345" y2="166" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="345" y1="210" x2="345" y2="222" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="345" y1="266" x2="345" y2="278" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="345" y1="322" x2="345" y2="334" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <!-- Persistencia -->
+  <rect x="520" y="150" width="150" height="90" rx="10" fill="#d1fae5" stroke="#059669" stroke-width="1.4"/>
+  <ellipse cx="595" cy="150" rx="75" ry="14" fill="#d1fae5" stroke="#059669" stroke-width="1.4"/>
+  <text x="595" y="190" text-anchor="middle" font-weight="bold">SQL Server Express</text>
+  <text x="595" y="208" text-anchor="middle" font-size="10.5" fill="#064e3b">documentos · bitácora</text>
+  <text x="595" y="223" text-anchor="middle" font-size="10.5" fill="#064e3b">usuarios · departamentos</text>
+
+  <!-- CONSUMO -->
+  <rect x="715" y="52" width="210" height="48" rx="6" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.2"/>
+  <text x="820" y="74" text-anchor="middle" font-weight="bold">Búsqueda inteligente</text>
+  <text x="820" y="90" text-anchor="middle" font-size="11" fill="#312e81">contextual por términos o exacta</text>
+
+  <rect x="715" y="112" width="210" height="48" rx="6" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.2"/>
+  <text x="820" y="134" text-anchor="middle" font-weight="bold">Visor de documento</text>
+  <text x="820" y="150" text-anchor="middle" font-size="11" fill="#312e81">PDF · texto · resumen · notas</text>
+
+  <rect x="715" y="172" width="210" height="48" rx="6" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.2"/>
+  <text x="820" y="194" text-anchor="middle" font-weight="bold">Gestión documental</text>
+  <text x="820" y="210" text-anchor="middle" font-size="11" fill="#312e81">editar · reproceso · borrar</text>
+
+  <rect x="715" y="232" width="210" height="48" rx="6" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.2"/>
+  <text x="820" y="254" text-anchor="middle" font-weight="bold">Dashboard ejecutivo</text>
+  <text x="820" y="270" text-anchor="middle" font-size="11" fill="#312e81">KPIs y gráficos</text>
+
+  <rect x="715" y="292" width="210" height="48" rx="6" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.2"/>
+  <text x="820" y="314" text-anchor="middle" font-weight="bold">Reportes y métricas</text>
+  <text x="820" y="330" text-anchor="middle" font-size="11" fill="#312e81">CSV · informe imprimible</text>
+
+  <!-- SEGURIDAD -->
+  <polygon points="1015,52 1205,52 1220,80 1205,108 1015,108 1000,80" fill="#fee2e2" stroke="#dc2626" stroke-width="1.4"/>
+  <text x="1110" y="74" text-anchor="middle" font-weight="bold">Barrera RBAC + confidencialidad</text>
+  <text x="1110" y="92" text-anchor="middle" font-size="10.5" fill="#7f1d1d">permisos por rol · regla de descarga</text>
+
+  <ellipse cx="1110" cy="160" rx="90" ry="24" fill="#fee2e2" stroke="#dc2626" stroke-width="1.4"/>
+  <text x="1110" y="165" text-anchor="middle" font-weight="bold">Acceso denegado</text>
+
+  <rect x="1000" y="230" width="220" height="72" rx="8" fill="#fee2e2" stroke="#dc2626" stroke-width="1.4"/>
+  <text x="1110" y="252" text-anchor="middle" font-weight="bold">Bitácora de auditoría</text>
+  <text x="1110" y="270" text-anchor="middle" font-size="11" fill="#7f1d1d">evento · usuario · rol · hora</text>
+  <text x="1110" y="286" text-anchor="middle" font-size="11" fill="#7f1d1d">exportable a CSV</text>
+
+  <!-- Conexiones -->
+  <path d="M176 176 H205 V72 H235" fill="none" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M455 356 H500 V195 H520" fill="none" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="505" y="348" font-size="10" fill="#475569">expediente indexado</text>
+
+  <path d="M106 220 V455 H1290 V80 H1220" fill="none" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="430" y="448" text-anchor="middle" font-size="11" font-style="italic" fill="#475569">todas las acciones pasan por el control RBAC</text>
+
+  <line x1="1000" y1="80" x2="925" y2="80" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="962" y="70" text-anchor="middle" font-size="10.5" fill="#059669">permitido</text>
+
+  <line x1="1110" y1="108" x2="1110" y2="136" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="1110" y1="184" x2="1110" y2="230" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="1122" y="212" font-size="10" fill="#b91c1c">ACCESS_DENIED</text>
+
+  <path d="M925 314 H960 V266 H1000" fill="none" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="968" y="300" font-size="10" fill="#475569">evento registrado</text>
+
+  <path d="M715 76 H600 V150" fill="none" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="657" y="68" text-anchor="middle" font-size="10.5" fill="#475569">consulta</text>
+
+  <path d="M715 136 H685 V180 H670" fill="none" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M715 196 H695 V215 H670" fill="none" stroke="#64748b" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <path d="M560 240 V316 H715" fill="none" stroke="#94a3b8" stroke-width="1.3" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+  <text x="620" y="308" font-size="10" fill="#64748b">lectura de KPIs</text>
+
+  <!-- Leyenda -->
+  <rect x="214" y="472" width="14" height="14" rx="3" fill="#fef3c7" stroke="#d97706"/>
+  <text x="234" y="483" font-size="11" fill="#475569">Procesamiento local real</text>
+  <rect x="420" y="472" width="14" height="14" rx="3" fill="#e0e7ff" stroke="#4f46e5"/>
+  <text x="440" y="483" font-size="11" fill="#475569">Implementado (UI y reglas de negocio)</text>
+  <rect x="680" y="472" width="14" height="14" rx="3" fill="#fee2e2" stroke="#dc2626"/>
+  <text x="700" y="483" font-size="11" fill="#475569">Seguridad y auditoría</text>
+  <rect x="880" y="472" width="14" height="14" rx="3" fill="#d1fae5" stroke="#059669"/>
+  <text x="900" y="483" font-size="11" fill="#475569">Persistencia SQL Server (Windows)</text>
+</svg>

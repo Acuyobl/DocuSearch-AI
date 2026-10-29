@@ -1,0 +1,41 @@
+@inject WorkspaceState State
+@inject DocumentService Service
+<div class="modal-backdrop">
+    <section class="modal form-modal metadata-modal" role="dialog" aria-modal="true" aria-labelledby="metadata-title">
+        <div class="dialog-heading"><span class="dialog-icon"><AppIcon Name="edit" /></span><div><h2 id="metadata-title">Editar Metadatos de Expediente</h2><p>Clasificación, confidencialidad y etiquetas</p><span class="badge code">@Document.InternalCode</span></div><button class="icon-button" aria-label="Cerrar" title="Cerrar" @onclick="OnClose" disabled="@State.Busy"><AppIcon Name="close" /></button></div>
+        <EditForm Model="Document" OnValidSubmit="Save">
+            <DataAnnotationsValidator /><ValidationSummary />
+            <div class="dialog-body"><div class="form-grid">
+                <label class="wide">Título<InputText @bind-Value="Document.Title" /></label>
+                <label>Autor<InputText @bind-Value="Document.Author" /></label>
+                <label>Departamento<InputSelect @bind-Value="Document.Department">
+                    @foreach (var d in State.Data!.Departments.Where(d => State.Data.Actor.Role != "admin_depto" || d.Name == State.Data.Actor.Department)) { <option>@d.Name</option> }
+                </InputSelect></label>
+                <label>Categoría<InputSelect @bind-Value="Document.Category">@foreach (var c in Catalog.Categories) { <option>@c</option> }</InputSelect></label>
+                <label>Confidencialidad<InputSelect @bind-Value="Document.Confidentiality">@foreach (var c in Permissions.ReadableLevels(State.Data!.Actor)) { <option>@c</option> }</InputSelect></label>
+                <label>Versión<InputText @bind-Value="Document.Version" /></label>
+                <label class="wide">Resumen ejecutivo<InputTextArea @bind-Value="Document.ExecutiveSummary" rows="5" /></label>
+                <label class="wide">Palabras clave, separadas por coma<input @bind="keywords" /></label>
+                <label class="wide">Etiquetas, separadas por coma<input @bind="tags" /></label>
+            </div>
+            @if (State.Error is not null) { <div class="alert error" role="alert">@State.Error</div> }
+            </div>
+            <div class="modal-footer"><button type="button" @onclick="OnClose" disabled="@State.Busy">Cancelar</button><button class="primary" disabled="@State.Busy"><AppIcon Name="check" />Guardar cambios</button></div>
+        </EditForm>
+    </section>
+</div>
+@code {
+    [Parameter, EditorRequired] public DocumentItem Document { get; set; } = default!;
+    [Parameter] public EventCallback OnClose { get; set; }
+    private string keywords = "";
+    private string tags = "";
+    protected override void OnInitialized() { keywords = string.Join(", ", Document.Keywords); tags = string.Join(", ", Document.Tags); }
+    private Task Save() => State.RunAsync(async () =>
+    {
+        Document.Keywords = keywords.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        Document.Tags = tags.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        await Service.EditAsync(Document);
+        await State.RefreshAsync();
+        await OnClose.InvokeAsync();
+    }, "Metadatos actualizados.");
+}

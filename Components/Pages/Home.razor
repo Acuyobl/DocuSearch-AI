@@ -1,0 +1,185 @@
+﻿@page "/"
+
+@page "/dashboard"
+@page "/management"
+@page "/pipeline"
+@page "/search"
+@page "/agent"
+@page "/reports"
+@page "/audit"
+@page "/rbac"
+@page "/architecture"
+@page "/observability"
+@implements IDisposable
+@inject WorkspaceState State
+@inject DocumentService Documents
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject LocalSession Session
+
+<PageTitle>@Title — DocuSearch AI</PageTitle>
+<div class="app-shell">
+    <header class="topbar">
+        <a class="brand" href="/"><span class="brand-mark"><AppIcon Name="document" /></span><span><strong>DocuSearch <em>AI</em><span class="edition">Enterprise · .NET</span></strong><small><span class="status-dot"></span> Extracción PDF &amp; búsqueda documental local</small></span></a>
+        <div class="toolbar">
+            <button class="icon-button theme-button" title="Cambiar tema" aria-label="Cambiar tema" @onclick="ToggleTheme"><AppIcon Name="theme" /></button>
+            @if (State.Profiles.Count > 0)
+            {
+                <label class="profile @State.Data?.Actor.Role"><span><AppIcon Name="audit" /> Rol Activo RBAC:</span>
+                    <select aria-label="Perfil RBAC" value="@Session.UserId" @onchange="SwitchProfile" disabled="@State.Busy">
+                        <option value="" disabled>Selecciona un perfil activo</option>
+                        @foreach (var user in State.Profiles)
+                        {
+                            <option value="@user.Id">@Catalog.RoleLabel(user.Role) — @user.Name</option>
+                        }
+                    </select>
+                </label>
+            }
+            @if (State.Data is { } snapshot && Permissions.CanWrite(snapshot.Actor))
+                {
+                    <button class="primary upload-button" aria-label="Cargar expediente" title="Cargar expediente" disabled="@State.Busy" @onclick="() => uploadOpen = true"><AppIcon Name="upload" /><span>Cargar expediente</span></button>
+                }
+            <span class="profile-avatar" title="Demostración local: el selector de perfiles no es autenticación"><AppIcon Name="user" /></span>
+        </div>
+    </header>
+    <aside class="sidebar @(collapsed ? "collapsed" : "")">
+        <div class="sidebar-heading"><button class="collapse icon-button" aria-label="Contraer menú" title="Mostrar u ocultar menú" aria-expanded="@(!collapsed)" @onclick="() => collapsed = !collapsed"><AppIcon Name="menu" /></button></div>
+        <nav aria-label="Módulos">
+            @foreach (var entry in Menu)
+            {
+                var allowed = Allowed(entry.Key);
+                <NavLink href="@(entry.Key == "dashboard" ? "/" : "/" + entry.Key)" Match="NavLinkMatch.All" class="@($"{(Current == entry.Key ? "active" : "")} {(!allowed ? "restricted" : "")}")" title="@entry.Label">
+                    <span class="nav-symbol"><AppIcon Name="@entry.Key" /></span><span class="nav-label">@entry.Label</span>
+                    @if (!allowed) { <span class="nav-label restricted-label">Restringido</span> }
+                </NavLink>
+            }
+        </nav>
+        <div class="sidebar-bottom">
+            <small><span class="status-dot"></span> Demostración local<br />Blazor · SQL Server Express</small>
+        </div>
+    </aside>
+    <main id="main-content">
+        @if (State.Busy) { <div class="busy" role="status">Procesando operación…</div> }
+        @if (State.Error is not null) { <div class="alert error" role="alert">@State.Error</div> }
+        @if (State.Notice is not null) { <div class="alert success" role="status">@State.Notice</div> }
+        @if (State.Data is null)
+        {
+            <section class="panel setup">
+                @if (State.Profiles.Count > 0)
+                {
+                    <h1>Selecciona un perfil activo</h1><p>Usa el selector superior para entrar con otro perfil local. El perfil anterior puede haber sido desactivado.</p>
+                }
+                else
+                {
+                <span class="eyebrow">Configuración inicial</span><h1>Conecta tu base SQL Server</h1>
+                <p>La aplicación no guarda expedientes en memoria ni simula una conexión exitosa.</p>
+                <ol>
+                    <li>Comprueba que la instancia <code>ICEPALFLOR\SQLEXPRESS</code> esté disponible y admita tu usuario de Windows.</li>
+                    <li>Revisa <code>ConnectionStrings:Documents</code>; la base configurada es <code>DocuSearch</code>.</li>
+                    <li>Ejecuta <code>dotnet run -- --initialize-database</code> y vuelve a conectar.</li>
+                </ol>
+                <button class="primary" @onclick="Reload" disabled="@State.Busy">Comprobar conexión</button>
+                <a class="button" href="migrate.html">Recuperar datos del navegador anterior</a>
+                }
+            </section>
+        }
+        else if (!Allowed(Current))
+        {
+            <section class="panel"><h1>Acceso restringido</h1><p>Tu perfil no puede acceder a este módulo.</p></section>
+        }
+        else
+        {
+            @switch (Current)
+            {
+                case "dashboard": <Dashboard OnView="OpenViewer" OnUpload="() => uploadOpen = true" /> break;
+                case "management": <DocumentManagement OnView="OpenViewer" OnEdit="OpenEditor" OnUpload="() => uploadOpen = true" /> break;
+                case "pipeline": <Pipeline /> break;
+                case "search": <Search OnView="OpenHit" OpenAssistant="@IsAgentRoute" /> break;
+                case "reports": <Reports /> break;
+                case "audit": <Audit /> break;
+                case "observability": <Observability /> break;
+                case "rbac": <Administration /> break;
+                case "architecture": <Architecture /> break;
+                default: <section class="panel"><h2>Módulo no encontrado</h2><a href="/">Volver al dashboard</a></section> break;
+            }
+        }
+    </main>
+</div>
+@if (uploadOpen && State.Data is not null) { <UploadDialog OnClose="() => uploadOpen = false" /> }
+@if (editing is not null) { <MetadataDialog Document="editing" OnClose="() => editing = null" /> }
+@if (viewing is not null)
+{
+    <DocumentViewer @key="viewing.Id" Document="viewing" InitialPage="viewPage" OnClose="() => viewing = null" />
+}
+
+@code {
+    private bool collapsed;
+    private bool uploadOpen;
+    private DocumentItem? editing;
+    private DocumentItem? viewing;
+    private int viewPage = 1;
+    private string Current
+    {
+        get
+        {
+            var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/').ToLowerInvariant();
+            return path.Length == 0 ? "dashboard" : path == "agent" ? "search" : path;
+        }
+    }
+    private bool IsAgentRoute => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/').Equals("agent", StringComparison.OrdinalIgnoreCase);
+    private string Title => Menu.FirstOrDefault(m => m.Key == Current).Label ?? "DocuSearch";
+    private string Subtitle => Current switch
+    {
+        "dashboard" => "Visión integral de tus expedientes, actividad y almacenamiento.",
+        "management" => "Expedientes centralizados, metadatos y originales PDF.",
+        "search" => "Búsqueda documental y asistente IA local con fuentes por página.",
+        _ => "Operación y trazabilidad documental en SQL Server."
+    };
+    private static readonly (string Key, string Label)[] Menu = [
+        ("dashboard", "Dashboard"), ("management", "Documentos"), ("pipeline", "Pipeline"),
+        ("search", "Buscador"), ("reports", "Reportes"),
+        ("audit", "Auditoría"), ("observability", "Observabilidad"), ("rbac", "Administración"), ("architecture", "Arquitectura")
+    ];
+    protected override async Task OnInitializedAsync()
+    {
+        State.Changed += OnChanged;
+        Navigation.LocationChanged += OnLocationChanged;
+        await Reload();
+    }
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    private bool Allowed(string section) => State.Data is not { } snapshot || section switch
+    {
+        "audit" => Permissions.CanAudit(snapshot.Actor),
+        "observability" => Permissions.CanAudit(snapshot.Actor),
+        "rbac" => Permissions.CanAdmin(snapshot.Actor),
+        _ => true
+    };
+    private Task Reload() => State.RunAsync(State.RefreshAsync);
+    private Task ToggleTheme() => JS.InvokeVoidAsync("docusearch.toggleTheme").AsTask();
+    private Task SwitchProfile(ChangeEventArgs args) => State.RunAsync(async () =>
+    {
+        await Documents.SwitchProfileAsync(args.Value?.ToString() ?? throw new ValidationException("Selecciona un perfil."));
+        uploadOpen = false;
+        editing = null;
+        viewing = null;
+        await State.RefreshAsync();
+        Navigation.NavigateTo("/");
+    });
+    private Task OpenViewer(string id) => OpenDocument(id, 1);
+    private Task OpenHit(SearchHit hit) => OpenDocument(hit.Document.Id, hit.PageNumber);
+    private Task OpenDocument(string id, int page) => State.RunAsync(async () =>
+    {
+        viewing = await Documents.ViewAsync(id);
+        viewPage = page;
+        await State.RefreshAsync();
+    });
+    private void OpenEditor(DocumentItem doc) => editing = System.Text.Json.JsonSerializer.Deserialize<DocumentItem>(
+        System.Text.Json.JsonSerializer.Serialize(doc, Catalog.Json), Catalog.Json)
+        ?? throw new InvalidDataException("No se pudieron copiar los metadatos.");
+    public void Dispose()
+    {
+        State.Changed -= OnChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}

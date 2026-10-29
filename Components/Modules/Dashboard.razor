@@ -1,0 +1,66 @@
+@inject WorkspaceState State
+<div class="module-page executive-dashboard">
+    <ModuleHeading Banner="true" Icon="dashboard" Badge="Plataforma Documental IDMS · Operación local" Title="Panel Ejecutivo de Control Documental" Description="Monitoreo de ingesta de expedientes, extracción de texto y trazabilidad de seguridad corporativa. Indicadores del catálogo autorizado para tu perfil.">
+        <a class="button" href="/search"><AppIcon Name="search" />Buscar documentos</a>
+        @if (Permissions.CanWrite(State.Data!.Actor)) { <button class="primary" @onclick="OnUpload"><AppIcon Name="upload" />Cargar PDF</button> }
+    </ModuleHeading>
+    <div class="metrics executive-metrics">
+        <article class="metric"><div><span>Total Expedientes</span><strong>@Docs.Count <small>(@Docs.Sum(d => d.PageCount) págs)</small></strong><small>Accesibles según RBAC</small></div><span class="kpi-icon"><AppIcon Name="document" /></span></article>
+        <article class="metric"><div><span>Extracción Completada</span><strong>@(Docs.Count == 0 ? 0 : 100 * Docs.Count(d => d.OcrStatus == "Completado") / Docs.Count)%</strong><small>@Docs.Count(d => d.OcrStatus == "Requiere OCR") requieren OCR de imágenes</small></div><span class="kpi-icon green"><AppIcon Name="check" /></span></article>
+        <article class="metric"><div><span>Páginas con Texto</span><strong>@Docs.Sum(d => d.Pages.Count(p => !string.IsNullOrWhiteSpace(p.ExtractedText)))</strong><small>Texto extraído o de referencia</small></div><span class="kpi-icon purple"><AppIcon Name="document" /></span></article>
+        <article class="metric"><div><span>Originales Almacenados</span><strong>@((Docs.Where(d => d.HasOriginal).Sum(d => d.FileSizeBytes) / 1048576d).ToString("N1")) <small>MB</small></strong><small>@Docs.Count(d => d.HasOriginal) PDF en SQL Server</small></div><span class="kpi-icon amber"><AppIcon Name="storage" /></span></article>
+    </div>
+    <div class="grid two">
+        <section class="panel"><div class="section-heading"><div><h2>Distribución por Departamentos</h2><p>Volumen de expedientes por área</p></div><span class="badge">@Docs.Select(d => d.Department).Distinct().Count() áreas</span></div>
+            @foreach (var group in Docs.GroupBy(d => d.Department).OrderByDescending(g => g.Count()))
+            {
+                <div class="bar-row"><span>@group.Key</span><small>@group.Count() archivos (@Percent(group.Count())%)</small></div>
+                <progress value="@group.Count()" max="@Math.Max(1, Docs.Count)" aria-label="@group.Key"></progress>
+            }
+            @if (Docs.Count == 0) { <p class="empty">No hay documentos accesibles.</p> }
+        </section>
+        <section class="panel category-panel"><div class="section-heading"><div><h2><AppIcon Name="reports" />Documentos por Categoría</h2><p>Clasificación temática del catálogo</p></div><span class="badge">Taxonomía documental</span></div>
+            @foreach (var group in Docs.GroupBy(d => d.Category).OrderByDescending(g => g.Count()))
+            {
+                <div class="bar-row"><span>@group.Key</span><small>@group.Count() docs (@Percent(group.Count())%)</small></div>
+                <progress value="@group.Count()" max="@Math.Max(1, Docs.Count)" aria-label="@group.Key"></progress>
+            }
+        </section>
+    </div>
+    <div class="dashboard-lower">
+        <section class="panel"><h2><AppIcon Name="reports" />Tendencia de Ingesta</h2><p>Últimos meses con cargas registradas</p>
+            <div class="ingestion-chart">
+                @foreach (var group in Ingestion)
+                {
+                    <div><strong>@group.Count()</strong><div class="chart-track"><div style="height: @((100d * group.Count() / Math.Max(1, Ingestion.Max(g => g.Count()))).ToString("0.##", CultureInfo.InvariantCulture))%"></div></div><small>@group.Key</small></div>
+                }
+            </div>
+            <small>Fechas reales de carga; sin tendencias simuladas.</small>
+        </section>
+        <section class="panel ranking-panel"><div class="section-heading"><div><h2><AppIcon Name="eye" />Documentos Más Consultados</h2><p>Expedientes con mayor actividad de lectura y descargas</p></div><a href="/management">Ver todos →</a></div>
+            @{ var rank = 0; }
+            @foreach (var doc in Docs.OrderByDescending(d => d.ViewsCount + d.DownloadsCount).Take(5))
+            {
+                rank++;
+                <button class="ranked-document" @onclick="() => OnView.InvokeAsync(doc.Id)"><span class="rank-number">@(rank)</span><span class="rank-copy"><small class="code">@doc.InternalCode</small><strong>@doc.Title</strong><small>@doc.Department</small></span><span class="rank-count"><span><AppIcon Name="eye" />@doc.ViewsCount</span><span><AppIcon Name="download" />@doc.DownloadsCount</span></span></button>
+            }
+        </section>
+    </div>
+    <section class="panel"><div class="section-heading"><div><h2><AppIcon Name="storage" />Almacenamiento por Departamento</h2><p>Uso de originales accesibles y cuotas asignadas</p></div><a href="/reports">Ver reportes →</a></div>
+        <div class="grid two">
+            @foreach (var dept in State.Data!.Departments)
+            {
+                var used = Docs.Where(d => d.Department == dept.Name && d.HasOriginal).Sum(d => d.FileSizeBytes) / 1048576d;
+                <div><div class="bar-row"><span>@dept.Name</span><small>@used.ToString("N1") / @dept.AllocatedStorageMB MB</small></div><progress value="@used" max="@dept.AllocatedStorageMB" aria-label="@dept.Name"></progress></div>
+            }
+        </div>
+        <small>Las cuotas se verifican globalmente en servidor. Las cifras visibles respetan tu perfil.</small>
+    </section>
+</div>
+@code {
+    [Parameter] public EventCallback<string> OnView { get; set; }
+    [Parameter] public EventCallback OnUpload { get; set; }
+    private List<DocumentItem> Docs => State.Data!.Documents;
+    private List<IGrouping<string, DocumentItem>> Ingestion => Docs.GroupBy(d => d.UploadDate.ToString("yyyy-MM")).OrderBy(g => g.Key).TakeLast(6).ToList();
+    private int Percent(int count) => (int)Math.Round(100d * count / Math.Max(1, Docs.Count));
+}

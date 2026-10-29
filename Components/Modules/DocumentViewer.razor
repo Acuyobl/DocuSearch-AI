@@ -1,0 +1,128 @@
+@implements IAsyncDisposable
+@inject WorkspaceState State
+@inject DocumentService Service
+@inject IJSRuntime JS
+@inject ILogger<DocumentViewer> Logger
+<div class="modal-backdrop viewer-backdrop">
+    <section class="modal viewer" role="dialog" aria-modal="true" aria-labelledby="viewer-title">
+        <div class="viewer-header">
+            <div class="viewer-heading"><span class="badge code">@Document.InternalCode</span><div><h2 id="viewer-title">@Document.Title</h2><small>Por @Document.Author · @Document.Department</small></div></div>
+            <div class="segmented-control"><button aria-pressed="@(viewMode == "pdf")" class="@(viewMode == "pdf" ? "active" : "")" @onclick='() => viewMode = "pdf"'><AppIcon Name="document" />Documento PDF</button><button aria-pressed="@(viewMode == "text")" class="@(viewMode == "text" ? "active" : "")" @onclick='() => viewMode = "text"'>Texto Extraído</button></div>
+            <div class="toolbar viewer-actions">
+                @if (Document.HasOriginal && Permissions.CanDownload(State.Data!.Actor, Document)) { <button disabled="@State.Busy" @onclick="Download"><AppIcon Name="download" />Descargar original</button> }
+                <button class="icon-button" title="Cerrar" aria-label="Cerrar" @onclick="OnClose" disabled="@State.Busy"><AppIcon Name="close" /></button>
+            </div>
+        </div>
+        <div class="viewer-workspace">
+        <section class="viewer-document" aria-label="Documento y páginas">
+            <div class="toolbar page-controls">
+                <button aria-label="Página anterior" disabled="@(page <= 1)" @onclick="() => page--">←</button><label class="inline">Página <input type="number" min="1" max="@Document.PageCount" @bind="page" @bind:after="ClampPage" /></label><span>de @Document.PageCount</span><button aria-label="Página siguiente" disabled="@(page >= Document.PageCount)" @onclick="() => page++">→</button>
+                <label class="inline">Zoom <select @bind="zoom">@foreach (var z in new[] { 75, 100, 125, 150, 200 }) { <option value="@z">@z%</option> }</select></label>
+            </div>
+            <div class="viewer-canvas">
+            @if (viewMode == "pdf")
+            {
+                @if (pdfUrl is not null) { <iframe title="PDF original" src="@($"{pdfUrl}#page={page}&zoom={zoom}")"></iframe> }
+                else { <p class="empty">@(Document.HasOriginal ? "El PDF no pudo cargarse. Revisa el mensaje de error." : "Este expediente de ejemplo no incluye un PDF original. Consulta las páginas de texto disponibles.")</p> }
+            }
+            else
+            {
+                var current = Document.Pages.FirstOrDefault(p => p.PageNumber == page);
+                @if (current is null || string.IsNullOrWhiteSpace(current.ExtractedText))
+                { <p class="empty">No hay texto extraído para esta página. Puede requerir OCR de imágenes o ser una página no incluida en los datos de ejemplo.</p> }
+                else { <div class="paper preserve" style="font-size: @((zoom / 100d).ToString(CultureInfo.InvariantCulture))rem">@current.ExtractedText</div> }
+            }
+            </div>
+            <div class="viewer-document-footer"><span class="badge">@Document.Confidentiality</span><small>@Document.OcrStatus · @Document.Version · Lectura según perfil RBAC</small></div>
+        </section>
+        <aside class="viewer-inspector" aria-label="Información del expediente">
+        <div class="tabs" role="tablist" aria-label="Contenido del expediente">
+            @foreach (var tab in Tabs)
+            { <button role="tab" aria-selected="@(activeTab == tab.Key)" class="@(activeTab == tab.Key ? "active" : "")" @onclick="() => activeTab = tab.Key">@tab.Label</button> }
+        </div>
+        <div class="viewer-body">
+        @switch (activeTab)
+        {
+            case "summary":
+                <h3>Resumen extractivo</h3><p class="preserve">@Document.ExecutiveSummary</p>
+                <div class="suggestions">@foreach (var keyword in Document.Keywords) { <span class="badge">@keyword</span> }</div>
+                @foreach (var p in Document.Pages)
+                { <button class="list-row" @onclick="() => GoPage(p.PageNumber)"><span><small>Página @p.PageNumber</small>@p.Summary</span><span>→</span></button> }
+                break;
+            case "entities":
+                <div class="table-scroll"><table><thead><tr><th>Entidad</th><th>Tipo</th><th>Página</th></tr></thead><tbody>
+                    @foreach (var entity in Document.Pages.SelectMany(p => p.Entities))
+                    { <tr><td>@entity.Text</td><td><span class="badge">@entity.Type</span></td><td><button @onclick="() => GoPage(entity.PageNumber)">@entity.PageNumber →</button></td></tr> }
+                </tbody></table></div>
+                <small>Detección por reglas; no sustituye una revisión documental.</small>
+                break;
+            case "notes":
+                <form @onsubmit="AddNote" @onsubmit:preventDefault>
+                    <label>Observación<textarea @bind="note" @bind:event="oninput" rows="3" maxlength="4000"></textarea></label>
+                    <div class="toolbar"><label class="inline">Página <input type="number" min="1" max="@Document.PageCount" @bind="notePage" /></label><button class="primary" disabled="@(State.Busy || string.IsNullOrWhiteSpace(note))">Añadir nota</button><button type="button" @onclick="Refresh" disabled="@State.Busy">Actualizar notas</button></div>
+                </form>
+                @foreach (var n in Document.Notes.OrderByDescending(n => n.CreatedAt))
+                { <article class="note"><small>@n.Author · @n.CreatedAt.ToLocalTime().ToString("g") · p. @n.PageNumber</small><p class="preserve">@n.Text</p></article> }
+                break;
+            case "metadata":
+                <dl class="metadata"><dt>Autor</dt><dd>@Document.Author</dd><dt>Categoría</dt><dd>@Document.Category</dd><dt>Carga</dt><dd>@Document.UploadDate.ToLocalTime().ToString("g")</dd>
+                <dt>Tamaño</dt><dd>@((Document.FileSizeBytes / 1048576d).ToString("N2")) MB</dd><dt>Estado</dt><dd>@Document.OcrStatus</dd><dt>SHA-256</dt><dd class="hash">@Document.Sha256Hash</dd>
+                <dt>Etiquetas</dt><dd>@string.Join(", ", Document.Tags)</dd><dt>Original</dt><dd>@(Document.HasOriginal ? "Almacenado en SQL Server" : "No incluido en el ejemplo")</dd></dl>
+                break;
+        }
+        </div>
+        </aside>
+        </div>
+        @if (State.Error is not null) { <div class="alert error" role="alert">@State.Error</div> }
+    </section>
+</div>
+@code {
+    [Parameter, EditorRequired] public DocumentItem Document { get; set; } = default!;
+    [Parameter] public int InitialPage { get; set; } = 1;
+    [Parameter] public EventCallback OnClose { get; set; }
+    private string activeTab = "summary";
+    private string viewMode = "text";
+    private string? pdfUrl;
+    private int page;
+    private int zoom = 100;
+    private string note = "";
+    private int notePage = 1;
+    private static readonly (string Key, string Label)[] Tabs = [("summary", "Resumen"), ("entities", "Entidades"), ("notes", "Notas"), ("metadata", "Ficha técnica")];
+    protected override void OnInitialized() { page = Math.Clamp(InitialPage, 1, Math.Max(1, Document.PageCount)); notePage = page; viewMode = Document.HasOriginal ? "pdf" : "text"; }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Document.HasOriginal)
+        {
+            await State.RunAsync(async () =>
+            {
+                var bytes = await Service.FileAsync(Document.Id, false);
+                using var reference = new DotNetStreamReference(new MemoryStream(bytes));
+                pdfUrl = await JS.InvokeAsync<string>("docusearch.blobUrl", reference, "application/pdf");
+            });
+            StateHasChanged();
+        }
+    }
+    private void ClampPage() => page = Math.Clamp(page, 1, Math.Max(1, Document.PageCount));
+    private void GoPage(int value) { page = value; viewMode = "text"; }
+    private Task Download() => State.RunAsync(async () =>
+    {
+        var bytes = await Service.FileAsync(Document.Id, true);
+        using var reference = new DotNetStreamReference(new MemoryStream(bytes));
+        await JS.InvokeVoidAsync("docusearch.download", reference, $"{Document.InternalCode}.pdf", "application/pdf");
+        await State.RefreshAsync();
+    });
+    private Task AddNote() => State.RunAsync(async () =>
+    {
+        await Service.AddNoteAsync(Document.Id, note, notePage);
+        note = "";
+        await State.RefreshAsync();
+        Document = State.Data!.Documents.Single(d => d.Id == Document.Id);
+    }, "Nota guardada.");
+    private Task Refresh() => State.RunAsync(async () => { await State.RefreshAsync(); Document = State.Data!.Documents.Single(d => d.Id == Document.Id); });
+    public async ValueTask DisposeAsync()
+    {
+        if (pdfUrl is null) return;
+        try { await JS.InvokeVoidAsync("docusearch.revokeUrl", pdfUrl); }
+        catch (JSDisconnectedException ex) { Logger.LogDebug(ex, "El navegador cerró el visor antes de liberar el PDF."); }
+    }
+}

@@ -1,0 +1,13 @@
+bin/
+obj/
+tests/bin/
+tests/obj/
+.vs/
+*.user
+*.suo
+appsettings.Local.json
+*.backup
+*.dump
+__pycache__/
+*.pyc
+.venv/

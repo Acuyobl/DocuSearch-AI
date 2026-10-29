@@ -1,0 +1,439 @@
+{
+  "documents": [
+    {
+      "id": "doc-001",
+      "internalCode": "CNT-2025-0892",
+      "title": "Contrato Marco de Servicios Cloud Multi-Nube (AWS & Azure)",
+      "author": "Dra. Elena Rostova - Dirección Legal",
+      "department": "Legal & Contratos",
+      "category": "Contrato",
+      "uploadDate": "2025-01-14T09:30:00Z",
+      "version": "v2.1",
+      "confidentiality": "Confidencial",
+      "ocrStatus": "Completado",
+      "sha256Hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fileSizeBytes": 4850120,
+      "pageCount": 14,
+      "executiveSummary": "Acuerdo de servicios cloud corporativo para la infraestructura híbrida de la organización por un monto de $450,000 USD anuales. Incluye cláusula estricta de SLA del 99.99%, encriptación de datos en reposo AES-256 y cumplimiento de GDPR / HIPAA.",
+      "keywords": [
+        "Contrato",
+        "AWS",
+        "Azure",
+        "SLA 99.99%",
+        "SaaS",
+        "Confidencial",
+        "GDPR",
+        "$450,000 USD"
+      ],
+      "tags": [
+        "Nube",
+        "Infraestructura",
+        "Legal",
+        "Vigente 2025-2028"
+      ],
+      "vectorEmbeddingsGenerated": true,
+      "viewsCount": 142,
+      "downloadsCount": 38,
+      "pages": [
+        {
+          "pageNumber": 1,
+          "extractedText": "CONTRATO MARCO DE PRESTACIÓN DE SERVICIOS EN LA NUBE. Conste por el presente documento el Contrato Marco suscrito entre la Organización y el Proveedor Cloud Solutions Corp en fecha 14 de Enero de 2025.",
+          "summary": "Identificación de las partes contratantes y objeto contractual.",
+          "entities": [
+            {
+              "id": "e1",
+              "text": "Cloud Solutions Corp",
+              "type": "ORGANIZATION",
+              "pageNumber": 1
+            },
+            {
+              "id": "e2",
+              "text": "14 de Enero de 2025",
+              "type": "DATE",
+              "pageNumber": 1
+            }
+          ]
+        },
+        {
+          "pageNumber": 4,
+          "extractedText": "CLÁUSULA QUINTA: PRECIO Y FORMA DE PAGO. El monto anual total del contrato asciende a $450,000 USD netos payable trimestralmente. La tasa de disponibilidad de servicio garantizada (SLA) será del 99.99% acumulado mensual.",
+          "summary": "Monto financiero de $450,000 USD y niveles de disponibilidad del 99.99%.",
+          "entities": [
+            {
+              "id": "e3",
+              "text": "$450,000 USD",
+              "type": "MONEY",
+              "pageNumber": 4
+            },
+            {
+              "id": "e4",
+              "text": "SLA 99.99%",
+              "type": "LAW",
+              "pageNumber": 4
+            }
+          ]
+        },
+        {
+          "pageNumber": 12,
+          "extractedText": "CLÁUSULA DECIMOMERCA: CONFIDENCIALIDAD Y AUDITORÍA DE SEGURIDAD. Toda la información procesada estará bajo cifrado de grado militar AES-256 en reposo y TLS 1.3 en tránsito.",
+          "summary": "Políticas de cifrado de datos y privacidad.",
+          "entities": [
+            {
+              "id": "e5",
+              "text": "AES-256",
+              "type": "LAW",
+              "pageNumber": 12
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "id": "n1",
+          "author": "Lic. Roberto Gómez",
+          "role": "Gestor Documental",
+          "createdAt": "2025-01-14T11:20:00Z",
+          "text": "Revisado por el equipo legal. Pendiente anexo 3 de seguridad.",
+          "pageNumber": 4
+        }
+      ]
+    },
+    {
+      "id": "doc-002",
+      "internalCode": "POL-2025-0012",
+      "title": "Política Corporativa de Seguridad de la Información ISO/IEC 27001:2022",
+      "author": "Ing. Carlos Mendoza - CISO",
+      "department": "Tecnología & TI",
+      "category": "Política & Norma",
+      "uploadDate": "2025-01-10T14:15:00Z",
+      "version": "v4.0",
+      "confidentiality": "Uso Interno",
+      "ocrStatus": "Completado",
+      "sha256Hash": "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
+      "fileSizeBytes": 2150000,
+      "pageCount": 28,
+      "executiveSummary": "Establece las directrices obligatorias de ciberseguridad, gestión de contraseñas de al menos 14 caracteres, autenticación multifactor (MFA), clasificación de activos digitales y protocolo de respuesta ante incidentes de fuga de datos.",
+      "keywords": [
+        "ISO 27001",
+        "Seguridad",
+        "Contraseñas",
+        "MFA",
+        "Fuga de Datos",
+        "CISO",
+        "TI"
+      ],
+      "tags": [
+        "Normativa",
+        "Cumplimiento",
+        "Obligatorio"
+      ],
+      "vectorEmbeddingsGenerated": true,
+      "viewsCount": 98,
+      "downloadsCount": 24,
+      "pages": [
+        {
+          "pageNumber": 1,
+          "extractedText": "POLÍTICA GENERAL DE SEGURIDAD DE LA INFORMACIÓN ISO 27001. Aprobada por el Comité Ejecutivo de Ciberseguridad el 10 de enero de 2025.",
+          "summary": "Aprobación oficial de la norma corporativa de ciberseguridad.",
+          "entities": [
+            {
+              "id": "e6",
+              "text": "ISO 27001",
+              "type": "LAW",
+              "pageNumber": 1
+            },
+            {
+              "id": "e7",
+              "text": "Ing. Carlos Mendoza",
+              "type": "PERSON",
+              "pageNumber": 1
+            }
+          ]
+        },
+        {
+          "pageNumber": 8,
+          "extractedText": "SECCIÓN 4.2: AUTENTICACIÓN Y ACCESO CON PRIVILEGIO MÍNIMO. Todo empleado debe contar con MFA activo. Las contraseñas deben expirar cada 90 días y contener mínimo 14 caracteres con mezcla de caracteres especiales.",
+          "summary": "Requisitos técnicos de autenticación multifactor y contraseñas.",
+          "entities": [
+            {
+              "id": "e8",
+              "text": "MFA",
+              "type": "LAW",
+              "pageNumber": 8
+            }
+          ]
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "doc-003",
+      "internalCode": "FIN-2024-Q4-01",
+      "title": "Informe Financiero Consolidado y Estados de Resultados Q4 2024",
+      "author": "C.P. Mariana Silva - Dirección de Finanzas",
+      "department": "Finanzas & Contabilidad",
+      "category": "Informe Financiero",
+      "uploadDate": "2025-01-20T16:45:00Z",
+      "version": "v1.0 Final",
+      "confidentiality": "Estrictamente Secreto",
+      "ocrStatus": "Completado",
+      "sha256Hash": "a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e",
+      "fileSizeBytes": 8900400,
+      "pageCount": 42,
+      "executiveSummary": "Resumen consolidado de ingresos, egresos y utilidad neta del cuarto trimestre de 2024. Reporta un crecimiento EBITDA del 18.5% comparado con el ejercicio anterior y proyecciones de inversión en IA por $1.2 millones USD.",
+      "keywords": [
+        "EBITDA",
+        "Finanzas",
+        "Q4 2024",
+        "Utilidad Neta",
+        "$1.2M USD",
+        "Balance"
+      ],
+      "tags": [
+        "Auditoría",
+        "Secreto Corporativo",
+        "Balance"
+      ],
+      "vectorEmbeddingsGenerated": true,
+      "viewsCount": 76,
+      "downloadsCount": 19,
+      "pages": [
+        {
+          "pageNumber": 1,
+          "extractedText": "REPORTE FINANCIERO CONSOLIDADO CUARTO TRIMESTRE 2024. Documento clasificado como Estrictamente Secreto para uso exclusivo del Consejo de Administración.",
+          "summary": "Presentación de balance financiero Q4 2024.",
+          "entities": [
+            {
+              "id": "e9",
+              "text": "Q4 2024",
+              "type": "DATE",
+              "pageNumber": 1
+            }
+          ]
+        },
+        {
+          "pageNumber": 15,
+          "extractedText": "ESTADO DE RESULTADOS: Los ingresos operativos totales alcanzaron los $12,450,000 USD con un EBITDA ajustado del 18.5%. Se asignará una partida presupuestaria de $1,200,000 USD para transformación digital con IA.",
+          "summary": "Ingresos de $12.45M y fondo de $1.2M para tecnología IA.",
+          "entities": [
+            {
+              "id": "e10",
+              "text": "$12,450,000 USD",
+              "type": "MONEY",
+              "pageNumber": 15
+            },
+            {
+              "id": "e11",
+              "text": "$1,200,000 USD",
+              "type": "MONEY",
+              "pageNumber": 15
+            }
+          ]
+        }
+      ],
+      "notes": [
+        {
+          "id": "n2",
+          "author": "Lic. Fernando Aranda",
+          "role": "Administrador General",
+          "createdAt": "2025-01-21T08:10:00Z",
+          "text": "Aprobado para presentación ante la junta directiva.",
+          "pageNumber": 1
+        }
+      ]
+    },
+    {
+      "id": "doc-004",
+      "internalCode": "RH-2025-REG-01",
+      "title": "Reglamento Interno de Trabajo, Código de Conducta y Teletrabajo 2025",
+      "author": "Lic. Sofía Alarcón - Gestión Humana",
+      "department": "Recursos Humanos",
+      "category": "Reglamento",
+      "uploadDate": "2025-01-05T10:00:00Z",
+      "version": "v3.2",
+      "confidentiality": "Público",
+      "ocrStatus": "Completado",
+      "sha256Hash": "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
+      "fileSizeBytes": 1800000,
+      "pageCount": 18,
+      "executiveSummary": "Normas de convivencia laboral, política de trabajo híbrido (3 días presenciales / 2 días remoto), horarios de atención, código de ética, políticas de diversidad e inclusión y procedimiento de reporte de incidencias.",
+      "keywords": [
+        "Recursos Humanos",
+        "Teletrabajo",
+        "Código de Ética",
+        "Horarios",
+        "Reglamento",
+        "Híbrido"
+      ],
+      "tags": [
+        "RRHH",
+        "Público",
+        "Normativa Interna"
+      ],
+      "vectorEmbeddingsGenerated": true,
+      "viewsCount": 64,
+      "downloadsCount": 12,
+      "pages": [
+        {
+          "pageNumber": 1,
+          "extractedText": "REGLAMENTO INTERNO DE TRABAJO 2025. Aplicable a todo el personal contratado por la organización a partir del 1 de Enero de 2025.",
+          "summary": "Generalidades y ámbito de aplicación del reglamento laboral.",
+          "entities": [
+            {
+              "id": "e12",
+              "text": "1 de Enero de 2025",
+              "type": "DATE",
+              "pageNumber": 1
+            }
+          ]
+        },
+        {
+          "pageNumber": 5,
+          "extractedText": "CAPÍTULO III: MODALIDAD DE TELETRABAJO Y TRABAJO HÍBRIDO. Los colaboradores podrán optar por el esquema de 3 días presenciales en oficina y 2 días de trabajo remoto, previa aprobación de su jefatura directa.",
+          "summary": "Definición del modelo laboral híbrido 3x2.",
+          "entities": []
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "doc-005",
+      "internalCode": "AUD-2025-DT-04",
+      "title": "Dictamen de Auditoría de Sistemas y Seguridad en Infraestructura Crítica",
+      "author": "Auditores Externos Deloitte & Touche",
+      "department": "Auditoría & Control",
+      "category": "Dictamen",
+      "uploadDate": "2025-01-18T11:15:00Z",
+      "version": "v1.0 Audit",
+      "confidentiality": "Confidencial",
+      "ocrStatus": "Completado",
+      "sha256Hash": "9876543210abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "fileSizeBytes": 3400000,
+      "pageCount": 22,
+      "executiveSummary": "Resultado de la evaluación de vulnerabilidades y pruebas de penetración (Ethical Hacking) ejecutadas en diciembre de 2024. Se identificaron 0 vulnerabilidades críticas, 2 altas remediadas y cumplimiento del 96.8% en marcos de control NIST.",
+      "keywords": [
+        "Auditoría",
+        "Pentest",
+        "Ethical Hacking",
+        "NIST",
+        "Vulnerabilidades",
+        "Deloitte"
+      ],
+      "tags": [
+        "Auditoría Externa",
+        "Seguridad",
+        "Dictamen"
+      ],
+      "vectorEmbeddingsGenerated": true,
+      "viewsCount": 115,
+      "downloadsCount": 45,
+      "pages": [
+        {
+          "pageNumber": 1,
+          "extractedText": "DICTAMEN DE AUDITORÍA INDEPENDIENTE DE TECNOLOGÍA. Realizado por Deloitte & Touche en fecha 18 de Enero de 2025.",
+          "summary": "Certificación de cumplimiento técnico y seguridad.",
+          "entities": [
+            {
+              "id": "e13",
+              "text": "Deloitte & Touche",
+              "type": "ORGANIZATION",
+              "pageNumber": 1
+            }
+          ]
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "users": [
+    {
+      "id": "usr-1",
+      "name": "Lic. Fernando Aranda",
+      "email": "fernando.aranda@empresa.com",
+      "role": "admin_general",
+      "department": "Tecnología & TI",
+      "lastActive": "Hace 2 minutos",
+      "status": "Activo"
+    },
+    {
+      "id": "usr-2",
+      "name": "Ing. Carlos Mendoza",
+      "email": "carlos.mendoza@empresa.com",
+      "role": "gestor_documental",
+      "department": "Tecnología & TI",
+      "lastActive": "Hace 15 minutos",
+      "status": "Activo"
+    },
+    {
+      "id": "usr-3",
+      "name": "Dra. Elena Rostova",
+      "email": "elena.rostova@empresa.com",
+      "role": "admin_depto",
+      "department": "Legal & Contratos",
+      "lastActive": "Hace 1 hora",
+      "status": "Activo"
+    },
+    {
+      "id": "usr-4",
+      "name": "Ana Belén Martínez",
+      "email": "ana.martinez@empresa.com",
+      "role": "consultor",
+      "department": "Recursos Humanos",
+      "lastActive": "Hace 3 horas",
+      "status": "Activo"
+    },
+    {
+      "id": "usr-5",
+      "name": "C.P. Mariana Silva",
+      "email": "mariana.silva@empresa.com",
+      "role": "auditor",
+      "department": "Auditoría & Control",
+      "lastActive": "Hace 5 minutos",
+      "status": "Activo"
+    }
+  ],
+  "departments": [
+    {
+      "id": "dept-1",
+      "name": "Legal & Contratos",
+      "lead": "Dra. Elena Rostova",
+      "userCount": 4,
+      "allocatedStorageMB": 10240
+    },
+    {
+      "id": "dept-2",
+      "name": "Tecnología & TI",
+      "lead": "Lic. Fernando Aranda",
+      "userCount": 8,
+      "allocatedStorageMB": 20480
+    },
+    {
+      "id": "dept-3",
+      "name": "Finanzas & Contabilidad",
+      "lead": "Mtro. Roberto Peña",
+      "userCount": 5,
+      "allocatedStorageMB": 15360
+    },
+    {
+      "id": "dept-4",
+      "name": "Recursos Humanos",
+      "lead": "Lic. Sofía Morales",
+      "userCount": 3,
+      "allocatedStorageMB": 8192
+    },
+    {
+      "id": "dept-5",
+      "name": "Auditoría & Control",
+      "lead": "C.P. Mariana Silva",
+      "userCount": 2,
+      "allocatedStorageMB": 5120
+    },
+    {
+      "id": "dept-6",
+      "name": "Operaciones",
+      "lead": "Ing. Javier Duarte",
+      "userCount": 6,
+      "allocatedStorageMB": 12288
+    }
+  ]
+}

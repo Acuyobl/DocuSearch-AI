@@ -1,0 +1,41 @@
+@inject WorkspaceState State
+@inject DocumentService Service
+@inject IJSRuntime JS
+<div class="module-page audit-page">
+    <ModuleHeading Icon="audit" Title="Bitácora de Auditoría (Audit Trail)" Description="Registro cronológico de lectura, ingesta, descargas y eventos de seguridad.">
+        <button class="primary" @onclick="Export" disabled="@State.Busy"><AppIcon Name="download" />Exportar Evidencia (.CSV)</button>
+    </ModuleHeading>
+<section class="panel audit-filters">
+    <div class="filters"><label>Buscar<input @bind="text" @bind:event="oninput" placeholder="Usuario, detalle o expediente" /></label>
+        <label>Acción<select @bind="action"><option value="">Todas</option>@foreach (var a in State.Data!.Audit.Select(a => a.Action).Distinct().Order()) { <option>@a</option> }</select></label>
+        <label>Estado<select @bind="status"><option value="">Todos</option><option>EXITOSO</option><option>DENEGADO</option><option>ADVERTENCIA</option></select></label>
+        <label>Desde<input type="date" @bind="since" /></label><label>Hasta<input type="date" @bind="until" /></label>
+    </div>
+    <small>Últimos 1000 eventos. La exportación consulta todo el historial con estos filtros.</small>
+</section>
+<section class="panel audit-log">
+    <div class="table-scroll"><table class="module-table"><thead><tr><th>Marca de Tiempo UTC</th><th>Usuario &amp; Rol</th><th>Acción</th><th>Expediente</th><th>Detalles del Evento</th><th>Resultado</th></tr></thead><tbody>
+        @foreach (var entry in Filter(State.Data!.Audit).Take(limit))
+        { <tr><td>@entry.TimestampUTC.ToString("yyyy-MM-dd HH:mm:ss")</td><td>@entry.UserName<small>@(entry.UserRole == "system" ? "Sistema" : Catalog.RoleLabel(entry.UserRole))</small></td><td><span class="badge">@entry.Action</span></td><td class="code">@entry.DocumentCode</td><td>@entry.Details</td><td><span class="badge @(entry.Status == "DENEGADO" ? "warning" : "success")">@entry.Status</span></td></tr> }
+    </tbody></table></div>
+    @if (!Filter(State.Data!.Audit).Any()) { <p class="empty">No hay eventos con estos filtros.</p> }
+    @if (Filter(State.Data!.Audit).Count() > limit) { <button @onclick="() => limit += 50">Mostrar más eventos</button> }
+    <small>El restablecimiento de datos no elimina esta bitácora. Un administrador de la base puede modificarla: no equivale a un registro criptográficamente inmutable.</small>
+</section>
+</div>
+@code {
+    private string text = "", action = "", status = "";
+    private DateTime? since, until;
+    private int limit = 50;
+    private IEnumerable<AuditEvent> Filter(IEnumerable<AuditEvent> rows) => rows.Where(a =>
+        (text.Length == 0 || TextAnalysis.Normalize($"{a.UserName} {a.Details} {a.DocumentCode}").Contains(TextAnalysis.Normalize(text))) &&
+        (action.Length == 0 || a.Action == action) && (status.Length == 0 || a.Status == status) &&
+        (since is null || a.TimestampUTC.UtcDateTime.Date >= since.Value.Date) &&
+        (until is null || a.TimestampUTC.UtcDateTime.Date <= until.Value.Date));
+    private Task Export() => State.RunAsync(async () =>
+    {
+        var rows = await Service.ExportAuditAsync();
+        using var reference = new DotNetStreamReference(new MemoryStream(ReportExport.AuditCsv(Filter(rows))));
+        await JS.InvokeVoidAsync("docusearch.download", reference, "auditoria-docusearch.csv", "text/csv;charset=utf-8");
+    });
+}

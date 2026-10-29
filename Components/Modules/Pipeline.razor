@@ -1,0 +1,36 @@
+@inject WorkspaceState State
+@inject DocumentService Service
+<div class="module-page">
+    <ModuleHeading Banner="true" Icon="pipeline" Badge="Motor de Ingesta Documental Local" Title="Pipeline de Procesamiento Documental" Description="Monitor de validación, extracción de texto, resúmenes y almacenamiento de expedientes.">
+        <div class="system-status"><span class="status-dot"></span><div><strong>Procesamiento local</strong><small>PdfPig · SQL Server</small></div></div>
+    </ModuleHeading>
+    <section class="panel"><h2><AppIcon Name="pipeline" />Fases del Pipeline de Procesamiento</h2>
+        <div class="pipeline-steps">
+            @foreach (var step in Steps)
+            {
+                <article class="pipeline-stage"><span>FASE @step.Number</span><h3><AppIcon Name="@step.Icon" />@step.Title</h3><p>@step.Description</p></article>
+            }
+        </div>
+        <small>Los escaneos sin capa de texto se marcan «Requiere OCR». No se generan embeddings ni se simula OCR de imágenes.</small>
+    </section>
+    <section class="panel"><div class="section-heading"><h2>Ingesta &amp; Procesamiento Registrado</h2><span class="badge">@State.Data!.Documents.Count expedientes</span></div>
+        <div class="table-scroll"><table class="module-table"><thead><tr><th>Código</th><th>Documento</th><th>Páginas</th><th>Estado de extracción</th><th>Integridad SHA-256</th><th>Reprocesar</th></tr></thead><tbody>
+            @foreach (var doc in State.Data.Documents)
+            {
+                <tr><td class="code">@doc.InternalCode</td><td>@doc.Title<small>@(doc.HasOriginal ? "Original en SQL Server" : "Ejemplo sin PDF original")</small></td><td>@doc.PageCount págs</td><td><span class="repository-status @(doc.OcrStatus == "Completado" ? "complete" : "needs-ocr")"><AppIcon Name="@(doc.OcrStatus == "Completado" ? "check" : "refresh")" />@doc.OcrStatus</span></td><td><code class="hash">@doc.Sha256Hash</code></td>
+                    <td><button class="icon-button" aria-label="Reprocesar" title="@(doc.HasOriginal ? "Reprocesar texto y análisis" : "Ejemplo sin PDF original")" disabled="@(State.Busy || !doc.HasOriginal || !Permissions.CanWrite(State.Data.Actor))" @onclick="() => Reprocess(doc.Id)"><AppIcon Name="refresh" /></button></td></tr>
+            }
+        </tbody></table></div>
+        @if (State.Data.Documents.Count == 0) { <p class="empty">No hay expedientes accesibles.</p> }
+    </section>
+</div>
+@code {
+    private static readonly (string Number, string Icon, string Title, string Description)[] Steps = [
+        ("01", "audit", "Validación PDF", "Cabecera, tamaño y límites de páginas antes de procesar."),
+        ("02", "document", "Extracción de Texto", "Lectura de la capa de texto por página mediante PdfPig."),
+        ("03", "agent", "Resumen & Entidades", "Resúmenes extractivos y detección de entidades por reglas."),
+        ("04", "lock", "Integridad SHA-256", "Firma del contenido original para verificar su integridad."),
+        ("05", "storage", "Persistencia SQL Server", "PDF, metadatos y auditoría bajo una transacción.")
+    ];
+    private Task Reprocess(string id) => State.RunAsync(async () => { await Service.ReprocessAsync(id); await State.RefreshAsync(); }, "PDF reprocesado. Revisa el estado de las páginas sin texto.");
+}

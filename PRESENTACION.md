@@ -1,0 +1,40 @@
+# DocuSearch AI — Control documental local
+
+Plataforma de gestión de expedientes PDF con Blazor, ASP.NET Core y SQL Server Express.
+
+## Flujo
+
+1. Seleccionar uno o varios PDF y sus metadatos.
+2. Validar formato, tamaño y cantidad de páginas; calcular SHA-256.
+3. Extraer texto por página con PdfPig.
+4. Elaborar resumen extractivo y entidades por reglas.
+5. Guardar metadatos y originales en SQL Server dentro de una transacción.
+6. Consultar con búsqueda contextual, coincidencia exacta o asistente local con citas.
+
+## Módulos
+
+- Dashboard y métricas.
+- Catálogo con filtros y edición.
+- Carga y reproceso.
+- Buscador y asistente documental.
+- Visor PDF, texto, resumen, entidades, notas y ficha técnica.
+- Reportes CSV, informe HTML e impresión a PDF.
+- Auditoría persistente.
+- Observabilidad local: duración, modelo, tokens y categorías de error, sin contenido.
+- Administración de perfiles, departamentos y cuotas.
+- Arquitectura y recuperación de datos anteriores.
+
+## Privacidad y alcance
+
+El asistente conecta ASP.NET Core con un worker Python de LangChain y Ollama local
+con `qwen2.5-coder:7b`, sin Node.js, npm, OpenCode ni servicios de IA externos.
+Genera respuestas a partir de fragmentos autorizados y valida las referencias contra
+las fuentes enviadas. Las listas, fichas, entidades y páginas explícitas conservan
+su respuesta exacta por reglas. La IA puede equivocarse; se deben revisar las citas.
+Los escaneos sin texto requieren un motor OCR adicional.
+No hay embeddings ni métricas de similitud vectorial ficticias.
+
+Cinco perfiles permiten demostrar permisos aplicados en servidor. El acceso está
+limitado al equipo local y el selector de perfiles no sustituye autenticación.
+La conexión utiliza autenticación de Windows, instancia `ICEPALFLOR\SQLEXPRESS`
+y base `DocuSearch`, ya inicializada. Detalles en [README](README.md).

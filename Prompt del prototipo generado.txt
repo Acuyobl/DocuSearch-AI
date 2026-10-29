@@ -1,0 +1,1134 @@
+He diseñado y desarrollado el prototipo funcional e integral de DocuSearch AI, concebido bajo los estándares de una plataforma SaaS empresarial de gestión documental inteligente (IDMS), lista para organizaciones públicas y privadas con altos requerimientos de cumplimiento y seguridad.
+El prototipo abre de forma directa en el Dashboard principal (sin pantallas de login ni MFA), permitiendo evaluar y navegar la experiencia completa.
+Módulos Implementados y Experiencia de Usuario
+Dashboard Principal:
+Indicadores clave de rendimiento (KPIs): volumen total de documentos, ratio de procesamiento OCR (99.4%), usuarios activos en la organización y tiempo medio de respuesta en búsquedas vectoriales.
+Gráficos interactivos de distribución por departamentos y categorías normativas.
+Accesos directos para carga de archivos y consulta de los últimos expedientes indexados.
+Carga de Documentos y Pipeline de Inteligencia Artificial:
+Modal interactivo con zona drag-and-drop para archivos PDF y formulario formal de metadatos (departamento emisor, tipo documental, autor, nivel de confidencialidad, etiquetas y notas).
+Simulación paso a paso del pipeline cognitivo: validación criptográfica (SHA-256), extracción de texto mediante OCR, clasificación categórica con IA, generación de resúmenes ejecutivos y cálculo de embeddings vectoriales.
+Monitor en tiempo real de jobs en cola y estado de procesamiento OCR.
+Gestión Documental:
+Tabla de expedientes con filtrado multidimensional por departamento, categoría, nivel de confidencialidad (Público, Interno, Confidencial, Estrictamente Secreto) y estado del procesamiento.
+Acciones contextuales por documento: apertura en el visor, reprocesamiento de IA, descarga autorizada y eliminación lógica sujeta a privilegios.
+Buscador Inteligente:
+Interfaz central con selector entre búsqueda semántica por lenguaje natural y coincidencia textual exacta.
+Sugerencias rápidas de consulta (“Mostrar contratos firmados en 2025”, “Buscar políticas de seguridad”, “Documentos relacionados con recursos humanos”).
+Resultados detallados con porcentaje de relevancia, fragmentos contextuales con los términos buscados resaltados y botón directo para abrir el documento en la página exacta del hallazgo.
+Visor Contextualizado de Documentos:
+Lienzo de visualización con navegación por páginas, controles de zoom e indicadores oficiales de folio.
+Panel lateral multifunción con 4 pestañas: Resumen & IA (con entidades nombradas y salto directo por página), Coincidencias (listado de ocurrencias con navegación rápida), Notas Colaborativas (registro de observaciones con autor y fecha) y Ficha de Metadatos.
+Control de descarga protegido por perfil RBAC y nivel de confidencialidad.
+Módulo de Reportes & Exportación:
+Métricas operacionales de documentos cargados, consultas, usuarios activos y ejecuciones de OCR.
+Generación de reportes ejecutivos con exportación descargable a Excel (.CSV) e impresión formateada a PDF.
+Clasificación de los documentos con mayor frecuencia de consulta y lectura.
+Bitácora de Auditoría (Audit Trail):
+Registro de eventos (consultas, descargas, altas, modificaciones, eliminaciones y bloqueos de seguridad).
+Detalle por usuario, rol, marca de tiempo UTC, dirección IP y evidencia técnica con opción de exportación a archivo CSV.
+Administración RBAC & Departamentos:
+Selector de roles en tiempo real en la cabecera (Administrador General, Administrador de Departamento, Gestor Documental, Consultor, Auditor) que adapta los permisos de la interfaz dinámicamente.
+Matriz interactiva de permisos de seguridad y vista de cuotas de almacenamiento por departamento.
+Entregables de Ingeniería & Arquitectura de Software:
+Vista especializada que contiene la especificación funcional completa: diagrama de arquitectura de 4 capas, Modelo Entidad-Relación (ERD), script SQL DDL para PostgreSQL 16 con pgvector, especificación de APIs RESTful (OpenAPI), backlog de historias de usuario con criterios de aceptación, roadmap de evolución y recomendaciones de escalabilidad para entornos con millones de documentos.
+flag
+Checkpoint
+Generar documento con las especificaciones técnicas para poder generar esta misma aplicación en otra IA, agregar aspectos técnicos
+Gemini 3.8 Flash
+Ran for 104s
+
+summarize_auto
+Action history
+chevron_right
+Here are key actions taken for the app:
+
+edit
+Edited 2 files
+src/data/technicalPromptSpec.ts
+check_circle
+src/components/ArchitectureView.tsx
+check_circle
+build
+Built
+Documento de Especificaciones Técnicas y Prompt Maestro para IAs: DocuSearch AI
+Se ha generado e integrado la Especificación Técnica Completa y el Prompt Maestro de Ingeniería para replicar de manera idéntica esta aplicación en cualquier otra Inteligencia Artificial (Claude 3.7 Sonnet, ChatGPT GPT-4o, Cursor IDE, Gemini o DeepSeek).
+Además, dentro de la aplicación en la sección "Arquitectura & Docs", se habilitó la pestaña:
+?? "Especificación para Otra IA (Prompt Maestro)", que incluye:
+Botón "Copiar Prompt Completo": Copia todo el prompt al portapapeles con un clic.
+Botón "Descargar .MD": Descarga el archivo DOCUSEARCH_AI_ESPECIFICACION_TECNICA.md listo para adjuntar en repositorios o consolas de IA.
+Documento Técnico Completo
+code
+Markdown
+# ESPECIFICACIÓN TÉCNICA Y PROMPT MAESTRO DE INGENIERÍA: DOCUSEARCH AI
+**Sistema de Gestión Documental Inteligente (IDMS) con OCR, Búsqueda Semántica Vectorial y Control de Acceso Basado en Roles (RBAC)**
+
+---
+
+## 1. RESUMEN DEL SISTEMA Y ALCANCE FUNCIONAL
+DocuSearch AI es una plataforma web corporativa diseñada para organizaciones públicas y privadas que centraliza, procesa y explora expedientes documentales PDF mediante inteligencia artificial.
+
+### Capacidades Principales:
+1. **Acceso directo sin barrera de login:** Apertura instantánea en el Dashboard principal, con un **Selector de Rol Activo** en el Header para conmutar en caliente entre 5 perfiles RBAC.
+2. **Ingesta y OCR Automatizado:** Recepción de archivos PDF, cálculo de Hash criptográfico SHA-256 para evitar duplicados y extracción estructurada de texto.
+3. **Indexación y Búsqueda Semántica Vectorial:** Búsqueda en lenguaje natural con cálculo de similitud de coseno, snippet de contexto resaltado, porcentaje de relevancia y salto directo a la página del documento.
+4. **Visor Contextualizado de Documentos:** Canvas de lectura multi-página con selector de folios, zoom in/out, marca de agua para documentos restringidos, panel de resumen ejecutivo por IA, entidades clave detectadas (NER) y formulario de notas colaborativas.
+5. **Seguridad y Trazabilidad:** Matriz de permisos RBAC con 5 roles, 4 niveles de confidencialidad y bitácora de auditoría inmutable (*append-only*) exportable a Excel (CSV).
+
+---
+
+## 2. ARQUITECTURA DE SOFTWARE (4 CAPAS DESACOPLADAS)
+
+```text
++--------------------------------------------------------------------------+
+¦                             CAPA DE PRESENTACIÓN                         ¦
+¦   React 19 / Next.js 15 (TypeScript) + Tailwind CSS + Lucide Icons       ¦
+¦   - SPA Interactiva con Dashboard, Tablas, Buscador, Visor y Auditoría   ¦
+¦   - Selector de Roles RBAC para alternancia en caliente                  ¦
++--------------------------------------------------------------------------+
+                                     ¦ HTTPS / REST JSON
++------------------------------------?-------------------------------------+
+¦                            CAPA DE API GATEWAY                           ¦
+¦   ASP.NET Core 9 Web API (o FastAPI / Node.js Express / NestJS)          ¦
+¦   - Autenticación JWT / Microsoft Entra ID (Azure AD)                    ¦
+¦   - Autorización declarativa por Claims y Políticas RBAC                 ¦
+¦   - Mediador CQRS (MediatR) y Validación con FluentValidation            ¦
++--------------------------------------------------------------------------+
+                    ¦ Mensajería AMQP                   ¦ SQL / Driver
++-------------------?------------------+ +--------------?------------------+
+¦        WORKERS ASÍNCRONOS OCR & AI   ¦ ¦     ALMACENAMIENTO PERSISTENTE   ¦
+¦ - Motor OCR: Tesseract 5 / Azure DI  ¦ ¦ - PostgreSQL 16 + pgvector       ¦
+¦ - Embeddings: OpenAI text-embed-3 /  ¦ ¦   (Embeddings 1,536 dim, HNSW)   ¦
+¦   Vertex AI / HuggingFace BGE-M3     ¦ ¦ - Object Storage: S3 / Azure Blob¦
+¦ - LLM Resumen/NER: Claude / Gemini / ¦ ¦ - Redis 7: Caché de sesiones y   ¦
+¦   GPT-4o                             ¦ ¦   consultas frecuentes           ¦
++--------------------------------------+ +----------------------------------+
+3. MODELO DE DATOS Y ESQUEMA RELACIONAL (POSTGRESQL + PGVECTOR)
+code
+SQL
+-- Extensiones requeridas
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "vector";
+
+-- 1. Departamentos y Cuotas de Almacenamiento
+CREATE TABLE departments (
+    department_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code VARCHAR(10) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    manager_name VARCHAR(150) NOT NULL,
+    storage_quota_bytes BIGINT DEFAULT 10737418240, -- 10 GB
+    storage_used_bytes BIGINT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Directorio de Usuarios y Roles
+CREATE TABLE users (
+    user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    full_name VARCHAR(150) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL CHECK (role IN ('admin_general', 'admin_depto', 'gestor_documental', 'consultor', 'auditor')),
+    department_id UUID REFERENCES departments(department_id) ON DELETE SET NULL,
+    status VARCHAR(20) DEFAULT 'Activo' CHECK (status IN ('Activo', 'Inactivo', 'Bloqueado')),
+    avatar_url VARCHAR(500),
+    last_login TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. Documentos y Metadatos
+CREATE TABLE documents (
+    document_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    internal_code VARCHAR(50) NOT NULL UNIQUE,
+    title VARCHAR(255) NOT NULL,
+    filename VARCHAR(255) NOT NULL,
+    file_size_bytes BIGINT NOT NULL,
+    file_hash_sha256 CHAR(64) NOT NULL,
+    storage_blob_uri VARCHAR(500) NOT NULL,
+    department_id UUID NOT NULL REFERENCES departments(department_id) ON DELETE RESTRICT,
+    category VARCHAR(100) NOT NULL,
+    author VARCHAR(150) NOT NULL,
+    confidentiality VARCHAR(50) NOT NULL CHECK (confidentiality IN ('Público', 'Uso Interno', 'Confidencial', 'Estrictamente Secreto')),
+    download_restricted BOOLEAN DEFAULT FALSE,
+    version VARCHAR(20) DEFAULT 'v1.0',
+    page_count INT DEFAULT 1,
+    status VARCHAR(30) DEFAULT 'Listo' CHECK (status IN ('En Cola', 'Procesando', 'Listo', 'Error')),
+    summary TEXT,
+    view_count INT DEFAULT 0,
+    download_count INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. Páginas OCR y Vectores de Embeddings
+CREATE TABLE document_pages (
+    page_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    document_id UUID NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
+    page_number INT NOT NULL,
+    extracted_text TEXT NOT NULL,
+    ocr_confidence NUMERIC(5,2) DEFAULT 99.00,
+    embedding vector(1536), -- Vector denso de embedding
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_doc_page UNIQUE (document_id, page_number)
+);
+
+-- Índice HNSW de alta velocidad para similitud de coseno
+CREATE INDEX idx_document_pages_embedding_hnsw 
+ON document_pages USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+-- 5. Entidades Reconocidas por IA (NER)
+CREATE TABLE document_entities (
+    entity_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    document_id UUID NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
+    page_number INT NOT NULL,
+    entity_type VARCHAR(50) NOT NULL, -- PERSONA, ORGANIZACION, FECHA, MONTO, LEY, CLAUSULA
+    entity_value VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. Bitácora de Auditoría Inmutable (Append-Only)
+CREATE TABLE audit_logs (
+    log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+    user_name VARCHAR(150) NOT NULL,
+    user_role VARCHAR(50) NOT NULL,
+    ip_address VARCHAR(45) NOT NULL,
+    action_type VARCHAR(50) NOT NULL CHECK (action_type IN ('CONSULTA', 'DESCARGA', 'CREACION', 'MODIFICACION', 'ELIMINACION', 'ACCESO_DENEGADO', 'REPORTE_EXPORTADO')),
+    resource_type VARCHAR(50) NOT NULL,
+    resource_name VARCHAR(255) NOT NULL,
+    result_status VARCHAR(30) NOT NULL CHECK (result_status IN ('Exitoso', 'Bloqueado', 'Advertencia')),
+    details TEXT
+);
+4. PIPELINE DE PROCESAMIENTO OCR Y BÚSQUEDA SEMÁNTICA
+4.1. Pasos del Flujo de Ingesta:
+Deduplicación: Cálculo de SHA-256 en el backend. Si el hash ya existe, se rechaza la carga para optimizar almacenamiento.
+Almacenamiento Seguro: Subida del PDF original a S3/Azure Blob Storage cifrado con AES-256 (SSE-KMS).
+Extracción OCR y Bounding Boxes: Worker analiza cada página y extrae el texto plano.
+Análisis por LLM (Resumen + NER):
+Resumen ejecutivo de 100-150 palabras.
+Extracción de entidades estructuradas: Personas, Fechas, Montos monetarios, Organizaciones y Artículos/Leyes.
+Generación de Embeddings: Conversión de cada página/párrafo a un vector de 1,536 dimensiones mediante modelo de lenguaje denso (text-embedding-3-small o bge-m3).
+Almacenamiento en pgvector: Inserción con índice HNSW.
+4.2. Consulta SQL de Búsqueda Vectorial por Coseno:
+code
+SQL
+SELECT 
+    d.document_id,
+    d.internal_code,
+    d.title,
+    d.department_id,
+    d.category,
+    p.page_number,
+    p.extracted_text,
+    ROUND((1 - (p.embedding <=> :query_embedding)) * 100, 2) AS relevance_score
+FROM document_pages p
+JOIN documents d ON p.document_id = d.document_id
+WHERE 
+    (:dept_id IS NULL OR d.department_id = :dept_id)
+    AND (:category IS NULL OR d.category = :category)
+    AND (1 - (p.embedding <=> :query_embedding)) >= (:min_relevance / 100.0)
+ORDER BY p.embedding <=> :query_embedding ASC
+LIMIT 20;
+5. REGLAS DE NEGOCIO Y MATRIZ DE PERMISOS RBAC
+Perfiles:
+admin_general: Control total sin restricciones. Gestión de usuarios, configuración global, eliminación física/lógica y descarga de cualquier documento clasificado.
+admin_depto: Gestión completa de expedientes de su propio departamento y supervisión de auditoría departamental.
+gestor_documental: Carga de archivos, edición de metadatos, reprocesamiento OCR/IA y descarga de documentos de nivel Público a Confidencial.
+consultor: Búsqueda semántica, lectura en visor y notas colaborativas. Descarga bloqueada para documentos Estrictamente Secreto o Confidencial.
+auditor: Solo lectura transversal (read-only), acceso exclusivo para examinar y exportar la Bitácora de Auditoría en formato CSV.
+Niveles de Confidencialidad:
+Público: Libre acceso y descarga.
+Uso Interno: Acceso para personal de la organización.
+Confidencial: Descarga restringida para gestores o administradores.
+Estrictamente Secreto: Descarga bloqueada exclusivamente reservada para Administrador General. En el visor se despliega marca de agua de seguridad transparente.
+6. PROMPT MAESTRO TURNKEY PARA OTRA IA
+(Copia y pega este bloque en Claude 3.7, ChatGPT GPT-4o, Cursor o DeepSeek)
+code
+Markdown
+Actúa como un Arquitecto de Software Principal y Desarrollador Full-Stack Senior especializado en TypeScript, React, Tailwind CSS y Sistemas de Inteligencia Artificial para Gestión Documental.
+
+Tu objetivo es diseñar y construir de extremo a extremo una aplicación web corporativa idéntica a "DocuSearch AI", un Sistema de Gestión Documental Inteligente (IDMS) con OCR, Búsqueda Semántica Vectorial y Control de Acceso Basado en Roles (RBAC).
+
+REQUISITOS FUNCIONALES Y DE DISEÑO OBLIGATORIOS:
+
+1. ARQUITECTURA DE ENTRADA DIRECTA (SIN LOGIN):
+   - La aplicación debe abrir inmediatamente en el "Dashboard Principal". No agregues pantallas de login restrictivas ni formularios bloqueantes de inicio de sesión.
+   - En la cabecera superior (Header), incluye un selector interactivo de "Rol Activo" que permita alternar en caliente entre 5 perfiles: "Administrador General", "Administrador de Departamento", "Gestor Documental", "Usuario Consultor" y "Auditor".
+   - Al cambiar el rol, la aplicación debe actualizar dinámicamente los permisos de los botones (ej. habilitar/deshabilitar botón de eliminar, descargar documentos secretos o ver auditoría) y emitir un toast de notificación.
+
+2. NAVEGACIÓN Y ESTRUCTURA DE PANTALLAS (SIDEBAR LATERAL):
+   - Implementa un Sidebar lateral con las siguientes pestañas navegables:
+     a) Dashboard Principal: KPIs (Total Documentos, % Éxito OCR, Usuarios Activos, Búsquedas del Día), gráficos de barras/distribución por categoría y departamento, acceso rápido a carga y últimos documentos.
+     b) Gestión Documental: Tabla exhaustiva de documentos con filtros por departamento, categoría, nivel de confidencialidad y estado OCR. Acciones por fila: ver en visor, descargar PDF, reprocesar IA y eliminar.
+     c) Pipeline OCR & IA: Monitor de procesamiento en tiempo real de lotes y colas, resumen de entidades detectadas y estado de vectorización.
+     d) Buscador Inteligente: Interfaz central inspirada en Google con barra de búsqueda, selector entre "Lenguaje Natural (Semántica)" y "Coincidencia Exacta", chips de consultas frecuentes sugeridas ("Mostrar contratos firmados en 2025", "Políticas de seguridad", etc.), y resultados con snippet contextual resaltado, % de relevancia y botón para saltar directamente a la página exacta.
+     e) Visor Contextualizado de Documentos (Modal/Vista): Lienzo de lectura simulando la página PDF original con selector de página, zoom in/out, marca de agua de seguridad y panel lateral con 4 pestañas: "Resumen & IA" (resumen y entidades NER cliqueables), "Coincidencias", "Notas Colaborativas" (con formulario para agregar observaciones fechadas) y "Ficha de Metadatos".
+     f) Reportes & Métricas: Indicadores operativos con botón de "Exportar Excel (CSV)" funcional que genera y descarga el archivo .csv en el navegador, y botón de imprimir/PDF.
+     g) Bitácora de Auditoría: Tabla inmutable con eventos de lectura, descargas, altas, bloqueos de seguridad y exportación de evidencia en CSV.
+     h) Administración & RBAC: Directorio de usuarios, matriz visual de permisos RBAC y catálogo de departamentos con cuotas de disco.
+     i) Arquitectura & Docs: Entregables técnicos con arquitectura de 4 capas, modelo ERD, script SQL DDL con pgvector, contratos de APIs RESTful, backlog de historias de usuario con story points, roadmap y especificaciones de escalabilidad.
+
+3. ESTÉTICA VISUAL Y CALIDAD DE CÓDIGO:
+   - Utiliza React con TypeScript y Tailwind CSS.
+   - Emplea la librería lucide-react para toda la iconografía.
+   - Paleta de diseño sobria y corporativa: blancos limpios (`bg-white`), fondos neutros suaves (`bg-slate-100`), bordes sutiles (`border-slate-200`), acentos en índigo corporativo (`indigo-600`) y badges de estado en esmeralda, ámbar y carmesí.
+   - Garantiza que cada botón y acción tenga retroalimentación visual (toasts, modales de confirmación, simulaciones de carga y descargas reales de archivos blob).
+   - Genera datos iniciales enriquecidos en español con documentos realistas (Contratos de Servicios TI, Políticas de Seguridad de la Información ISO 27001, Reglamentos de Trabajo, Informes Financieros y Dictámenes de Auditoría).
+
+Procede a generar el código modular, limpio, completamente tipado y listo para ejecución.
+
+INTERFAS 
+
+import React, { useState } from 'react';
+import { 
+  Layers, 
+  Database, 
+  Code2, 
+  GitPullRequest, 
+  Kanban, 
+  MapPin, 
+  Server, 
+  ShieldCheck, 
+  Copy, 
+  Check, 
+  ChevronRight,
+  Sparkles,
+  Workflow,
+  Cpu,
+  Boxes,
+  Bot,
+  Download,
+  FileText
+} from 'lucide-react';
+import { 
+  USER_STORIES, 
+  REST_APIS, 
+  SQL_SCHEMA_DDL, 
+  MVP_ROADMAP, 
+  SCALABILITY_SPECS 
+} from '../data/architectureDocs';
+import { TECHNICAL_SPEC_MARKDOWN } from '../data/technicalPromptSpec';
+
+export const ArchitectureView: React.FC = () => {
+  const [activeSection, setActiveSection] = useState<'architecture' | 'ai_prompt' | 'erd' | 'ddl' | 'apis' | 'stories' | 'roadmap' | 'scalability'>('ai_prompt');
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+
+  const handleCopySql = () => {
+    navigator.clipboard.writeText(SQL_SCHEMA_DDL);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleCopyPrompt = () => {
+    navigator.clipboard.writeText(TECHNICAL_SPEC_MARKDOWN);
+    setCopiedPrompt(true);
+    setTimeout(() => setCopiedPrompt(false), 2500);
+  };
+
+  const handleDownloadMarkdown = () => {
+    const blob = new Blob([TECHNICAL_SPEC_MARKDOWN], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'DOCUSEARCH_AI_ESPECIFICACION_TECNICA.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-6 pb-12">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+              Documentación de Ingeniería & Arquitectura
+            </span>
+            <span className="text-xs text-slate-400">Entregables Oficiales del Proyecto</span>
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            Especificación Técnica y Arquitectura de Software
+          </h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Documentación exhaustiva para el equipo de desarrollo (React/Next.js en Frontend y ASP.NET Core en Backend).
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-mono font-bold">
+            Target: ASP.NET Core 9 + Next.js
+          </span>
+        </div>
+      </div>
+
+      {/* Navigation Subtabs */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 text-xs font-bold">
+        <button
+          onClick={() => setActiveSection('ai_prompt')}
+          className={`pb-3 px-3 border-b-2 transition-all flex items-center gap-1.5 ${
+            activeSection === 'ai_prompt' ? 'border-purple-600 text-purple-700 bg-purple-50/50 rounded-t-lg' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Bot className="w-4 h-4 text-purple-600" />
+          <span className="font-extrabold text-purple-900">Especificación para Otra IA (Prompt Maestro)</span>
+          <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px]">Listo</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('architecture')}
+          className={`pb-3 px-3 border-b-2 transition-all flex items-center gap-1.5 ${
+            activeSection === 'architecture' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Arquitectura Funcional & Flujos</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('erd')}
+          className={`pb-3 px-3 border-b-2 transition-all flex items-center gap-1.5 ${
+            activeSection === 'erd' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Database className="w-4 h-4" />
+          <span>Modelo Entidad-Relación (ERD)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('ddl')}
+          className={`pb-3 px-3 border-b-2 transition-all flex items-center gap-1.5 ${
+            activeSection === 'ddl' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Code2 className="w-4 h-4" />
+          <span>Diseño BD (SQL DDL)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('apis')}
+          className={`pb-3 px-3 border-b-2 transition-all flex items-center gap-1.5 ${
+            activeSection === 'apis' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Server className="w-4 h-4" />
+          <span>Contrato APIs REST</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('stories')}
+          className={`pb-3 px-3 border-b-2 transition-all flex items-center gap-1.5 ${
+            activeSection === 'stories' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Kanban className="w-4 h-4" />
+          <span>Historias de Usuario & MVP Backlog</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('roadmap')}
+          className={`pb-3 px-3 border-b-2 transition-all flex items-center gap-1.5 ${
+            activeSection === 'roadmap' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Workflow className="w-4 h-4" />
+          <span>Roadmap de Desarrollo</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('scalability')}
+          className={`pb-3 px-3 border-b-2 transition-all flex items-center gap-1.5 ${
+            activeSection === 'scalability' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Boxes className="w-4 h-4" />
+          <span>Escalabilidad & Ciberseguridad</span>
+        </button>
+      </div>
+
+      {/* Section 0: Master AI Specification & Prompt */}
+      {activeSection === 'ai_prompt' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-xl p-6 text-white shadow-md">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-200 text-xs font-semibold mb-3">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+                  <span>Prompt Maestro de Ingeniería para IAs</span>
+                </div>
+                <h2 className="text-xl font-bold tracking-tight">
+                  Especificación Técnica para Replicar DocuSearch AI en Otra IA
+                </h2>
+                <p className="text-sm text-purple-200/80 mt-1 max-w-2xl">
+                  Documento técnico exhaustivo diseñado para alimentar modelos avanzados (Claude 3.7 Sonnet, ChatGPT GPT-4o, Cursor IDE, Gemini o DeepSeek R1) para generar de forma determinista la misma aplicación.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 shrink-0">
+                <button
+                  onClick={handleCopyPrompt}
+                  className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-2"
+                >
+                  {copiedPrompt ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedPrompt ? '¡Copiado al Portapapeles!' : 'Copiar Prompt Completo'}</span>
+                </button>
+
+                <button
+                  onClick={handleDownloadMarkdown}
+                  className="px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Descargar .MD</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick summary grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/10 text-xs">
+              <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                <span className="text-purple-300 block text-[11px] uppercase font-bold">Stack Frontend</span>
+                <span className="font-semibold text-white mt-0.5 block">React 19 / Tailwind / Lucide</span>
+              </div>
+              <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                <span className="text-purple-300 block text-[11px] uppercase font-bold">Stack Backend</span>
+                <span className="font-semibold text-white mt-0.5 block">ASP.NET 9 / FastAPI / Node</span>
+              </div>
+              <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                <span className="text-purple-300 block text-[11px] uppercase font-bold">Base Vectorial</span>
+                <span className="font-semibold text-white mt-0.5 block">PostgreSQL + pgvector HNSW</span>
+              </div>
+              <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                <span className="text-purple-300 block text-[11px] uppercase font-bold">Modelo Seguridad</span>
+                <span className="font-semibold text-white mt-0.5 block">RBAC (5 Roles) + Audit Log</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Instructions Box */}
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl text-xs text-amber-900 flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-950">Cómo usar este documento con otra Inteligencia Artificial:</p>
+              <p className="mt-0.5 leading-relaxed text-amber-800">
+                Haz clic en <strong>"Copiar Prompt Completo"</strong> y pégalo directamente en la consola de <strong>Cursor, Claude 3.7 Sonnet, ChatGPT (GPT-4o) o DeepSeek</strong>. Incluye el esquema relacional DDL, el pipeline de extracción OCR, las reglas RBAC, los contratos de API y el prompt turnkey para que la IA genere el código de forma modular sin omitir ninguna funcionalidad.
+              </p>
+            </div>
+          </div>
+
+          {/* Markdown Content Preview */}
+          <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-sm">
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-800/80 border-b border-slate-700">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-purple-400" />
+                <span className="text-xs font-mono font-bold text-slate-200">DOCUSEARCH_AI_ESPECIFICACION_TECNICA.md</span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-slate-300">Markdown Completo</span>
+              </div>
+              <button
+                onClick={handleCopyPrompt}
+                className="text-xs text-purple-300 hover:text-white flex items-center gap-1.5 transition-colors"
+              >
+                {copiedPrompt ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedPrompt ? 'Copiado' : 'Copiar'}</span>
+              </button>
+            </div>
+
+            <div className="p-4 max-h-[600px] overflow-y-auto font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap selection:bg-purple-900 selection:text-white">
+              {TECHNICAL_SPEC_MARKDOWN}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Section 1: Functional Architecture */}
+      {activeSection === 'architecture' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-4">
+            <h2 className="text-sm font-bold text-slate-900">Arquitectura Funcional y Flujo de Navegación</h2>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              DocuSearch AI implementa un modelo desacoplado de microservicios con orquestación asíncrona mediante mensajería. Esto garantiza que la carga de archivos PDF de gran volumen no degrade la experiencia de búsqueda o visualización.
+            </p>
+
+            {/* Architecture Diagram Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs pt-2">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800">Capa 1</span>
+                <h3 className="font-bold text-slate-900 text-sm">Frontend SPA / SSR</h3>
+                <p className="text-slate-500">React 19 / Next.js 15 con Tailwind CSS, renderizado interactivo, visor PDF integrado y estado global en memoria.</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">Capa 2</span>
+                <h3 className="font-bold text-slate-900 text-sm">API Gateway & Backend</h3>
+                <p className="text-slate-500">ASP.NET Core 9 Web API con autenticación JWT / Entra ID, autorización RBAC por claims y mediador MediatR (CQRS).</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">Capa 3</span>
+                <h3 className="font-bold text-slate-900 text-sm">Workers OCR & AI</h3>
+                <p className="text-slate-500">Servicios en background (Tesseract, Azure Document Intelligence y Vertex AI / Gemini) para extracción, resumen y NER.</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">Capa 4</span>
+                <h3 className="font-bold text-slate-900 text-sm">Almacenamiento Híbrido</h3>
+                <p className="text-slate-500">PostgreSQL 16 con extensión pgvector + S3 / Azure Blob Storage cifrado + Redis para caché distribuida de consultas.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-3">
+            <h3 className="text-sm font-bold text-slate-900">Flujo Integral de Vida del Documento</h3>
+            <ol className="space-y-3 text-xs text-slate-600 list-decimal pl-4">
+              <li><strong>Carga y Validación:</strong> El usuario arrastra un PDF. El frontend calcula el hash SHA-256 para evitar duplicados y valida que no supere 50MB.</li>
+              <li><strong>Encolamiento Asíncrono:</strong> La API almacena el binario en Blob Storage y encola un evento en RabbitMQ / Service Bus (<code>DocumentUploadedEvent</code>).</li>
+              <li><strong>Extracción OCR y NLP:</strong> El worker procesa cada página extrayendo texto, reconociendo idioma, detectando entidades (personas, montos, fechas) y generando el resumen ejecutivo.</li>
+              <li><strong>Vectorización Semántica:</strong> Se generan embeddings densos de 1,536 dimensiones por cada página/fragmento y se guardan en el índice HNSW/IVFFlat de pgvector.</li>
+              <li><strong>Búsqueda y Consulta:</strong> Los usuarios realizan consultas en lenguaje natural. El motor calcula la similitud de coseno y devuelve el fragmento contextualizado con su página exacta en menos de 50ms.</li>
+            </ol>
+          </div>
+        </div>
+      )}
+
+      {/* Section 2: ERD */}
+      {activeSection === 'erd' && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-5">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Modelo Entidad-Relación Relacional (ERD)</h2>
+            <p className="text-xs text-slate-500">
+              Esquema normalizado de tercera forma normal (3NF) con soporte nativo de extensiones vectoriales.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs font-mono">
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="font-bold text-indigo-600 block border-b border-slate-200 pb-1 mb-2">
+                1. Departments (Departamentos)
+              </span>
+              <p className="text-slate-700 font-bold">PK DepartmentId: UUID</p>
+              <p className="text-slate-600">Code: VARCHAR(10) UNIQUE</p>
+              <p className="text-slate-600">Name: VARCHAR(100)</p>
+              <p className="text-slate-600">ManagerName: VARCHAR(150)</p>
+              <p className="text-slate-600">StorageQuotaBytes: BIGINT</p>
+            </div>
+
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="font-bold text-indigo-600 block border-b border-slate-200 pb-1 mb-2">
+                2. Users (Usuarios & RBAC)
+              </span>
+              <p className="text-slate-700 font-bold">PK UserId: UUID</p>
+              <p className="text-slate-600">FullName: VARCHAR(150)</p>
+              <p className="text-slate-600">Email: VARCHAR(255) UNIQUE</p>
+              <p className="text-slate-600">Role: VARCHAR(50)</p>
+              <p className="text-slate-600">FK DepartmentId: UUID</p>
+            </div>
+
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="font-bold text-indigo-600 block border-b border-slate-200 pb-1 mb-2">
+                3. Documents (Documentos)
+              </span>
+              <p className="text-slate-700 font-bold">PK DocumentId: UUID</p>
+              <p className="text-slate-600">InternalCode: VARCHAR(50) UNIQUE</p>
+              <p className="text-slate-600">Title: VARCHAR(255)</p>
+              <p className="text-slate-600">StorageBlobUri: VARCHAR(500)</p>
+              <p className="text-slate-600">FileHashSha256: CHAR(64)</p>
+              <p className="text-slate-600">FK DepartmentId: UUID</p>
+              <p className="text-slate-600">ConfidentialityLevel: VARCHAR(50)</p>
+            </div>
+
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="font-bold text-indigo-600 block border-b border-slate-200 pb-1 mb-2">
+                4. DocumentPages (Páginas OCR)
+              </span>
+              <p className="text-slate-700 font-bold">PK PageId: UUID</p>
+              <p className="text-slate-600">FK DocumentId: UUID (CASCADE)</p>
+              <p className="text-slate-600">PageNumber: INT</p>
+              <p className="text-slate-600">ExtractedText: TEXT</p>
+              <p className="text-slate-800 font-bold">EmbeddingVector: vector(1536)</p>
+            </div>
+
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="font-bold text-indigo-600 block border-b border-slate-200 pb-1 mb-2">
+                5. DocumentEntities (NER Extraído)
+              </span>
+              <p className="text-slate-700 font-bold">PK EntityId: UUID</p>
+              <p className="text-slate-600">FK DocumentId: UUID</p>
+              <p className="text-slate-600">PageNumber: INT</p>
+              <p className="text-slate-600">EntityType: VARCHAR(50)</p>
+              <p className="text-slate-600">EntityValue: VARCHAR(255)</p>
+            </div>
+
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="font-bold text-indigo-600 block border-b border-slate-200 pb-1 mb-2">
+                6. AuditLogs (Bitácora Inmutable)
+              </span>
+              <p className="text-slate-700 font-bold">PK LogId: UUID</p>
+              <p className="text-slate-600">EventTimestamp: TIMESTAMPTZ</p>
+              <p className="text-slate-600">FK UserId: UUID</p>
+              <p className="text-slate-600">ActionType: VARCHAR(50)</p>
+              <p className="text-slate-600">ResultStatus: VARCHAR(30)</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Section 3: SQL DDL */}
+      {activeSection === 'ddl' && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">Script SQL DDL de Creación de Tablas</h2>
+              <p className="text-xs text-slate-500">Compatible con PostgreSQL 16 (pgvector) y Entity Framework Core 9</p>
+            </div>
+            <button
+              onClick={handleCopySql}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 rounded-lg text-xs font-semibold transition-colors"
+            >
+              {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedCode ? 'Copiado' : 'Copiar DDL'}</span>
+            </button>
+          </div>
+
+          <pre className="p-4 bg-slate-950 text-emerald-400 rounded-xl font-mono text-xs overflow-x-auto max-h-[500px] leading-relaxed">
+            {SQL_SCHEMA_DDL}
+          </pre>
+        </div>
+      )}
+
+      {/* Section 4: REST APIs */}
+      {activeSection === 'apis' && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-4">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Especificación de Endpoints RESTful (OpenAPI / Swagger)</h2>
+            <p className="text-xs text-slate-500">Contratos de comunicación frontend-backend con códigos de estado HTTP estándar</p>
+          </div>
+
+          <div className="space-y-3">
+            {REST_APIS.map((api, idx) => (
+              <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded font-mono font-bold text-[11px] ${
+                      api.method === 'POST' ? 'bg-blue-100 text-blue-800' :
+                      api.method === 'GET' ? 'bg-emerald-100 text-emerald-800' :
+                      'bg-rose-100 text-rose-800'
+                    }`}>
+                      {api.method}
+                    </span>
+                    <span className="font-mono font-bold text-slate-900">{api.path}</span>
+                  </div>
+                  <span className="text-[11px] text-slate-500">
+                    Roles: <strong>{api.rolesAllowed.join(', ')}</strong>
+                  </span>
+                </div>
+
+                <p className="text-slate-600 font-medium">{api.summary}</p>
+
+                {api.requestBody && (
+                  <div className="font-mono text-[11px] text-slate-700 bg-white p-2 rounded border border-slate-200">
+                    <span className="text-slate-400 block text-[10px]">Request Payload:</span>
+                    {api.requestBody}
+                  </div>
+                )}
+
+                <div className="font-mono text-[11px] text-slate-700 bg-white p-2 rounded border border-slate-200">
+                  <span className="text-slate-400 block text-[10px]">Response Payload:</span>
+                  {api.response}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Section 5: User Stories */}
+      {activeSection === 'stories' && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-4">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Historias de Usuario (Metodología Scrum / Ágil)</h2>
+            <p className="text-xs text-slate-500">Casos de uso expresados en historias con criterios de aceptación verificables</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            {USER_STORIES.map((story) => (
+              <div key={story.id} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                    {story.id}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                      {story.priority}
+                    </span>
+                    <span className="font-mono text-[10px] bg-slate-200 px-1.5 py-0.5 rounded font-bold text-slate-700">
+                      {story.storyPoints} SP
+                    </span>
+                  </div>
+                </div>
+
+                <h3 className="font-bold text-slate-900 text-sm">{story.title}</h3>
+
+                <p className="text-slate-600 italic">
+                  &ldquo;Como <strong>{story.role}</strong>, quiero <strong>{story.want}</strong>, para <strong>{story.soThat}</strong>.&rdquo;
+                </p>
+
+                <div className="pt-2 border-t border-slate-200">
+                  <span className="font-bold text-slate-700 block mb-1 text-[11px]">Criterios de Aceptación:</span>
+                  <ul className="list-disc pl-4 space-y-1 text-[11px] text-slate-600">
+                    {story.acceptanceCriteria.map((c, i) => (
+                      <li key={i}>{c}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Section 6: Roadmap */}
+      {activeSection === 'roadmap' && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-5">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Roadmap de Desarrollo de Producto (Fases de Evolución)</h2>
+            <p className="text-xs text-slate-500">Cronograma de despliegue desde el MVP funcional hasta capacidades cognitivas multi-agente</p>
+          </div>
+
+          <div className="space-y-4">
+            {MVP_ROADMAP.map((phase, idx) => (
+              <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-slate-900 text-sm">{phase.phase}</h3>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    {phase.badge}
+                  </span>
+                </div>
+
+                <ul className="space-y-1.5 pt-1 text-slate-600">
+                  {phase.items.map((it, i) => (
+                    <li key={i} className="flex items-center gap-2">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>{it}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Section 7: Scalability */}
+      {activeSection === 'scalability' && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-4">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Recomendaciones de Escalabilidad, Disponibilidad y Seguridad</h2>
+            <p className="text-xs text-slate-500">Patrones de diseño recomendados para implementaciones con más de 10 millones de páginas PDF</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            {SCALABILITY_SPECS.map((spec, idx) => (
+              <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <Boxes className="w-4 h-4 text-indigo-600 shrink-0" />
+                  {spec.title}
+                </h3>
+                <p className="text-slate-600 leading-relaxed">{spec.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Especificación Técnica Completa y Prompt Maestro de Reproducción para Modelos de Inteligencia Artificial
+ * (Claude 3.7 / GPT-4o / Cursor / DeepSeek / Gemini / Copilot)
+ */
+
+export const TECHNICAL_SPEC_MARKDOWN = `# ESPECIFICACIÓN TÉCNICA Y PROMPT MAESTRO DE INGENIERÍA: DOCUSEARCH AI
+**Sistema Corporativo de Gestión Documental Inteligente (IDMS) con Procesamiento OCR, Búsqueda Semántica Vectorial y Control de Acceso Basado en Roles (RBAC)**
+
+---
+
+## 1. RESUMEN EJECUTIVO Y OBJETIVO DEL SISTEMA
+**DocuSearch AI** es una plataforma web empresarial de gestión documental diseñada para resolver la ineficiencia operativa generada por la dispersión y falta de indexación de expedientes digitales (PDFs) en instituciones gubernamentales y corporativas.
+
+El sistema digitaliza, clasifica y vectoriza automáticamente archivos PDF mediante un pipeline de Inteligencia Artificial (OCR + Procesamiento de Lenguaje Natural + Embeddings Vectoriales), permitiendo:
+1. **Consultas en lenguaje natural** que localizan párrafos y páginas exactas en milisegundos con score de relevancia.
+2. **Visor interactivo contextualizado** con navegación por folios, resaltado de texto OCR, resumen ejecutivo, extracción de entidades nombradas (NER) y notas colaborativas.
+3. **Gobierno corporativo y seguridad avanzada** mediante control de acceso basado en roles (RBAC con 5 perfiles), clasificación de confidencialidad en 4 niveles y bitácora de auditoría inmutable (*append-only audit trail*).
+4. **Reportes operacionales y métricas** exportables a Excel (.CSV) e impresión a PDF.
+
+---
+
+## 2. STACK TECNOLÓGICO Y ARQUITECTURA TÉCNICA
+
+### 2.1. Arquitectura de Alto Nivel (4 Capas Desacopladas)
+\`\`\`text
++--------------------------------------------------------------------------+
+¦                             CAPA DE PRESENTACIÓN                         ¦
+¦   React 19 / Next.js 15 (TypeScript) + Tailwind CSS + Lucide Icons       ¦
+¦   - SPA Interactiva sin pantalla de bloqueo                              ¦
+¦   - Selector dinámico de Roles RBAC para pruebas en caliente             ¦
+¦   - Visor PDF multi-página con canvas OCR y side-panel contextual        ¦
++--------------------------------------------------------------------------+
+                                     ¦ HTTPS / REST JSON + SSE
++------------------------------------?-------------------------------------+
+¦                            CAPA DE API GATEWAY                           ¦
+¦   ASP.NET Core 9 Web API (o Node.js Express / Fastify / FastAPI)         ¦
+¦   - Autenticación JWT / Microsoft Entra ID (Azure AD)                    ¦
+¦   - Autorización declarativa por Claims y Políticas RBAC                 ¦
+¦   - Mediador CQRS (MediatR) y Validación FluentValidation                ¦
++--------------------------------------------------------------------------+
+                    ¦ AMQP / Async Messages             ¦ SQL / REST
++-------------------?------------------+ +--------------?------------------+
+¦        WORKERS ASÍNCRONOS OCR & AI   ¦ ¦     ALMACENAMIENTO PERSISTENTE   ¦
+¦ - Motor OCR: Tesseract 5 / Azure DI  ¦ ¦ - PostgreSQL 16 + pgvector       ¦
+¦ - Embeddings: OpenAI text-embed-3 /  ¦ ¦   (Embeddings 1,536 dim, HNSW)   ¦
+¦   Vertex AI / HuggingFace            ¦ ¦ - Object Storage: S3 / Azure Blob¦
+¦ - LLM Resumen/NER: Claude / Gemini / ¦ ¦ - Redis 7: Caché de sesiones y   ¦
+¦   GPT-4o                             ¦ ¦   consultas frecuentes           ¦
++--------------------------------------+ +----------------------------------+
+\`\`\`
+
+### 2.2. Tecnologías Recomendadas
+| Componente | Tecnología Principal | Alternativa Valida |
+| :--- | :--- | :--- |
+| **Frontend** | React 19 + TypeScript + Vite + Tailwind CSS | Next.js 15 (App Router) |
+| **Componentes e Iconografía** | Lucide-React, Headless UI | Radix UI / shadcn/ui |
+| **Backend API** | ASP.NET Core 9 (C#) con Minimal APIs o Controllers | FastAPI (Python) / Node.js (TypeScript) |
+| **Base de Datos Relacional** | PostgreSQL 16 | SQL Server 2022 / Azure SQL |
+| **Búsqueda Vectorial** | Extensión \`pgvector\` (Índices HNSW) | Qdrant / Pinecone / Milvus |
+| **Extracción OCR** | Azure AI Document Intelligence / Tesseract 5 | AWS Textract / Google Cloud Vision |
+| **Modelos de Embeddings** | \`text-embedding-3-small\` (1536 dim) o \`all-MiniLM-L6-v2\` | Cohere Embed v3 |
+| **Modelos de Resumen y NER** | Gemini 2.0 Flash / Claude 3.5 Sonnet / GPT-4o-mini | Llama 3.3 70B (On-Premise) |
+| **Object Storage** | MinIO / AWS S3 / Azure Blob Storage | Google Cloud Storage |
+
+---
+
+## 3. MODELO DE DATOS Y ESQUEMA RELACIONAL (POSTGRESQL + PGVECTOR)
+
+\`\`\`sql
+-- Habilitar extensiones necesarias
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "vector";
+
+-- 1. Departamentos
+CREATE TABLE departments (
+    department_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code VARCHAR(10) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    manager_name VARCHAR(150) NOT NULL,
+    storage_quota_bytes BIGINT DEFAULT 10737418240, -- 10 GB
+    storage_used_bytes BIGINT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Usuarios y Roles
+CREATE TABLE users (
+    user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    full_name VARCHAR(150) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL CHECK (role IN ('admin_general', 'admin_depto', 'gestor_documental', 'consultor', 'auditor')),
+    department_id UUID REFERENCES departments(department_id) ON DELETE SET NULL,
+    status VARCHAR(20) DEFAULT 'Activo' CHECK (status IN ('Activo', 'Inactivo', 'Bloqueado')),
+    avatar_url VARCHAR(500),
+    last_login TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. Documentos
+CREATE TABLE documents (
+    document_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    internal_code VARCHAR(50) NOT NULL UNIQUE,
+    title VARCHAR(255) NOT NULL,
+    filename VARCHAR(255) NOT NULL,
+    file_size_bytes BIGINT NOT NULL,
+    file_hash_sha256 CHAR(64) NOT NULL,
+    storage_blob_uri VARCHAR(500) NOT NULL,
+    department_id UUID NOT NULL REFERENCES departments(department_id) ON DELETE RESTRICT,
+    category VARCHAR(100) NOT NULL,
+    author VARCHAR(150) NOT NULL,
+    confidentiality VARCHAR(50) NOT NULL CHECK (confidentiality IN ('Público', 'Uso Interno', 'Confidencial', 'Estrictamente Secreto')),
+    download_restricted BOOLEAN DEFAULT FALSE,
+    version VARCHAR(20) DEFAULT 'v1.0',
+    page_count INT DEFAULT 1,
+    status VARCHAR(30) DEFAULT 'Listo' CHECK (status IN ('En Cola', 'Procesando', 'Listo', 'Error')),
+    summary TEXT,
+    view_count INT DEFAULT 0,
+    download_count INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. Páginas OCR y Embeddings Semánticos
+CREATE TABLE document_pages (
+    page_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    document_id UUID NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
+    page_number INT NOT NULL,
+    extracted_text TEXT NOT NULL,
+    ocr_confidence NUMERIC(5,2) DEFAULT 99.00,
+    embedding vector(1536), -- Vector de embedding denso
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_doc_page UNIQUE (document_id, page_number)
+);
+
+-- Índice vectorial HNSW para búsqueda rápida por similitud de coseno
+CREATE INDEX idx_document_pages_embedding_hnsw 
+ON document_pages USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+-- 5. Entidades Reconocidas por IA (NER)
+CREATE TABLE document_entities (
+    entity_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    document_id UUID NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
+    page_number INT NOT NULL,
+    entity_type VARCHAR(50) NOT NULL, -- PERSONA, ORGANIZACION, FECHA, MONTO, LEY, CLAUSULA
+    entity_value VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. Bitácora de Auditoría Inmutable
+CREATE TABLE audit_logs (
+    log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+    user_name VARCHAR(150) NOT NULL,
+    user_role VARCHAR(50) NOT NULL,
+    ip_address VARCHAR(45) NOT NULL,
+    action_type VARCHAR(50) NOT NULL CHECK (action_type IN ('CONSULTA', 'DESCARGA', 'CREACION', 'MODIFICACION', 'ELIMINACION', 'ACCESO_DENEGADO', 'REPORTE_EXPORTADO')),
+    resource_type VARCHAR(50) NOT NULL,
+    resource_name VARCHAR(255) NOT NULL,
+    result_status VARCHAR(30) NOT NULL CHECK (result_status IN ('Exitoso', 'Bloqueado', 'Advertencia')),
+    details TEXT
+);
+\`\`\`
+
+---
+
+## 4. PIPELINE DE INTELIGENCIA ARTIFICIAL Y BÚSQUEDA SEMÁNTICA
+
+### 4.1. Pasos de Ingesta Documental
+1. **Hash Criptográfico y Deduplicación**: Al subir el archivo, se calcula el hash \`SHA-256\` del contenido binario. Si ya existe en la base de datos, se alerta duplicidad.
+2. **Almacenamiento de Archivo Crudo**: El archivo PDF se sube a un bucket S3 o Azure Blob Storage cifrado con AES-256 (Server-Side Encryption).
+3. **Extracción OCR**: Un worker procesa cada folio del PDF extrayendo el texto plano estructurado y las coordenadas de delimitación (bounding boxes).
+4. **Resumen Ejecutivo y NER**: Se envía el texto extraído al LLM con un system prompt estructurado para obtener:
+   - Resumen ejecutivo de 100-150 palabras.
+   - Lista de entidades clave (Persona, Organización, Fecha, Monto, Norma Legal).
+   - Sugerencia de tags y categoría.
+5. **Vectorización y Chunking**: Por cada página o párrafo, se computa un vector embedding de 1,536 dimensiones mediante modelo de lenguaje denso (\`text-embedding-3-small\` o local \`bge-m3\`).
+6. **Indexación**: Los vectores se almacenan en la tabla \`document_pages\` indexados con HNSW.
+
+### 4.2. Algoritmo de Búsqueda Semántica Vectorial
+Para responder a consultas de usuario en lenguaje natural:
+\`\`\`sql
+-- Consulta SQL de Búsqueda Vectorial por Similitud de Coseno
+SELECT 
+    d.document_id,
+    d.internal_code,
+    d.title,
+    d.department_id,
+    d.category,
+    p.page_number,
+    p.extracted_text,
+    ROUND((1 - (p.embedding <=> :query_embedding)) * 100, 2) AS relevance_score
+FROM document_pages p
+JOIN documents d ON p.document_id = d.document_id
+WHERE 
+    (:dept_id IS NULL OR d.department_id = :dept_id)
+    AND (:category IS NULL OR d.category = :category)
+    AND (1 - (p.embedding <=> :query_embedding)) >= (:min_relevance / 100.0)
+ORDER BY p.embedding <=> :query_embedding ASC
+LIMIT 20;
+\`\`\`
+
+---
+
+## 5. MODELO DE SEGURIDAD, RBAC Y REGLAS DE NEGOCIO
+
+### 5.1. Perfiles de Usuario (RBAC)
+1. **Administrador General (\`admin_general\`)**:
+   - Acceso absoluto sin restricciones.
+   - Gestión de usuarios, asignación de roles, departamentos y cuotas.
+   - Descarga de cualquier documento, incluso con máxima restricción.
+   - Consulta y exportación de bitácoras de auditoría.
+2. **Administrador de Departamento (\`admin_depto\`)**:
+   - Gestión documental completa circunscrita a su propio departamento.
+   - Aprobación de expedientes y visualización de auditoría de su área.
+3. **Gestor Documental (\`gestor_documental\`)**:
+   - Carga masiva de archivos PDF, asignación de metadatos y reprocesamiento OCR/IA.
+   - No puede eliminar documentos sensibles ni modificar usuarios.
+4. **Usuario Consultor (\`consultor\`)**:
+   - Búsqueda semántica, lectura en visor y adición de notas colaborativas.
+   - Descarga bloqueada para documentos clasificados como *Estrictamente Secreto* o *Confidencial*.
+   - Sin permisos de edición, carga ni eliminación.
+5. **Auditor de Seguridad (\`auditor\`)**:
+   - Perfil de solo lectura transversal (*Read-Only*).
+   - Acceso irrestricto a la Bitácora de Auditoría con exportación de evidencia en CSV.
+
+### 5.2. Niveles de Confidencialidad
+- **Público**: Descargable y visible por todos los usuarios.
+- **Uso Interno**: Visible por cualquier colaborador autenticado.
+- **Confidencial**: Requiere rol de Gestor Documental o superior para descargar.
+- **Estrictamente Secreto**: Descarga bloqueada excepto para Administrador General. La visualización en el visor muestra marca de agua de seguridad transparente.
+
+---
+
+## 6. ESPECIFICACIÓN DE ENDPOINTS RESTful (OPENAPI)
+
+| Método | Endpoint | Roles Permitidos | Descripción |
+| :--- | :--- | :--- | :--- |
+| \`GET\` | \`/api/v1/dashboard/metrics\` | Todos | Obtiene KPIs consolidados (total docs, OCR success rate, usuarios activos, latencia media). |
+| \`GET\` | \`/api/v1/documents\` | Todos | Listado paginado con filtros de departamento, categoría, confidencialidad y estado. |
+| \`POST\` | \`/api/v1/documents/upload\` | Admin, Gestor | Carga multipart de archivo PDF con metadatos iniciales. Encola tarea OCR. |
+| \`GET\` | \`/api/v1/documents/{id}/pages/{page}\` | Conforme RBAC | Obtiene el texto OCR de la página, entidades identificadas y comentarios. |
+| \`POST\` | \`/api/v1/documents/search\` | Todos | Búsqueda semántica o exacta. Body: \`{ query, mode, dept, minRelevance }\`. |
+| \`POST\` | \`/api/v1/documents/{id}/reprocess\` | Admin, Gestor | Solicita reprocesamiento completo de OCR, embeddings y resumen IA. |
+| \`DELETE\` | \`/api/v1/documents/{id}\` | Admin General | Eliminación lógica del documento. Registra evento en auditoría. |
+| \`GET\` | \`/api/v1/audit/logs\` | Admin, Auditor | Consulta de bitácora con filtros por acción, resultado y rango de fechas. |
+| \`GET\` | \`/api/v1/reports/export-csv\` | Admin, Gestor, Auditor | Descarga archivo CSV consolidado para análisis en Excel. |
+
+---
+
+## 7. PROMPT MAESTRO TURNKEY PARA OTRA IA
+*(Copia y pega el bloque inferior en Claude 3.7 Sonnet, ChatGPT GPT-4o, Cursor o DeepSeek para construir exactamente esta aplicación)*
+
+\`\`\`markdown
+Actúa como un Arquitecto de Software Principal y Desarrollador Full-Stack Senior especializado en TypeScript, React, Tailwind CSS y Sistemas de Inteligencia Artificial para Gestión Documental.
+
+Tu objetivo es diseñar y construir de extremo a extremo una aplicación web corporativa idéntica a "DocuSearch AI", un Sistema de Gestión Documental Inteligente (IDMS) con OCR, Búsqueda Semántica Vectorial y Control de Acceso Basado en Roles (RBAC).
+
+REQUISITOS FUNCIONALES Y DE DISEÑO OBLIGATORIOS:
+1. ARQUITECTURA DE ENTRADA DIRECTA (SIN LOGIN):
+   - La aplicación debe abrir inmediatamente en el "Dashboard Principal". No agregues pantallas de login restrictivas ni formularios bloqueantes de inicio de sesión.
+   - En la cabecera superior (Header), incluye un selector interactivo de "Rol Activo" que permita alternar en caliente entre 5 perfiles: "Administrador General", "Administrador de Departamento", "Gestor Documental", "Usuario Consultor" y "Auditor".
+   - Al cambiar el rol, la aplicación debe actualizar dinámicamente los permisos de los botones (ej. habilitar/deshabilitar botón de eliminar, descargar documentos secretos o ver auditoría) y emitir un toast de notificación.
+
+2. NAVEGACIÓN Y ESTRUCTURA DE PANTALLAS (SIDEBAR LATERAL):
+   - Implementa un Sidebar lateral con las siguientes pestañas navegables:
+     a) Dashboard Principal: KPIs (Total Documentos, % Éxito OCR, Usuarios Activos, Búsquedas del Día), gráficos de barras/distribución por categoría y departamento, acceso rápido a carga y últimos documentos.
+     b) Gestión Documental: Tabla exhaustiva de documentos con filtros por departamento, categoría, nivel de confidencialidad y estado OCR. Acciones por fila: ver en visor, descargar PDF, reprocesar IA y eliminar.
+     c) Pipeline OCR & IA: Monitor de procesamiento en tiempo real de lotes y colas, resumen de entidades detectadas y estado de vectorización.
+     d) Buscador Inteligente: Interfaz central inspirada en Google con barra de búsqueda, selector entre "Lenguaje Natural (Semántica)" y "Coincidencia Exacta", chips de consultas frecuentes sugeridas ("Mostrar contratos firmados en 2025", "Políticas de seguridad", etc.), y resultados con snippet contextual resaltado, % de relevancia y botón para saltar directamente a la página exacta.
+     e) Visor Contextualizado de Documentos (Modal/Vista): Lienzo de lectura simulando la página PDF original con selector de página, zoom in/out, marca de agua de seguridad y panel lateral con 4 pestañas: "Resumen & IA" (resumen y entidades NER cliqueables), "Coincidencias", "Notas Colaborativas" (con formulario para agregar observaciones fechadas) y "Ficha de Metadatos".
+     f) Reportes & Métricas: Indicadores operativos con botón de "Exportar Excel (CSV)" funcional que genera y descarga el archivo .csv en el navegador, y botón de imprimir/PDF.
+     g) Bitácora de Auditoría: Tabla inmutable con eventos de lectura, descargas, altas, bloqueos de seguridad y exportación de evidencia en CSV.
+     h) Administración & RBAC: Directorio de usuarios, matriz visual de permisos RBAC y catálogo de departamentos con cuotas de disco.
+     i) Arquitectura & Docs: Entregables técnicos con arquitectura de 4 capas, modelo ERD, script SQL DDL con pgvector, contratos de APIs RESTful, backlog de historias de usuario con story points, roadmap y especificaciones de escalabilidad.
+
+3. ESTÉTICA VISUAL Y CALIDAD DE CÓDIGO:
+   - Utiliza React con TypeScript y Tailwind CSS.
+   - Emplea la librería lucide-react para toda la iconografía.
+   - Paleta de diseño sobria y corporativa: blancos limpios (\`bg-white\`), fondos neutros suaves (\`bg-slate-100\`), bordes sutiles (\`border-slate-200\`), acentos en índigo corporativo (\`indigo-600\`) y badges de estado en esmeralda, ámbar y carmesí.
+   - Garantiza que cada botón y acción tenga retroalimentación visual (toasts, modales de confirmación, simulaciones de carga y descargas reales de archivos blob).
+   - Genera datos iniciales enriquecidos en español con documentos realistas (Contratos de Servicios TI, Políticas de Seguridad de la Información ISO 27001, Reglamentos de Trabajo, Informes Financieros y Dictámenes de Auditoría).
+
+Procede a generar el código modular, limpio, completamente tipado y listo para ejecución.
+\`\`\`
+`;

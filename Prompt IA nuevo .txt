@@ -1,0 +1,220 @@
+DOCUSEARCH AI 
+
+Prompt resumido para IA de prototipado de sistemas 
+
+Versión sin módulo de inicio de sesión 
+
+Objetivo del documento 
+Proporcionar instrucciones claras para que una IA genere un prototipo funcional, moderno y profesional de una plataforma inteligente de gestión documental. 
+
+ 
+
+Prompt para la IA de prototipado 
+
+Instrucción principal: Actúa como un Arquitecto de Software Senior, UX/UI Designer, Product Owner y Business Analyst especializado en aplicaciones web SaaS empresariales. 
+
+Nombre del producto 
+
+DocuSearch AI 
+
+Objetivo 
+
+Diseñar una aplicación web inteligente para la gestión documental que permita: 
+
+Cargar documentos PDF. 
+
+Extraer texto mediante OCR. 
+
+Clasificar documentos automáticamente usando inteligencia artificial. 
+
+Generar resúmenes inteligentes. 
+
+Realizar búsquedas avanzadas tipo Google dentro del contenido documental. 
+
+Visualizar documentos y resultados contextualizados. 
+
+Público objetivo: organizaciones públicas y privadas. 
+
+Tipo de aplicación y línea visual 
+
+Aspecto 
+
+Definición 
+
+Modalidad 
+
+Aplicación web SaaS responsive. 
+
+Compatibilidad 
+
+Desktop, tablet y móvil. 
+
+Referencias visuales 
+
+Google Workspace, Microsoft 365, Notion y Airtable. 
+
+Estilo 
+
+Moderno, minimalista, corporativo, accesible y orientado a la productividad. 
+
+Roles del sistema 
+
+Administrador General 
+
+Gestionar usuarios, permisos y departamentos. 
+
+Acceder a todos los documentos. 
+
+Consultar auditorías y generar reportes. 
+
+Administrador de Departamento 
+
+Gestionar usuarios de su área. 
+
+Visualizar documentos de su departamento. 
+
+Generar reportes. 
+
+Gestor Documental 
+
+Cargar documentos. 
+
+Editar metadatos. 
+
+Clasificar información. 
+
+Usuario Consultor 
+
+Buscar información. 
+
+Visualizar documentos autorizados. 
+
+Auditor 
+
+Consultar bitácoras. 
+
+Generar evidencia. 
+
+Exportar reportes. 
+
+Módulos principales 
+
+1. Dashboard ejecutivo 
+
+Indicadores: total de documentos, documentos recientes, usuarios activos, documentos pendientes, búsquedas realizadas y alertas. 
+
+Gráficos: documentos por departamento, documentos por categoría, tendencias de consulta y documentos más consultados. 
+
+2. Gestión documental 
+
+Carga por arrastrar y soltar, carga masiva, vista previa y validaciones. 
+
+Procesamiento OCR automático. 
+
+Metadatos: código, título, autor, departamento, categoría, fecha, nivel de confidencialidad y versión. 
+
+3. Procesamiento con IA 
+
+Extraer texto y detectar idioma. 
+
+Generar un resumen inteligente. 
+
+Identificar palabras clave, fechas y entidades relevantes. 
+
+Clasificar automáticamente el documento. 
+
+4. Buscador inteligente 
+
+Interfaz central tipo Google. 
+
+Búsqueda por palabras clave, frases completas, filtros avanzados y lenguaje natural. 
+
+Resultados con nombre del documento, página, fragmento relevante y nivel de relevancia. 
+
+Ejemplos: “Mostrar contratos firmados en 2025”, “Buscar políticas de seguridad” y “Documentos relacionados con recursos humanos”. 
+
+5. Visor de documentos 
+
+Visualización de PDF. 
+
+Resaltado de coincidencias y navegación por páginas. 
+
+Comentarios y descarga según permisos. 
+
+6. Reportes 
+
+Exportación en PDF y Excel. 
+
+Indicadores: documentos cargados, usuarios activos, consultas realizadas, documentos más consultados y procesos OCR ejecutados. 
+
+7. Auditoría 
+
+Registrar consultas, descargas, modificaciones y eliminaciones. 
+
+Visualizar usuario, fecha, acción realizada y resultado. 
+
+Pantallas que debe generar el prototipo 
+
+Dashboard ejecutivo. 
+
+Gestión y carga de documentos. 
+
+Formulario de metadatos. 
+
+Estado de procesamiento OCR e IA. 
+
+Buscador inteligente. 
+
+Resultados de búsqueda. 
+
+Visor documental. 
+
+Reportes. 
+
+Bitácora de auditoría. 
+
+Administración de usuarios, roles, permisos y departamentos. 
+
+Nota importante: No diseñar ni incluir pantalla de login, recuperación de contraseña o MFA. El prototipo debe abrir directamente en el dashboard principal. 
+
+Entregables solicitados 
+
+Arquitectura funcional. 
+
+Wireframes de alta fidelidad. 
+
+Diseño UX/UI completo. 
+
+Flujo de navegación. 
+
+Casos de uso. 
+
+Modelo entidad-relación. 
+
+Diseño de base de datos. 
+
+APIs REST. 
+
+Historias de usuario. 
+
+Backlog del MVP. 
+
+Roadmap de desarrollo. 
+
+Recomendaciones de escalabilidad. 
+
+Diseño visual profesional listo para desarrollo. 
+
+Criterios finales para la IA 
+
+Crear una solución coherente y navegable, no solo pantallas aisladas. 
+
+Mantener consistencia en colores, tipografía, componentes, iconografía y espaciado. 
+
+Usar datos de ejemplo realistas, sin información sensible. 
+
+Priorizar accesibilidad, claridad de estados, validaciones y retroalimentación visual. 
+
+Diseñar el producto como una solución SaaS comercial lista para organizaciones públicas y privadas. 
+
+Preparar el diseño para una futura implementación con React/Next.js en frontend y ASP.NET Core en backend. 
