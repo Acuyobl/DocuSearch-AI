@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Permisos mínimos: el flujo solo necesita leer el repositorio.
+permissions:
+  contents: read
+
+jobs:
+  compilacion-y-checks:
+    name: Compilación y checks
+# Windows: la aplicación y la suite están pensadas para Windows (SQL Server, autenticación
+# de Windows, rutas del worker Python). Los 65 checks sin servicios también corren aquí.
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restaurar dependencias
+        run: dotnet restore DocuSearch.sln
+
+      - name: Compilar en Release
+        run: dotnet build DocuSearch.sln --no-restore -c Release
+
+      # Los checks se compilan y ejecutan en Debug para que la suite use la misma
+      # configuración de desarrollo documentada en el README.
+      - name: Ejecutar checks
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug
+
+      # Verificación de higiene: los artefactos de compilación nunca deben versionarse.
+      - name: Verificar que no haya bin/ u obj/ versionados
+        shell: bash
+        run: |
+          set -e
+          if git ls-files | grep -E '(^|/)(bin|obj)/'; then
+            echo "::error::Hay artefactos bin/ u obj/ versionados. Elimínalos del repositorio."
+            exit 1
+          fi
+          echo "OK: no hay bin/ u obj/ versionados."
+
+# NOTA: la suite de integración con SQL Server NO se ejecuta en CI. Para lanzarla
+# hace falta una instancia real de SQL Server y una base de datos exclusiva cuyo
+# nombre termine en _tests, indicada en la variable DOCUSEARCH_TEST_CONNECTION:
+#
+#   dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --database
+#
+# Por eso este flujo solo ejecuta los checks que funcionan sin base de datos.

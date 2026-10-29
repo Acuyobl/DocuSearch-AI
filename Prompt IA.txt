@@ -1,22 +1,22 @@
-Act˙a como un Arquitecto de Software Senior, UX/UI Designer, Business Analyst y Product Owner experto en plataformas SaaS empresariales.
+Act√∫a como un Arquitecto de Software Senior, UX/UI Designer, Business Analyst y Product Owner experto en plataformas SaaS empresariales.
 
-Necesito diseÒar y desarrollar una aplicaciÛn web moderna llamada:
+Necesito dise√±ar y desarrollar una aplicaci√≥n web moderna llamada:
 
 "DocuSearch AI"
 
 OBJETIVO DEL PROYECTO
 
-Crear una plataforma inteligente de gestiÛn documental que permita a organizaciones almacenar, clasificar, transcribir, indexar y consultar documentos PDF mediante inteligencia artificial, OCR y b˙squeda avanzada.
+Crear una plataforma inteligente de gesti√≥n documental que permita a organizaciones almacenar, clasificar, transcribir, indexar y consultar documentos PDF mediante inteligencia artificial, OCR y b√∫squeda avanzada.
 
-La aplicaciÛn debe ofrecer una experiencia de usuario similar a Google para localizar informaciÛn contenida dentro de documentos.
+La aplicaci√≥n debe ofrecer una experiencia de usuario similar a Google para localizar informaci√≥n contenida dentro de documentos.
 
 GENERAR:
 
 1. Arquitectura completa del sistema.
-2. DiseÒo UX/UI profesional.
+2. Dise√±o UX/UI profesional.
 3. Modelo de datos.
-4. DiseÒo de base de datos.
-5. Flujo de navegaciÛn.
+4. Dise√±o de base de datos.
+5. Flujo de navegaci√≥n.
 6. Casos de uso.
 7. Pantallas.
 8. APIs.
@@ -27,7 +27,7 @@ GENERAR:
 
 TIPO DE SISTEMA
 
-AplicaciÛn Web SaaS Responsive
+Aplicaci√≥n Web SaaS Responsive
 
 Compatible con:
 
@@ -35,7 +35,7 @@ Compatible con:
 - Tablet
 - Mobile
 
-DiseÒo moderno similar a:
+Dise√±o moderno similar a:
 
 - Google Workspace
 - Notion
@@ -54,14 +54,14 @@ Puede:
 - Gestionar permisos
 - Gestionar departamentos
 - Acceder a todos los documentos
-- Ver auditorÌas
+- Ver auditor√≠as
 - Ver reportes
 
 Administrador de Departamento
 
 Puede:
 
-- Gestionar usuarios de su ·rea
+- Gestionar usuarios de su √°rea
 - Ver documentos de su departamento
 - Generar reportes
 
@@ -77,28 +77,28 @@ Usuario Consulta
 
 Puede:
 
-- Realizar b˙squedas
+- Realizar b√∫squedas
 - Visualizar documentos autorizados
 
 Auditor
 
 Puede:
 
-- Consultar bit·coras
+- Consultar bit√°coras
 - Ver reportes
 - Exportar evidencia
 
 --------------------------------------------------
 
-M”DULOS PRINCIPALES
+M√ìDULOS PRINCIPALES
 
 1. LOGIN
 
 Pantalla profesional con:
 
 - Usuario
-- ContraseÒa
-- Recuperar contraseÒa
+- Contrase√±a
+- Recuperar contrase√±a
 - MFA
 - Logo corporativo
 
@@ -110,17 +110,17 @@ Indicadores:
 - Documentos recientes
 - Documentos pendientes
 - Usuarios activos
-- B˙squedas realizadas
+- B√∫squedas realizadas
 - Alertas
 
-Gr·ficos:
+Gr√°ficos:
 
 - Documentos por departamento
 - Documentos por tipo
 - Tendencias de uso
-- Documentos m·s consultados
+- Documentos m√°s consultados
 
-3. GESTI”N DOCUMENTAL
+3. GESTI√ìN DOCUMENTAL
 
 Permitir:
 
@@ -128,20 +128,20 @@ Permitir:
 - Carga masiva
 - Validaciones
 - Vista previa
-- OCR autom·tico
-- ExtracciÛn de texto
-- DetecciÛn de idioma
+- OCR autom√°tico
+- Extracci√≥n de texto
+- Detecci√≥n de idioma
 
 Metadatos:
 
-- CÛdigo
-- TÌtulo
+- C√≥digo
+- T√≠tulo
 - Autor
 - Departamento
-- CategorÌa
+- Categor√≠a
 - Fecha
 - Nivel de confidencialidad
-- VersiÛn
+- Versi√≥n
 
 4. OCR E IA
 
@@ -153,11 +153,11 @@ Al cargar un documento:
 - Detectar palabras clave
 - Extraer fechas
 - Extraer entidades
-- Clasificar autom·ticamente el documento
+- Clasificar autom√°ticamente el documento
 
 5. BUSCADOR TIPO GOOGLE
 
-Barra central de b˙squeda.
+Barra central de b√∫squeda.
 
 Debe permitir:
 
@@ -168,13 +168,13 @@ Debe permitir:
 Mostrar:
 
 - Documento
-- P·gina encontrada
+- P√°gina encontrada
 - Fragmento relevante
 - Relevancia
 
 Opcional:
 
-B˙squedas con lenguaje natural.
+B√∫squedas con lenguaje natural.
 
 Ejemplos:
 
@@ -182,17 +182,17 @@ Ejemplos:
 
 "Documentos relacionados con recursos humanos"
 
-"PolÌticas de seguridad vigentes"
+"Pol√≠ticas de seguridad vigentes"
 
 6. VISOR DOCUMENTAL
 
-CaracterÌsticas:
+Caracter√≠sticas:
 
-- VisualizaciÛn PDF
+- Visualizaci√≥n PDF
 - Resaltar coincidencias
-- NavegaciÛn por p·ginas
+- Navegaci√≥n por p√°ginas
 - Comentarios
-- Descarga seg˙n permisos
+- Descarga seg√∫n permisos
 
 7. REPORTES
 
@@ -205,18 +205,18 @@ Reportes:
 
 - Documentos cargados
 - Documentos por departamento
-- Usuarios m·s activos
-- B˙squedas realizadas
-- Documentos m·s consultados
+- Usuarios m√°s activos
+- B√∫squedas realizadas
+- Documentos m√°s consultados
 - OCR procesados
 
-8. BIT¡CORA DE AUDITORÕA
+8. BIT√ÅCORA DE AUDITOR√çA
 
 Registrar:
 
 - Login
 - Logout
-- B˙squedas
+- B√∫squedas
 - Descargas
 - Modificaciones
 - Eliminaciones
@@ -225,15 +225,15 @@ Mostrar:
 
 - Usuario
 - Fecha
-- AcciÛn
+- Acci√≥n
 - Resultado
-- DirecciÛn IP
+- Direcci√≥n IP
 
 --------------------------------------------------
 
 BASE DE DATOS
 
-DiseÒar completamente:
+Dise√±ar completamente:
 
 Tablas:
 
@@ -245,15 +245,15 @@ Tablas:
 - VersionesDocumentos
 - Metadatos
 - OCR
-- B˙squedas
-- Bit·cora
+- B√∫squedas
+- Bit√°cora
 - Reportes
 
 Incluir:
 
 - PK
 - FK
-- Õndices
+- √çndices
 - Restricciones
 
 --------------------------------------------------
@@ -267,12 +267,12 @@ Implementar:
 - RBAC
 - Cifrado
 - Logs
-- ProtecciÛn OWASP Top 10
-- AuditorÌa completa
+- Protecci√≥n OWASP Top 10
+- Auditor√≠a completa
 
 --------------------------------------------------
 
-TECNOLOGÕA RECOMENDADA
+TECNOLOG√çA RECOMENDADA
 
 Frontend
 
@@ -308,19 +308,19 @@ ENTREGABLES
 Generar:
 
 1. Arquitectura de software.
-2. DiseÒo UI/UX.
+2. Dise√±o UI/UX.
 3. Wireframes.
-4. Diagramas de navegaciÛn.
+4. Diagramas de navegaci√≥n.
 5. Casos de uso.
-6. Modelo entidad relaciÛn.
+6. Modelo entidad relaci√≥n.
 7. Estructura de proyectos.
 8. APIs REST.
 9. Historias de usuario.
 10. Backlog completo.
 11. Roadmap de desarrollo.
-12. Producto MÌnimo Viable (MVP).
-13. EstimaciÛn de fases.
+12. Producto M√≠nimo Viable (MVP).
+13. Estimaci√≥n de fases.
 14. Riesgos del proyecto.
 15. Recomendaciones de escalabilidad.
 
-Generar la soluciÛn como si fuera un producto comercial listo para vender a organizaciones p˙blicas y privadas.
+Generar la soluci√≥n como si fuera un producto comercial listo para vender a organizaciones p√∫blicas y privadas.

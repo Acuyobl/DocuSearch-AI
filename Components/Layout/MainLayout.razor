@@ -1,9 +1,26 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
-@Body
+<ErrorBoundary @ref="boundary">
+    <ChildContent>
+        @Body
+    </ChildContent>
+    <ErrorContent Context="exception">
+        <div class="error-boundary" role="alert">
+            <h2>Algo ha fallado en este módulo</h2>
+            <p>El resto de la aplicación sigue disponible. Puedes reintentar esta sección o recargar la página.</p>
+            <button class="primary" @onclick="Recover"><AppIcon Name="refresh" />Reintentar</button>
+            <small>@exception.Message</small>
+        </div>
+    </ErrorContent>
+</ErrorBoundary>
 
 <div id="blazor-error-ui" role="alert">
     Ocurrió un error inesperado. Revisa la consola del servidor.
     <a href="" class="reload">Recargar</a>
     <button class="dismiss" aria-label="Cerrar">Cerrar</button>
 </div>
+
+@code {
+    private ErrorBoundary? boundary;
+    private void Recover() => boundary?.Recover();
+}

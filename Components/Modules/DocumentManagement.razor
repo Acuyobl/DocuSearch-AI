@@ -24,7 +24,7 @@
         @foreach (var doc in Filtered.Skip((page - 1) * 10).Take(10))
         {
             <tr><td class="repository-document"><small class="code">@doc.InternalCode</small><button class="text-button repository-title" title="@doc.Title" @onclick="() => OnView.InvokeAsync(doc.Id)">@doc.Title</button>
-                    <small class="repository-hash" title="@doc.Sha256Hash">Hash: @TextAnalysis.Truncate(doc.Sha256Hash, 12)</small>
+                    <small class="repository-hash" title="@(doc.HasOriginal ? doc.Sha256Hash : null)">@(doc.HasOriginal ? $"Hash: {TextAnalysis.Truncate(doc.Sha256Hash, 12)}" : "Sin original")</small>
                     <div class="repository-activity"><span title="Visualizaciones en visor"><AppIcon Name="eye" />@doc.ViewsCount</span><span title="Descargas realizadas"><AppIcon Name="download" />@doc.DownloadsCount</span></div>
                 </td>
                 <td class="repository-author">@doc.Author<small>@doc.UploadDate.ToLocalTime().ToString("dd/MM/yyyy") (@doc.Version)</small></td>

@@ -4,7 +4,7 @@
 @inject IJSRuntime JS
 @inject ILogger<DocumentViewer> Logger
 <div class="modal-backdrop viewer-backdrop">
-    <section class="modal viewer" role="dialog" aria-modal="true" aria-labelledby="viewer-title">
+    <section class="modal viewer" role="dialog" aria-modal="true" aria-labelledby="viewer-title" tabindex="-1" @ref="dialog" @onkeydown="HandleKey">
         <div class="viewer-header">
             <div class="viewer-heading"><span class="badge code">@Document.InternalCode</span><div><h2 id="viewer-title">@Document.Title</h2><small>Por @Document.Author · @Document.Department</small></div></div>
             <div class="segmented-control"><button aria-pressed="@(viewMode == "pdf")" class="@(viewMode == "pdf" ? "active" : "")" @onclick='() => viewMode = "pdf"'><AppIcon Name="document" />Documento PDF</button><button aria-pressed="@(viewMode == "text")" class="@(viewMode == "text" ? "active" : "")" @onclick='() => viewMode = "text"'>Texto Extraído</button></div>
@@ -66,7 +66,7 @@
                 break;
             case "metadata":
                 <dl class="metadata"><dt>Autor</dt><dd>@Document.Author</dd><dt>Categoría</dt><dd>@Document.Category</dd><dt>Carga</dt><dd>@Document.UploadDate.ToLocalTime().ToString("g")</dd>
-                <dt>Tamaño</dt><dd>@((Document.FileSizeBytes / 1048576d).ToString("N2")) MB</dd><dt>Estado</dt><dd>@Document.OcrStatus</dd><dt>SHA-256</dt><dd class="hash">@Document.Sha256Hash</dd>
+                <dt>Tamaño</dt><dd>@((Document.FileSizeBytes / 1048576d).ToString("N2")) MB</dd><dt>Estado</dt><dd>@Document.OcrStatus</dd><dt>SHA-256</dt><dd class="hash">@(Document.HasOriginal ? Document.Sha256Hash : "Sin PDF original; hash histórico no verificable")</dd>
                 <dt>Etiquetas</dt><dd>@string.Join(", ", Document.Tags)</dd><dt>Original</dt><dd>@(Document.HasOriginal ? "Almacenado en SQL Server" : "No incluido en el ejemplo")</dd></dl>
                 break;
         }
@@ -80,6 +80,8 @@
     [Parameter, EditorRequired] public DocumentItem Document { get; set; } = default!;
     [Parameter] public int InitialPage { get; set; } = 1;
     [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnRefreshed { get; set; }
+    private ElementReference dialog;
     private string activeTab = "summary";
     private string viewMode = "text";
     private string? pdfUrl;
@@ -91,16 +93,21 @@
     protected override void OnInitialized() { page = Math.Clamp(InitialPage, 1, Math.Max(1, Document.PageCount)); notePage = page; viewMode = Document.HasOriginal ? "pdf" : "text"; }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && Document.HasOriginal)
+        if (!firstRender) return;
+        try { await dialog.FocusAsync(); }
+        catch (JSDisconnectedException) { }
+        if (!Document.HasOriginal) return;
+        await State.RunAsync(async () =>
         {
-            await State.RunAsync(async () =>
-            {
-                var bytes = await Service.FileAsync(Document.Id, false);
-                using var reference = new DotNetStreamReference(new MemoryStream(bytes));
-                pdfUrl = await JS.InvokeAsync<string>("docusearch.blobUrl", reference, "application/pdf");
-            });
-            StateHasChanged();
-        }
+            var bytes = await Service.FileAsync(Document.Id, false);
+            using var reference = new DotNetStreamReference(new MemoryStream(bytes));
+            pdfUrl = await JS.InvokeAsync<string>("docusearch.blobUrl", reference, "application/pdf");
+        });
+        StateHasChanged();
+    }
+    private async Task HandleKey(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape" && !State.Busy) await OnClose.InvokeAsync();
     }
     private void ClampPage() => page = Math.Clamp(page, 1, Math.Max(1, Document.PageCount));
     private void GoPage(int value) { page = value; viewMode = "text"; }
@@ -110,6 +117,7 @@
         using var reference = new DotNetStreamReference(new MemoryStream(bytes));
         await JS.InvokeVoidAsync("docusearch.download", reference, $"{Document.InternalCode}.pdf", "application/pdf");
         await State.RefreshAsync();
+        await OnRefreshed.InvokeAsync();
     });
     private Task AddNote() => State.RunAsync(async () =>
     {
@@ -117,8 +125,9 @@
         note = "";
         await State.RefreshAsync();
         Document = State.Data!.Documents.Single(d => d.Id == Document.Id);
+        await OnRefreshed.InvokeAsync();
     }, "Nota guardada.");
-    private Task Refresh() => State.RunAsync(async () => { await State.RefreshAsync(); Document = State.Data!.Documents.Single(d => d.Id == Document.Id); });
+    private Task Refresh() => State.RunAsync(async () => { await State.RefreshAsync(); Document = State.Data!.Documents.Single(d => d.Id == Document.Id); await OnRefreshed.InvokeAsync(); });
     public async ValueTask DisposeAsync()
     {
         if (pdfUrl is null) return;

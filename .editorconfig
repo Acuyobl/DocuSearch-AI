@@ -1,0 +1,34 @@
+# Configuración de estilo para editores compatibles con EditorConfig.
+# https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Ficheros que deben conservar LF también en Windows (coherente con .gitattributes).
+[*.{sh,py,yml,yaml}]
+end_of_line = lf
+
+# Código C# y vistas Blazor/Razor.
+[*.{cs,razor,cshtml}]
+indent_style = space
+indent_size = 4
+
+# Ficheros de datos y configuración con indentación de dos espacios.
+[*.{json,yml,yaml,xml,csproj,props,targets}]
+indent_size = 2
+
+# Markdown: los espacios finales pueden ser significativos (saltos de línea).
+[*.md]
+trim_trailing_whitespace = false
+
+# Soluciones de Visual Studio.
+[*.{sln,slnx}]
+indent_style = space
+indent_size = 2
+end_of_line = crlf

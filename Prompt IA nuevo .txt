@@ -2,16 +2,16 @@ DOCUSEARCH AI
 
 Prompt resumido para IA de prototipado de sistemas 
 
-VersiÛn sin mÛdulo de inicio de sesiÛn 
+Versi√≥n sin m√≥dulo de inicio de sesi√≥n 
 
 Objetivo del documento 
-Proporcionar instrucciones claras para que una IA genere un prototipo funcional, moderno y profesional de una plataforma inteligente de gestiÛn documental. 
+Proporcionar instrucciones claras para que una IA genere un prototipo funcional, moderno y profesional de una plataforma inteligente de gesti√≥n documental. 
 
  
 
 Prompt para la IA de prototipado 
 
-InstrucciÛn principal: Act˙a como un Arquitecto de Software Senior, UX/UI Designer, Product Owner y Business Analyst especializado en aplicaciones web SaaS empresariales. 
+Instrucci√≥n principal: Act√∫a como un Arquitecto de Software Senior, UX/UI Designer, Product Owner y Business Analyst especializado en aplicaciones web SaaS empresariales. 
 
 Nombre del producto 
 
@@ -19,35 +19,35 @@ DocuSearch AI
 
 Objetivo 
 
-DiseÒar una aplicaciÛn web inteligente para la gestiÛn documental que permita: 
+Dise√±ar una aplicaci√≥n web inteligente para la gesti√≥n documental que permita: 
 
 Cargar documentos PDF. 
 
 Extraer texto mediante OCR. 
 
-Clasificar documentos autom·ticamente usando inteligencia artificial. 
+Clasificar documentos autom√°ticamente usando inteligencia artificial. 
 
-Generar res˙menes inteligentes. 
+Generar res√∫menes inteligentes. 
 
-Realizar b˙squedas avanzadas tipo Google dentro del contenido documental. 
+Realizar b√∫squedas avanzadas tipo Google dentro del contenido documental. 
 
 Visualizar documentos y resultados contextualizados. 
 
-P˙blico objetivo: organizaciones p˙blicas y privadas. 
+P√∫blico objetivo: organizaciones p√∫blicas y privadas. 
 
-Tipo de aplicaciÛn y lÌnea visual 
+Tipo de aplicaci√≥n y l√≠nea visual 
 
 Aspecto 
 
-DefiniciÛn 
+Definici√≥n 
 
 Modalidad 
 
-AplicaciÛn web SaaS responsive. 
+Aplicaci√≥n web SaaS responsive. 
 
 Compatibilidad 
 
-Desktop, tablet y mÛvil. 
+Desktop, tablet y m√≥vil. 
 
 Referencias visuales 
 
@@ -65,11 +65,11 @@ Gestionar usuarios, permisos y departamentos.
 
 Acceder a todos los documentos. 
 
-Consultar auditorÌas y generar reportes. 
+Consultar auditor√≠as y generar reportes. 
 
 Administrador de Departamento 
 
-Gestionar usuarios de su ·rea. 
+Gestionar usuarios de su √°rea. 
 
 Visualizar documentos de su departamento. 
 
@@ -81,37 +81,37 @@ Cargar documentos.
 
 Editar metadatos. 
 
-Clasificar informaciÛn. 
+Clasificar informaci√≥n. 
 
 Usuario Consultor 
 
-Buscar informaciÛn. 
+Buscar informaci√≥n. 
 
 Visualizar documentos autorizados. 
 
 Auditor 
 
-Consultar bit·coras. 
+Consultar bit√°coras. 
 
 Generar evidencia. 
 
 Exportar reportes. 
 
-MÛdulos principales 
+M√≥dulos principales 
 
 1. Dashboard ejecutivo 
 
-Indicadores: total de documentos, documentos recientes, usuarios activos, documentos pendientes, b˙squedas realizadas y alertas. 
+Indicadores: total de documentos, documentos recientes, usuarios activos, documentos pendientes, b√∫squedas realizadas y alertas. 
 
-Gr·ficos: documentos por departamento, documentos por categorÌa, tendencias de consulta y documentos m·s consultados. 
+Gr√°ficos: documentos por departamento, documentos por categor√≠a, tendencias de consulta y documentos m√°s consultados. 
 
-2. GestiÛn documental 
+2. Gesti√≥n documental 
 
 Carga por arrastrar y soltar, carga masiva, vista previa y validaciones. 
 
-Procesamiento OCR autom·tico. 
+Procesamiento OCR autom√°tico. 
 
-Metadatos: cÛdigo, tÌtulo, autor, departamento, categorÌa, fecha, nivel de confidencialidad y versiÛn. 
+Metadatos: c√≥digo, t√≠tulo, autor, departamento, categor√≠a, fecha, nivel de confidencialidad y versi√≥n. 
 
 3. Procesamiento con IA 
 
@@ -121,43 +121,43 @@ Generar un resumen inteligente.
 
 Identificar palabras clave, fechas y entidades relevantes. 
 
-Clasificar autom·ticamente el documento. 
+Clasificar autom√°ticamente el documento. 
 
 4. Buscador inteligente 
 
 Interfaz central tipo Google. 
 
-B˙squeda por palabras clave, frases completas, filtros avanzados y lenguaje natural. 
+B√∫squeda por palabras clave, frases completas, filtros avanzados y lenguaje natural. 
 
-Resultados con nombre del documento, p·gina, fragmento relevante y nivel de relevancia. 
+Resultados con nombre del documento, p√°gina, fragmento relevante y nivel de relevancia. 
 
-Ejemplos: ìMostrar contratos firmados en 2025î, ìBuscar polÌticas de seguridadî y ìDocumentos relacionados con recursos humanosî. 
+Ejemplos: ‚ÄúMostrar contratos firmados en 2025‚Äù, ‚ÄúBuscar pol√≠ticas de seguridad‚Äù y ‚ÄúDocumentos relacionados con recursos humanos‚Äù. 
 
 5. Visor de documentos 
 
-VisualizaciÛn de PDF. 
+Visualizaci√≥n de PDF. 
 
-Resaltado de coincidencias y navegaciÛn por p·ginas. 
+Resaltado de coincidencias y navegaci√≥n por p√°ginas. 
 
-Comentarios y descarga seg˙n permisos. 
+Comentarios y descarga seg√∫n permisos. 
 
 6. Reportes 
 
-ExportaciÛn en PDF y Excel. 
+Exportaci√≥n en PDF y Excel. 
 
-Indicadores: documentos cargados, usuarios activos, consultas realizadas, documentos m·s consultados y procesos OCR ejecutados. 
+Indicadores: documentos cargados, usuarios activos, consultas realizadas, documentos m√°s consultados y procesos OCR ejecutados. 
 
-7. AuditorÌa 
+7. Auditor√≠a 
 
 Registrar consultas, descargas, modificaciones y eliminaciones. 
 
-Visualizar usuario, fecha, acciÛn realizada y resultado. 
+Visualizar usuario, fecha, acci√≥n realizada y resultado. 
 
 Pantallas que debe generar el prototipo 
 
 Dashboard ejecutivo. 
 
-GestiÛn y carga de documentos. 
+Gesti√≥n y carga de documentos. 
 
 Formulario de metadatos. 
 
@@ -165,17 +165,17 @@ Estado de procesamiento OCR e IA.
 
 Buscador inteligente. 
 
-Resultados de b˙squeda. 
+Resultados de b√∫squeda. 
 
 Visor documental. 
 
 Reportes. 
 
-Bit·cora de auditorÌa. 
+Bit√°cora de auditor√≠a. 
 
-AdministraciÛn de usuarios, roles, permisos y departamentos. 
+Administraci√≥n de usuarios, roles, permisos y departamentos. 
 
-Nota importante: No diseÒar ni incluir pantalla de login, recuperaciÛn de contraseÒa o MFA. El prototipo debe abrir directamente en el dashboard principal. 
+Nota importante: No dise√±ar ni incluir pantalla de login, recuperaci√≥n de contrase√±a o MFA. El prototipo debe abrir directamente en el dashboard principal. 
 
 Entregables solicitados 
 
@@ -183,15 +183,15 @@ Arquitectura funcional.
 
 Wireframes de alta fidelidad. 
 
-DiseÒo UX/UI completo. 
+Dise√±o UX/UI completo. 
 
-Flujo de navegaciÛn. 
+Flujo de navegaci√≥n. 
 
 Casos de uso. 
 
-Modelo entidad-relaciÛn. 
+Modelo entidad-relaci√≥n. 
 
-DiseÒo de base de datos. 
+Dise√±o de base de datos. 
 
 APIs REST. 
 
@@ -203,18 +203,18 @@ Roadmap de desarrollo.
 
 Recomendaciones de escalabilidad. 
 
-DiseÒo visual profesional listo para desarrollo. 
+Dise√±o visual profesional listo para desarrollo. 
 
 Criterios finales para la IA 
 
-Crear una soluciÛn coherente y navegable, no solo pantallas aisladas. 
+Crear una soluci√≥n coherente y navegable, no solo pantallas aisladas. 
 
-Mantener consistencia en colores, tipografÌa, componentes, iconografÌa y espaciado. 
+Mantener consistencia en colores, tipograf√≠a, componentes, iconograf√≠a y espaciado. 
 
-Usar datos de ejemplo realistas, sin informaciÛn sensible. 
+Usar datos de ejemplo realistas, sin informaci√≥n sensible. 
 
-Priorizar accesibilidad, claridad de estados, validaciones y retroalimentaciÛn visual. 
+Priorizar accesibilidad, claridad de estados, validaciones y retroalimentaci√≥n visual. 
 
-DiseÒar el producto como una soluciÛn SaaS comercial lista para organizaciones p˙blicas y privadas. 
+Dise√±ar el producto como una soluci√≥n SaaS comercial lista para organizaciones p√∫blicas y privadas. 
 
-Preparar el diseÒo para una futura implementaciÛn con React/Next.js en frontend y ASP.NET Core en backend. 
+Preparar el dise√±o para una futura implementaci√≥n con React/Next.js en frontend y ASP.NET Core en backend. 

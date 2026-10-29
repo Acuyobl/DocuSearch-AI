@@ -1,7 +1,7 @@
 @inject WorkspaceState State
 @inject DocumentService Service
 <div class="modal-backdrop">
-    <section class="modal form-modal metadata-modal" role="dialog" aria-modal="true" aria-labelledby="metadata-title">
+    <section class="modal form-modal metadata-modal" role="dialog" aria-modal="true" aria-labelledby="metadata-title" tabindex="-1" @ref="dialog" @onkeydown="OnKeyDown">
         <div class="dialog-heading"><span class="dialog-icon"><AppIcon Name="edit" /></span><div><h2 id="metadata-title">Editar Metadatos de Expediente</h2><p>Clasificación, confidencialidad y etiquetas</p><span class="badge code">@Document.InternalCode</span></div><button class="icon-button" aria-label="Cerrar" title="Cerrar" @onclick="OnClose" disabled="@State.Busy"><AppIcon Name="close" /></button></div>
         <EditForm Model="Document" OnValidSubmit="Save">
             <DataAnnotationsValidator /><ValidationSummary />
@@ -27,8 +27,14 @@
 @code {
     [Parameter, EditorRequired] public DocumentItem Document { get; set; } = default!;
     [Parameter] public EventCallback OnClose { get; set; }
+    private ElementReference dialog;
     private string keywords = "";
     private string tags = "";
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await dialog.FocusAsync();
+    }
+    private Task OnKeyDown(KeyboardEventArgs args) => args.Key == "Escape" ? OnClose.InvokeAsync() : Task.CompletedTask;
     protected override void OnInitialized() { keywords = string.Join(", ", Document.Keywords); tags = string.Join(", ", Document.Tags); }
     private Task Save() => State.RunAsync(async () =>
     {

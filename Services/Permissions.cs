@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using DocuSearch.Models;
 
 namespace DocuSearch.Services;
@@ -27,6 +28,30 @@ public static class Permissions
 
 public sealed class LocalSession
 {
-    public string UserId { get; set; } = "usr-1";
+    // La sesión nace vacía: solo la establece el inicio de sesión autenticado a partir
+    // de los claims de la cookie. La suite de comprobaciones crea su propia sesión con
+    // SignIn(...) usando un ClaimsPrincipal, de modo que el comportamiento no depende
+    // de la configuración Debug/Release.
+    public string? UserId { get; internal set; }
+    public string DisplayName { get; private set; } = "";
+    public string Role { get; private set; } = "consultor";
     public string? LastDocumentCode { get; set; }
+    public bool IsAuthenticated => !string.IsNullOrEmpty(UserId);
+
+    public void SignIn(ClaimsPrincipal principal)
+    {
+        UserId = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new InvalidOperationException("La identidad autenticada no contiene identificador de usuario.");
+        DisplayName = principal.FindFirstValue(ClaimTypes.Name) ?? "";
+        Role = principal.FindFirstValue(ClaimTypes.Role) ?? "consultor";
+        LastDocumentCode = null;
+    }
+
+    public void SignOut()
+    {
+        UserId = null;
+        DisplayName = "";
+        Role = "consultor";
+        LastDocumentCode = null;
+    }
 }

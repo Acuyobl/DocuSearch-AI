@@ -51,7 +51,7 @@
             @foreach (var dept in State.Data!.Departments)
             {
                 var used = Docs.Where(d => d.Department == dept.Name && d.HasOriginal).Sum(d => d.FileSizeBytes) / 1048576d;
-                <div><div class="bar-row"><span>@dept.Name</span><small>@used.ToString("N1") / @dept.AllocatedStorageMB MB</small></div><progress value="@used" max="@dept.AllocatedStorageMB" aria-label="@dept.Name"></progress></div>
+                <div><div class="bar-row"><span>@dept.Name</span><small>@used.ToString("N1") / @dept.AllocatedStorageMB MB</small></div><progress value="@(used.ToString("0.###", CultureInfo.InvariantCulture))" max="@dept.AllocatedStorageMB" aria-label="@dept.Name"></progress></div>
             }
         </div>
         <small>Las cuotas se verifican globalmente en servidor. Las cifras visibles respetan tu perfil.</small>

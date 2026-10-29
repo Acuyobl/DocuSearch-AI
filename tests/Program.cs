@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -35,6 +36,19 @@ async Task ThrowsAsync<T>(Func<Task> action) where T : Exception
     try { await action(); }
     catch (T) { return; }
     throw new InvalidOperationException($"Se esperaba {typeof(T).Name}.");
+}
+// La sesión ya no trae un usuario por defecto: el sujeto se establece desde los claims,
+// igual que en la aplicación web tras el inicio de sesión.
+LocalSession Session(string userId = "usr-1")
+{
+    var session = new LocalSession();
+    session.SignIn(new ClaimsPrincipal(new ClaimsIdentity(
+    [
+        new Claim(ClaimTypes.NameIdentifier, userId),
+        new Claim(ClaimTypes.Name, "Checks"),
+        new Claim(ClaimTypes.Role, "admin_general")
+    ], "checks")));
+    return session;
 }
 
 var seed = DatabaseSetup.ReadSeed();
@@ -124,7 +138,7 @@ await Check("Asistente: página no incluida no se inventa", () => Sync(() =>
 }));
 await Check("Asistente: seguimiento del expediente anterior", () => Sync(() =>
 {
-    var context = new LocalSession();
+    var context = Session();
     _ = LocalAgent.AnswerFromSources("CNT-2025-0892", seed.Documents, context);
     var answer = LocalAgent.AnswerFromSources("Resume ese expediente", seed.Documents, context);
     Assert(answer.Text.Contains("Cloud") && context.LastDocumentCode == contract.InternalCode);
@@ -222,13 +236,13 @@ await Check("Importación rechaza versiones desconocidas antes de acceder a la b
 {
     var factory = new TestFactory(new DbContextOptionsBuilder<AppDbContext>().UseSqlServer("Server=127.0.0.1,1;Database=unreachable;Integrated Security=True;Connect Timeout=1", sql => sql.UseCompatibilityLevel(150)).Options);
     using var stream = new MemoryStream(Encoding.UTF8.GetBytes("{\"schemaVersion\":99}"));
-    await ThrowsAsync<InvalidDataException>(() => new LegacyImport(factory, new LocalSession(), processor).ImportAsync(stream));
+    await ThrowsAsync<InvalidDataException>(() => new LegacyImport(factory, Session(), processor).ImportAsync(stream));
 });
 await Check("Importación rechaza más de 100 expedientes antes de acceder a la base", async () =>
 {
     var factory = new TestFactory(new DbContextOptionsBuilder<AppDbContext>().UseSqlServer("Server=127.0.0.1,1;Database=unreachable;Integrated Security=True;Connect Timeout=1", sql => sql.UseCompatibilityLevel(150)).Options);
     using var stream = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 1, documents = Enumerable.Range(0, 101).Select(_ => contract), users = new AppUser[0], departments = new DepartmentInfo[0] }, Catalog.Json));
-    await ThrowsAsync<InvalidDataException>(() => new LegacyImport(factory, new LocalSession(), processor).ImportAsync(stream));
+    await ThrowsAsync<InvalidDataException>(() => new LegacyImport(factory, Session(), processor).ImportAsync(stream));
 });
 await Check("Modelo y migración SQL Server 2019 se generan sin proveedor alternativo", () => Sync(() =>
 {
@@ -241,7 +255,7 @@ await Check("Modelo y migración SQL Server 2019 se generan sin proveedor altern
 await Check("Error SQL Server envuelto se informa en español y libera estado ocupado", async () =>
 {
     var factory = new TestFactory(new DbContextOptionsBuilder<AppDbContext>().UseSqlServer("Server=localhost;Database=offline;Integrated Security=True", sql => sql.UseCompatibilityLevel(150)).Options);
-    var service = new DocumentService(factory, new(), processor);
+    var service = new DocumentService(factory, Session(), processor);
     var state = new WorkspaceState(service, Microsoft.Extensions.Logging.Abstractions.NullLogger<WorkspaceState>.Instance);
     await state.RunAsync(() => Task.FromException(new InvalidOperationException("Transient failure", new TestDbException())));
     Assert(!state.Busy && state.Data is null && state.Error!.StartsWith("No se pudo completar la operación en SQL Server"));
@@ -255,7 +269,7 @@ await Check("Ollama: listas, páginas y entidades conservan su respuesta exacta"
 await Check("Ollama: un fallo libera la interfaz y muestra el error", async () =>
 {
     var factory = new TestFactory(new DbContextOptionsBuilder<AppDbContext>().UseSqlServer("Server=localhost;Database=offline;Integrated Security=True", sql => sql.UseCompatibilityLevel(150)).Options);
-    var state = new WorkspaceState(new DocumentService(factory, new(), processor), Microsoft.Extensions.Logging.Abstractions.NullLogger<WorkspaceState>.Instance);
+    var state = new WorkspaceState(new DocumentService(factory, Session(), processor), Microsoft.Extensions.Logging.Abstractions.NullLogger<WorkspaceState>.Instance);
     using var http = new HttpClient(new TestHttpHandler((_, _) => Task.FromException<HttpResponseMessage>(new HttpRequestException())));
     await state.RunAsync(() => Ollama(http).CheckAsync());
     Assert(!state.Busy && state.Notice is null && state.Error!.Contains("Ollama local"));
@@ -422,7 +436,7 @@ if (args.Contains("--database"))
     if (!settings.InitialCatalog.EndsWith("_tests", StringComparison.OrdinalIgnoreCase))
         throw new InvalidOperationException("Las pruebas de integración requieren una base con sufijo _tests.");
     var factory = new TestFactory(new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connection, sql => sql.UseCompatibilityLevel(150)).Options);
-    var session = new LocalSession();
+    var session = Session();
     var service = new DocumentService(factory, session, processor);
     using var offlineHttp = new HttpClient();
     var telemetry = new AgentObservability(factory, session, Microsoft.Extensions.Logging.Abstractions.NullLogger<AgentObservability>.Instance);
@@ -432,7 +446,7 @@ if (args.Contains("--database"))
         await using var db = await factory.CreateDbContextAsync();
         await DatabaseSetup.InitializeAsync(db);
         await DatabaseSetup.InitializeAsync(db);
-        await service.ResetAsync();
+        await service.ResetAsync("RESTABLECER");
         Assert((await service.LoadAsync()).Documents.Count >= 5);
     });
     await Check("SQL Server: carga real, original persistente y metadatos", async () =>

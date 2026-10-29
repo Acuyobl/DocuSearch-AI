@@ -31,15 +31,15 @@ public sealed class WorkspaceState(DocumentService service, ILogger<WorkspaceSta
             await operation();
             Notice = success;
         }
-        catch (Exception ex) when (ex is DbException or DbUpdateException or ValidationException or
-            InvalidDataException or IOException or UnauthorizedAccessException or InvalidOperationException or JsonException or
-            UglyToad.PdfPig.Core.PdfDocumentFormatException or System.Text.RegularExpressions.RegexMatchTimeoutException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "La operación documental no pudo completarse.");
             if (ex is UnauthorizedAccessException) Data = null;
-            Error = IsDatabaseError(ex)
-                ? "No se pudo completar la operación en SQL Server. Comprueba la instancia, los permisos de Windows y la inicialización. El detalle está en la consola del servidor."
-                : ex.Message;
+            Error = ex is UnauthorizedAccessException
+                ? "Tu sesión ya no es válida o el usuario fue desactivado. Vuelve a iniciar sesión."
+                : IsDatabaseError(ex)
+                    ? "No se pudo completar la operación en SQL Server. Comprueba la instancia, los permisos de Windows y la inicialización. El detalle está en la consola del servidor."
+                    : ex.Message;
         }
         finally
         {

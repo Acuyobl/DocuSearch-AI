@@ -4,6 +4,23 @@ Control documental con **Blazor Interactive Server, ASP.NET Core 10 y SQL Server
 Se compila y ejecuta con .NET y NuGet. No requiere Node.js, npm, React, Vite, Tailwind,
 OpenCode ni servicios externos de IA.
 
+## Índice
+
+- [Especificaciones del agente](#especificaciones-del-agente)
+- [Conexión ya configurada](#conexión-ya-configurada)
+- [Arranque](#arranque)
+- [Módulos conservados](#módulos-conservados)
+- [Procesamiento y almacenamiento](#procesamiento-y-almacenamiento)
+- [Integridad y concurrencia](#integridad-y-concurrencia)
+- [Asistente generativo local con LangChain y Ollama](#asistente-generativo-local-con-langchain-y-ollama)
+- [Observabilidad local sin Node.js](#observabilidad-local-sin-nodejs)
+- [Autenticación, permisos y modo local](#autenticación-permisos-y-modo-local)
+- [Recuperar datos del navegador anterior](#recuperar-datos-del-navegador-anterior)
+- [Validación](#validación)
+- [Migraciones y publicación](#migraciones-y-publicación)
+- [Cómo se construyó](#cómo-se-construyó)
+- [Licencia](#licencia)
+
 ## Especificaciones del agente
 
 El paquete [Specs del agente](agente-ia/specs/001-agente-documental/spec.md)
@@ -14,27 +31,43 @@ distingue lo implementado de las mejoras propuestas.
 
 ## Conexión ya configurada
 
-| Propiedad | Valor |
+La instalación de referencia usa una instancia local ya inicializada. No es la única
+opción: cualquier SQL Server 2019 o compatible accesible desde tu equipo sirve, y la
+base se crea o se actualiza con `dotnet run -- --initialize-database`.
+
+| Propiedad | Valor de referencia |
 |---|---|
-| Instancia | `ICEPALFLOR\SQLEXPRESS` |
+| Instancia | `ICEPALFLOR\SQLEXPRESS` (ejemplo) |
 | Motor detectado | SQL Server 2019 Express, versión 15.0.2200.2 |
 | Base de la aplicación | `DocuSearch` |
 | Autenticación | Windows, mediante la identidad que ejecuta ASP.NET Core |
 | Compatibilidad del proveedor | SQL Server 2019, nivel 150 |
 
-La base fue creada e inicializada con cinco expedientes, cinco perfiles y seis departamentos.
-No se modificaron bases ajenas. Para las pruebas se creó una base independiente `DocuSearch_tests`.
-No necesitas instalar otro motor de base de datos ni configurar una contraseña SQL.
+La base de referencia fue creada e inicializada con cinco expedientes, cinco usuarios y
+seis departamentos. No se modificaron bases ajenas. Para las pruebas se creó una base
+independiente `DocuSearch_tests`. No necesitas instalar otro motor de base de datos ni
+configurar una contraseña SQL.
 
-La cadena de `appsettings.json` es:
+Para una instalación limpia, define la instancia y la cadena en el entorno antes de
+inicializar. Así no dependes del nombre de equipo de quien creó este repositorio:
+
+```powershell
+$env:SQL_INSTANCE = "TU_EQUIPO\SQLEXPRESS"
+$env:ConnectionStrings__Documents = "Server=$env:SQL_INSTANCE;Database=DocuSearch;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=8"
+dotnet run -- --initialize-database
+```
+
+`SQL_INSTANCE` es solo una variable de apoyo para componer la cadena; la aplicación lee
+`ConnectionStrings__Documents`. La cadena de referencia de `appsettings.json` es:
 
 ```text
 Server=ICEPALFLOR\SQLEXPRESS;Database=DocuSearch;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=8
 ```
 
-`TrustServerCertificate=True` permite el certificado local autofirmado de esta instancia.
-No desactiva el cifrado, pero omite validar su identidad: no lo uses en un despliegue remoto.
-Con certificado confiable, configura `TrustServerCertificate=False`.
+`TrustServerCertificate=True` permite el certificado local autofirmado de la instancia
+de referencia. No desactiva el cifrado, pero omite validar su identidad: no lo uses en
+un despliegue remoto. Con certificado confiable, configura `TrustServerCertificate=False`.
+No se leen archivos `.env`.
 
 ## Arranque
 
@@ -47,7 +80,11 @@ dotnet restore
 dotnet run
 ```
 
-Abre <http://localhost:5068>.
+Abre <http://localhost:5068>. La aplicación redirige a **/login**: inicia sesión con un
+usuario de demostración (por ejemplo `fernando.aranda@empresa.com`, contraseña
+`DocuSearch#2026`) y los módulos respetan su rol. La base debe estar inicializada con
+los usuarios de ejemplo. **Salir**, en la cabecera, o `GET /account/logout` cierra la
+sesión y vuelve al formulario de inicio.
 
 ```powershell
 Invoke-RestMethod http://localhost:5068/health
@@ -98,14 +135,14 @@ de Windows utilizada para conectarse a SQL Server.
 | Reportes | Catálogo CSV, informe HTML autónomo e impresión a PDF |
 | Auditoría | Eventos persistentes, filtros y exportación del historial |
 | Observabilidad | Metadatos del agente, duración, errores y tokens reportados; acceso de administración general y auditoría |
+| Administración | Perfiles, roles, activación, departamentos, responsables y cuotas |
+| Arquitectura | Descripción del sistema implementado |
 
 En `/search`, alterna **Buscar documentos** y **Asistente IA** sin perder los
 resultados ni la conversación mientras permanezcas en el buscador. Los filtros
 de búsqueda no restringen el contexto del chat: el asistente consulta las fuentes
-autorizadas para tu perfil. La dirección anterior `/agent` abre el mismo buscador
-con el asistente seleccionado; ya no hay un módulo separado en el menú.
-| Administración | Perfiles, roles, activación, departamentos, responsables y cuotas |
-| Arquitectura | Descripción del sistema implementado |
+autorizadas para tu usuario autenticado. La dirección anterior `/agent` abre el mismo
+buscador con el asistente seleccionado; ya no hay un módulo separado en el menú.
 
 Se conserva el diseño de panel ejecutivo, tema oscuro/claro, acentos índigo/violeta, cabecera
 y menú lateral compacto. El dashboard incluye tarjetas de indicadores con iconografía SVG,
@@ -152,10 +189,12 @@ porcentajes de éxito ni servicios de IA simulados. No se afirma igualdad píxel
   generación con Ollama local, sin enviar documentos a terceros.
 - Relevancia por términos, **no similitud vectorial ni embeddings**.
 - Los cinco ejemplos conservan sus páginas de referencia y notas, pero no incluyen PDF
-  original. Sus hashes históricos no prueban un archivo que no se proporcionó.
+  original. Sus hashes históricos no prueban un archivo que no se proporcionó; la
+  interfaz los identifica como **Sin original**.
 - Metadatos en tablas relacionales, páginas y notas JSON en `nvarchar(max)` con validación
   `ISJSON`, originales en `varbinary(max)`.
-- Transacciones y `sp_getapplock` serializan cuotas, notas y contadores entre circuitos.
+- Transacciones y `sp_getapplock` serializan las mutaciones entre circuitos; las lecturas
+  no toman el lock y los contadores se actualizan con `ExecuteUpdateAsync`.
 - Las cuotas cuentan solo PDF originales realmente guardados. No incluyen tamaños ficticios
   de ejemplos sin archivo. SQL Server Express 2019 tiene un límite global de **10 GB por base**
   para datos: las cuotas departamentales no amplían ese límite. El motor informa explícitamente
@@ -163,6 +202,19 @@ porcentajes de éxito ni servicios de IA simulados. No se afirma igualdad píxel
   o diseña un almacenamiento externo protegido para los originales.
 - Notas compartidas persistentes; usa **Actualizar notas** para ver cambios de otros circuitos.
   No se afirma sincronización en tiempo real.
+
+## Integridad y concurrencia
+
+- **Integridad al servir:** al abrir o descargar un PDF se recalcula su SHA-256 y se
+  compara con el registrado. Si no coincide, la entrega se cancela y se audita
+  `INTEGRITY_MISMATCH` con estado **ADVERTENCIA**.
+- **Ejemplos sin original:** los expedientes de ejemplo que no incluyen PDF original ya
+  no muestran un hash como garantía; la interfaz indica **Sin original** y las acciones
+  que requieren el archivo siguen deshabilitadas.
+- **Lecturas sin lock:** `ViewAsync` y `FileAsync` ya no toman `sp_getapplock`. El
+  bloqueo queda solo para las mutaciones, y el parseo PDF del reproceso se ejecuta fuera
+  de la transacción y del lock para no retenerlo durante el trabajo pesado.
+- **Contadores:** se actualizan con `ExecuteUpdateAsync`, sin lecturas intermedias.
 
 ## Asistente generativo local con LangChain y Ollama
 
@@ -259,7 +311,7 @@ de usar Node.js. No requiere Docker, servicios de telemetría ni dependencias ad
   conteos por estado y suma de los tokens disponibles. **Actualizar métricas** vuelve
   a consultar la base; no hay actualización en tiempo real ni alertas automáticas.
 - Solo administración general y auditoría pueden leer el panel; la comprobación se
-  realiza también en el servicio C#. El selector de perfiles sigue siendo una demo.
+  realiza también en el servicio C#. La autorización se aplica al usuario autenticado.
 - Las trazas persisten al reiniciar. No se borran automáticamente: las 500 filas son
   el límite de visualización, no una política de retención. No se calcula costo,
   calidad de respuestas ni tiempos separados por etapa.
@@ -277,12 +329,41 @@ dotnet run -- --initialize-database
 No restablece los documentos existentes. LangSmith y los exportadores externos
 permanecen desactivados; no se conecta a Langfuse Cloud.
 
-## Permisos y modo local
+## Autenticación, permisos y modo local
 
-El selector de perfiles conserva la demostración del prototipo; **no es autenticación web**.
-El servidor solo admite host e IP de loopback. No lo expongas mediante proxy, túnel o servidor
-público sin sustituir el selector por identidad autenticada, autorización por usuario y TLS.
-La autenticación integrada a SQL Server no autentica a los usuarios del navegador.
+La aplicación usa **autenticación por cookie de ASP.NET Core**. La página de inicio de
+sesión está en `GET /login`; el formulario envía `POST /account/login` con `email`,
+`password`, `returnUrl` y token antiforgery. La salida es `GET /account/logout` o el
+botón **Salir** de la cabecera. La cookie se llama `DocuSearch.Auth`, es HttpOnly y la
+sesión es deslizante con `Auth:SessionHours` (8 horas por defecto). La identidad procede
+de los claims del usuario autenticado (`NameIdentifier`, `Name`, `Email`, `Role` y
+`department`); `LocalSession` se rellena con ellos y el RBAC se sigue aplicando en el
+servidor. El selector de perfiles desapareció: la cabecera muestra el usuario
+autenticado. La autenticación de Windows se usa solo para conectar con SQL Server; no
+identifica a los usuarios del navegador.
+
+Usuarios de demostración, todos con contraseña `DocuSearch#2026`:
+
+| Correo | Rol | Departamento |
+|---|---|---|
+| `fernando.aranda@empresa.com` | Administrador General | Tecnología & TI |
+| `carlos.mendoza@empresa.com` | Gestor Documental | Tecnología & TI |
+| `elena.rostova@empresa.com` | Admin Departamento | Legal & Contratos |
+| `ana.martinez@empresa.com` | Usuario Consultor | Recursos Humanos |
+| `mariana.silva@empresa.com` | Auditor de Seguridad | Auditoría & Control |
+
+Las credenciales se definen en `Auth:Users` de `appsettings.json` con hash
+**PBKDF2-SHA256**; nunca se guardan contraseñas en claro. El inicio de sesión exige
+además que el correo corresponda a un usuario activo de la base. Estas credenciales de
+demostración viven en configuración: para producción hay que sustituirlas por ASP.NET
+Core Identity u OIDC, junto con TLS. Ya no es un selector sin autenticación.
+
+El middleware `Demo:LocalOnly` (por defecto `true`) rechaza las peticiones que no
+provengan de loopback y también las que traigan cabeceras de reenvío (`X-Forwarded-*`
+o `Forwarded`), lo que mitiga el bypass por proxy. Al publicar, ponlo en `false` y
+configura TLS (`Security:Https:Enabled`). Se envían además cabeceras de seguridad:
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
+`Permissions-Policy` y `Cross-Origin-Opener-Policy`.
 
 Las operaciones se autorizan en servidor:
 
@@ -342,6 +423,9 @@ HTML, PDF reales, límites exactos, esquema SQL Server y Ollama con HTTP simulad
 privacidad, contexto acotado, citas, errores y liberación del estado ocupado.
 Un fallo produce código de salida no cero.
 
+La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta
+la compilación y las 65 comprobaciones sin servicios.
+
 Para añadir una generación real con el modelo local, usando únicamente una fuente sintética:
 
 ```powershell
@@ -393,5 +477,19 @@ incluye sus originales.
 
 La publicación se genera en `bin\Release\net10.0\publish`. Se ejecuta con
 `dotnet .\DocuSearch.dll` desde esa carpeta y requiere acceso Windows a la instancia.
-Sigue siendo una aplicación **solo local** hasta implementar autenticación real.
-No publiques la carpeta completa del proyecto como sitio estático.
+Por defecto sigue siendo una aplicación **solo local**: `Demo:LocalOnly` limita el acceso
+a loopback. Para publicarla, sustituye las credenciales de demostración por ASP.NET Core
+Identity u OIDC, activa TLS (`Security:Https:Enabled`), pon `Demo:LocalOnly` en `false`
+y no publiques la carpeta completa del proyecto como sitio estático.
+
+## Cómo se construyó
+
+El prototipo inicial se generó con IA a partir de los prompts históricos conservados en
+el repositorio. Sobre esa referencia se reimplementó y verificó la aplicación .NET/Blazor
+descrita aquí. Los commits que contaron con asistencia de GitHub Copilot declaran su
+coautoría en el mensaje con la línea `Co-authored-by: Copilot <copilot@github.com>`.
+
+## Licencia
+
+Este proyecto se distribuye bajo la licencia **MIT**. El texto completo está en
+[LICENSE](LICENSE). Las dependencias de terceros conservan sus propias licencias.

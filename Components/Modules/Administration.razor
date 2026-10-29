@@ -34,7 +34,7 @@ else if (active == "Departamentos")
             var used = State.Data.Documents.Where(d => d.Department == department.Name && d.HasOriginal).Sum(d => d.FileSizeBytes) / 1048576d;
             <section class="panel department-card"><span class="kpi-icon"><AppIcon Name="management" /></span><h3>@department.Name</h3><p>@department.Lead</p><span class="badge">@State.Data.Users.Count(u => u.Department == department.Name) usuarios</span>
                 <div class="bar-row"><span>@used.ToString("N1") MB ocupados</span><strong>@department.AllocatedStorageMB MB</strong></div>
-                <progress value="@used" max="@department.AllocatedStorageMB" aria-label="@department.Name"></progress>
+                <progress value="@(used.ToString("0.###", CultureInfo.InvariantCulture))" max="@department.AllocatedStorageMB" aria-label="@department.Name"></progress>
                 <button disabled="@State.Busy" @onclick="() => EditDepartment(department)"><AppIcon Name="edit" />Editar responsable y cuota</button>
             </section>
         }
@@ -60,7 +60,14 @@ else
         <label>Archivo JSON de respaldo (máximo 100 MB)<InputFile OnChange="Import" accept=".json,application/json" disabled="@State.Busy" /></label>
         <p>La importación se realiza en una sola transacción SQL Server. Se reemplazan los expedientes del mismo ID; los originales existentes no se eliminan. Conflictos de códigos o correos se notifican como error y revierten todo el lote.</p>
     </section>
-    <section class="panel"><h2>Restablecer datos de ejemplo</h2><p class="error-text">Elimina todos los PDF, notas, usuarios y departamentos actuales. Conserva la bitácora.</p><button class="danger" @onclick="Reset" disabled="@State.Busy">Restablecer con confirmación</button></section>
+    <section class="panel"><h2>Restablecer datos de ejemplo</h2><p class="error-text">Elimina todos los PDF, notas, usuarios y departamentos actuales. Conserva la bitácora.</p>
+        <label>Escribe exactamente <strong>RESTABLECER</strong> para habilitar la acción
+            <input @bind="resetConfirmation" @bind:event="oninput" autocomplete="off" spellcheck="false" aria-describedby="reset-help" disabled="@State.Busy" />
+        </label>
+        <small id="reset-help">La confirmación evita un restablecimiento accidental; esta acción no se puede deshacer.</small>
+        <small role="status" aria-live="polite">@(CanReset ? "Confirmación correcta: el botón de restablecimiento ya está habilitado." : "")</small>
+        <button class="danger" @onclick="Reset" disabled="@(State.Busy || !CanReset)">Restablecer con confirmación</button>
+    </section>
 }
 </div>
 @if (editingUser is not null)
@@ -101,6 +108,8 @@ else
         ("Gestión de Usuarios, Roles & Departamentos", Permissions.CanAdmin)
     ];
     private string userSearch = "", roleFilter = "";
+    private string resetConfirmation = "";
+    private bool CanReset => resetConfirmation == "RESTABLECER";
     private IEnumerable<AppUser> FilteredUsers => State.Data!.Users.Where(u =>
         (roleFilter.Length == 0 || u.Role == roleFilter) &&
         TextAnalysis.Normalize($"{u.Name} {u.Email} {u.Department}").Contains(TextAnalysis.Normalize(userSearch.Trim()), StringComparison.Ordinal));
@@ -126,8 +135,10 @@ else
     });
     private Task Reset() => State.RunAsync(async () =>
     {
-        if (!await JS.InvokeAsync<bool>("docusearch.confirm", "Esta acción elimina todos los expedientes, PDF y perfiles actuales. ¿Restablecer los ejemplos?")) return;
-        await Service.ResetAsync(); await State.RefreshAsync();
+        if (!CanReset) return;
+        await Service.ResetAsync("RESTABLECER");
+        resetConfirmation = "";
+        await State.RefreshAsync();
     });
     private Task Import(InputFileChangeEventArgs args) => State.RunAsync(async () =>
     {

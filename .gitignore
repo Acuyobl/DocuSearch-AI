@@ -11,3 +11,12 @@ appsettings.Local.json
 __pycache__/
 *.pyc
 .venv/
+# Salidas de publicación y resultados de pruebas.
+publish/
+TestResults/
+# Registros y archivos temporales de herramientas.
+*.log
+.idea/
+.DS_Store
+# Paquetes comprimidos.
+*.zip

@@ -15,7 +15,7 @@ respuestas ni identidad. No es una instalación de Langfuse.
 
 No llama a proveedores externos, no ejecuta herramientas arbitrarias y no requiere
 credenciales de IA. Usa `DocumentService` para obtener exclusivamente documentos
-permitidos por el perfil activo y registrar consultas en SQL Server.
+permitidos por el usuario autenticado (cookie de sesión) y registrar consultas en SQL Server.
 
 Las respuestas contienen fuentes estructuradas que abren el visor en la página citada.
 No se interpreta texto de documentos como instrucciones ni como HTML.

@@ -34,7 +34,11 @@ su respuesta exacta por reglas. La IA puede equivocarse; se deben revisar las ci
 Los escaneos sin texto requieren un motor OCR adicional.
 No hay embeddings ni métricas de similitud vectorial ficticias.
 
-Cinco perfiles permiten demostrar permisos aplicados en servidor. El acceso está
-limitado al equipo local y el selector de perfiles no sustituye autenticación.
+El acceso usa inicio de sesión real con cookie de ASP.NET Core (`/login`); ya no hay
+selector anónimo de perfiles. Cinco usuarios de demostración (contraseña
+`DocuSearch#2026`) permiten comprobar los permisos aplicados en servidor, con RBAC
+resuelto a partir de los claims. Esas credenciales viven en configuración y deben
+sustituirse por ASP.NET Core Identity u OIDC antes de publicar, junto con TLS.
+Por defecto el acceso sigue limitado al equipo local (`Demo:LocalOnly`).
 La conexión utiliza autenticación de Windows, instancia `ICEPALFLOR\SQLEXPRESS`
 y base `DocuSearch`, ya inicializada. Detalles en [README](README.md).

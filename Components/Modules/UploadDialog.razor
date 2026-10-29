@@ -1,7 +1,7 @@
 @inject WorkspaceState State
 @inject DocumentService Service
 <div class="modal-backdrop">
-    <section class="modal form-modal upload-modal" role="dialog" aria-modal="true" aria-labelledby="upload-title">
+    <section class="modal form-modal upload-modal" role="dialog" aria-modal="true" aria-labelledby="upload-title" tabindex="-1" @ref="dialog" @onkeydown="OnKeyDown">
         <div class="dialog-heading"><span class="dialog-icon"><AppIcon Name="upload" /></span><div><h2 id="upload-title">Ingesta de Expedientes PDF</h2><p>Extracción de texto, entidades y persistencia SQL Server</p></div><button class="icon-button" aria-label="Cerrar" title="Cerrar" disabled="@State.Busy" @onclick="OnClose"><AppIcon Name="close" /></button></div>
         <div class="dialog-body">
         <div class="segmented-control upload-modes"><button aria-pressed="@single" class="@(single ? "active" : "")" disabled="@State.Busy" @onclick="() => SetMode(true)"><AppIcon Name="document" />Carga Individual</button><button aria-pressed="@(!single)" class="@(!single ? "active" : "")" disabled="@State.Busy" @onclick="() => SetMode(false)"><AppIcon Name="management" />Carga Masiva (Lote)</button></div>
@@ -36,7 +36,7 @@
         {
             <div class="queue-item"><div><strong>@entry.File.Name</strong><small role="status">@((entry.File.Size / 1048576d).ToString("N2")) MB · @entry.Status</small>
                 @if (entry.Error is not null) { <p class="error-text">@entry.Error</p> }
-            </div><progress value="@entry.Progress" max="100" aria-label="@entry.File.Name"></progress></div>
+            </div><progress value="@FormatProgress(entry.Progress)" max="100" aria-label="@entry.File.Name"></progress></div>
         }
         <div class="alert info">Los PDF escaneados se almacenan, pero sus páginas sin texto quedan marcadas como «Requiere OCR». El asistente no inventa su contenido.</div>
         @if (State.Error is not null) { <div class="alert error" role="alert">@State.Error</div> }
@@ -50,6 +50,8 @@
 </div>
 @code {
     [Parameter] public EventCallback OnClose { get; set; }
+    private ElementReference dialog;
+    private static string FormatProgress(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
     private DocumentItem metadata = new();
     private bool single = true;
     private void SetMode(bool value)
@@ -67,6 +69,11 @@
         public double Progress { get; set; }
         public string? Error { get; set; }
     }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await dialog.FocusAsync();
+    }
+    private Task OnKeyDown(KeyboardEventArgs args) => args.Key == "Escape" ? OnClose.InvokeAsync() : Task.CompletedTask;
     protected override void OnInitialized()
     {
         metadata.Author = State.Data!.Actor.Name;

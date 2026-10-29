@@ -1,0 +1,23 @@
+# Normalización de finales de línea.
+# Git guarda LF en el repositorio y aplica el final de línea nativo del sistema
+# en el checkout. Los binarios quedan excluidos de cualquier conversión.
+* text=auto
+
+# Binarios: no se normalizan ni se intentan fusionar.
+*.docx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+
+# Scripts y ficheros de configuración que deben conservar LF también en Windows.
+*.sh text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# La solución se abre con Visual Studio en Windows; se mantiene CRLF.
+*.sln text eol=crlf

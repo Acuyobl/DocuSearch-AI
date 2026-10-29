@@ -1,40 +1,40 @@
-He diseÒado y desarrollado el prototipo funcional e integral de DocuSearch AI, concebido bajo los est·ndares de una plataforma SaaS empresarial de gestiÛn documental inteligente (IDMS), lista para organizaciones p˙blicas y privadas con altos requerimientos de cumplimiento y seguridad.
+He dise√±ado y desarrollado el prototipo funcional e integral de DocuSearch AI, concebido bajo los est√°ndares de una plataforma SaaS empresarial de gesti√≥n documental inteligente (IDMS), lista para organizaciones p√∫blicas y privadas con altos requerimientos de cumplimiento y seguridad.
 El prototipo abre de forma directa en el Dashboard principal (sin pantallas de login ni MFA), permitiendo evaluar y navegar la experiencia completa.
-MÛdulos Implementados y Experiencia de Usuario
+M√≥dulos Implementados y Experiencia de Usuario
 Dashboard Principal:
-Indicadores clave de rendimiento (KPIs): volumen total de documentos, ratio de procesamiento OCR (99.4%), usuarios activos en la organizaciÛn y tiempo medio de respuesta en b˙squedas vectoriales.
-Gr·ficos interactivos de distribuciÛn por departamentos y categorÌas normativas.
-Accesos directos para carga de archivos y consulta de los ˙ltimos expedientes indexados.
+Indicadores clave de rendimiento (KPIs): volumen total de documentos, ratio de procesamiento OCR (99.4%), usuarios activos en la organizaci√≥n y tiempo medio de respuesta en b√∫squedas vectoriales.
+Gr√°ficos interactivos de distribuci√≥n por departamentos y categor√≠as normativas.
+Accesos directos para carga de archivos y consulta de los √∫ltimos expedientes indexados.
 Carga de Documentos y Pipeline de Inteligencia Artificial:
 Modal interactivo con zona drag-and-drop para archivos PDF y formulario formal de metadatos (departamento emisor, tipo documental, autor, nivel de confidencialidad, etiquetas y notas).
-SimulaciÛn paso a paso del pipeline cognitivo: validaciÛn criptogr·fica (SHA-256), extracciÛn de texto mediante OCR, clasificaciÛn categÛrica con IA, generaciÛn de res˙menes ejecutivos y c·lculo de embeddings vectoriales.
+Simulaci√≥n paso a paso del pipeline cognitivo: validaci√≥n criptogr√°fica (SHA-256), extracci√≥n de texto mediante OCR, clasificaci√≥n categ√≥rica con IA, generaci√≥n de res√∫menes ejecutivos y c√°lculo de embeddings vectoriales.
 Monitor en tiempo real de jobs en cola y estado de procesamiento OCR.
-GestiÛn Documental:
-Tabla de expedientes con filtrado multidimensional por departamento, categorÌa, nivel de confidencialidad (P˙blico, Interno, Confidencial, Estrictamente Secreto) y estado del procesamiento.
-Acciones contextuales por documento: apertura en el visor, reprocesamiento de IA, descarga autorizada y eliminaciÛn lÛgica sujeta a privilegios.
+Gesti√≥n Documental:
+Tabla de expedientes con filtrado multidimensional por departamento, categor√≠a, nivel de confidencialidad (P√∫blico, Interno, Confidencial, Estrictamente Secreto) y estado del procesamiento.
+Acciones contextuales por documento: apertura en el visor, reprocesamiento de IA, descarga autorizada y eliminaci√≥n l√≥gica sujeta a privilegios.
 Buscador Inteligente:
-Interfaz central con selector entre b˙squeda sem·ntica por lenguaje natural y coincidencia textual exacta.
-Sugerencias r·pidas de consulta (ìMostrar contratos firmados en 2025î, ìBuscar polÌticas de seguridadî, ìDocumentos relacionados con recursos humanosî).
-Resultados detallados con porcentaje de relevancia, fragmentos contextuales con los tÈrminos buscados resaltados y botÛn directo para abrir el documento en la p·gina exacta del hallazgo.
+Interfaz central con selector entre b√∫squeda sem√°ntica por lenguaje natural y coincidencia textual exacta.
+Sugerencias r√°pidas de consulta (‚ÄúMostrar contratos firmados en 2025‚Äù, ‚ÄúBuscar pol√≠ticas de seguridad‚Äù, ‚ÄúDocumentos relacionados con recursos humanos‚Äù).
+Resultados detallados con porcentaje de relevancia, fragmentos contextuales con los t√©rminos buscados resaltados y bot√≥n directo para abrir el documento en la p√°gina exacta del hallazgo.
 Visor Contextualizado de Documentos:
-Lienzo de visualizaciÛn con navegaciÛn por p·ginas, controles de zoom e indicadores oficiales de folio.
-Panel lateral multifunciÛn con 4 pestaÒas: Resumen & IA (con entidades nombradas y salto directo por p·gina), Coincidencias (listado de ocurrencias con navegaciÛn r·pida), Notas Colaborativas (registro de observaciones con autor y fecha) y Ficha de Metadatos.
+Lienzo de visualizaci√≥n con navegaci√≥n por p√°ginas, controles de zoom e indicadores oficiales de folio.
+Panel lateral multifunci√≥n con 4 pesta√±as: Resumen & IA (con entidades nombradas y salto directo por p√°gina), Coincidencias (listado de ocurrencias con navegaci√≥n r√°pida), Notas Colaborativas (registro de observaciones con autor y fecha) y Ficha de Metadatos.
 Control de descarga protegido por perfil RBAC y nivel de confidencialidad.
-MÛdulo de Reportes & ExportaciÛn:
-MÈtricas operacionales de documentos cargados, consultas, usuarios activos y ejecuciones de OCR.
-GeneraciÛn de reportes ejecutivos con exportaciÛn descargable a Excel (.CSV) e impresiÛn formateada a PDF.
-ClasificaciÛn de los documentos con mayor frecuencia de consulta y lectura.
-Bit·cora de AuditorÌa (Audit Trail):
+M√≥dulo de Reportes & Exportaci√≥n:
+M√©tricas operacionales de documentos cargados, consultas, usuarios activos y ejecuciones de OCR.
+Generaci√≥n de reportes ejecutivos con exportaci√≥n descargable a Excel (.CSV) e impresi√≥n formateada a PDF.
+Clasificaci√≥n de los documentos con mayor frecuencia de consulta y lectura.
+Bit√°cora de Auditor√≠a (Audit Trail):
 Registro de eventos (consultas, descargas, altas, modificaciones, eliminaciones y bloqueos de seguridad).
-Detalle por usuario, rol, marca de tiempo UTC, direcciÛn IP y evidencia tÈcnica con opciÛn de exportaciÛn a archivo CSV.
-AdministraciÛn RBAC & Departamentos:
-Selector de roles en tiempo real en la cabecera (Administrador General, Administrador de Departamento, Gestor Documental, Consultor, Auditor) que adapta los permisos de la interfaz din·micamente.
+Detalle por usuario, rol, marca de tiempo UTC, direcci√≥n IP y evidencia t√©cnica con opci√≥n de exportaci√≥n a archivo CSV.
+Administraci√≥n RBAC & Departamentos:
+Selector de roles en tiempo real en la cabecera (Administrador General, Administrador de Departamento, Gestor Documental, Consultor, Auditor) que adapta los permisos de la interfaz din√°micamente.
 Matriz interactiva de permisos de seguridad y vista de cuotas de almacenamiento por departamento.
-Entregables de IngenierÌa & Arquitectura de Software:
-Vista especializada que contiene la especificaciÛn funcional completa: diagrama de arquitectura de 4 capas, Modelo Entidad-RelaciÛn (ERD), script SQL DDL para PostgreSQL 16 con pgvector, especificaciÛn de APIs RESTful (OpenAPI), backlog de historias de usuario con criterios de aceptaciÛn, roadmap de evoluciÛn y recomendaciones de escalabilidad para entornos con millones de documentos.
+Entregables de Ingenier√≠a & Arquitectura de Software:
+Vista especializada que contiene la especificaci√≥n funcional completa: diagrama de arquitectura de 4 capas, Modelo Entidad-Relaci√≥n (ERD), script SQL DDL para PostgreSQL 16 con pgvector, especificaci√≥n de APIs RESTful (OpenAPI), backlog de historias de usuario con criterios de aceptaci√≥n, roadmap de evoluci√≥n y recomendaciones de escalabilidad para entornos con millones de documentos.
 flag
 Checkpoint
-Generar documento con las especificaciones tÈcnicas para poder generar esta misma aplicaciÛn en otra IA, agregar aspectos tÈcnicos
+Generar documento con las especificaciones t√©cnicas para poder generar esta misma aplicaci√≥n en otra IA, agregar aspectos t√©cnicos
 Gemini 3.8 Flash
 Ran for 104s
 
@@ -51,29 +51,29 @@ src/components/ArchitectureView.tsx
 check_circle
 build
 Built
-Documento de Especificaciones TÈcnicas y Prompt Maestro para IAs: DocuSearch AI
-Se ha generado e integrado la EspecificaciÛn TÈcnica Completa y el Prompt Maestro de IngenierÌa para replicar de manera idÈntica esta aplicaciÛn en cualquier otra Inteligencia Artificial (Claude 3.7 Sonnet, ChatGPT GPT-4o, Cursor IDE, Gemini o DeepSeek).
-Adem·s, dentro de la aplicaciÛn en la secciÛn "Arquitectura & Docs", se habilitÛ la pestaÒa:
-?? "EspecificaciÛn para Otra IA (Prompt Maestro)", que incluye:
-BotÛn "Copiar Prompt Completo": Copia todo el prompt al portapapeles con un clic.
-BotÛn "Descargar .MD": Descarga el archivo DOCUSEARCH_AI_ESPECIFICACION_TECNICA.md listo para adjuntar en repositorios o consolas de IA.
-Documento TÈcnico Completo
+Documento de Especificaciones T√©cnicas y Prompt Maestro para IAs: DocuSearch AI
+Se ha generado e integrado la Especificaci√≥n T√©cnica Completa y el Prompt Maestro de Ingenier√≠a para replicar de manera id√©ntica esta aplicaci√≥n en cualquier otra Inteligencia Artificial (Claude 3.7 Sonnet, ChatGPT GPT-4o, Cursor IDE, Gemini o DeepSeek).
+Adem√°s, dentro de la aplicaci√≥n en la secci√≥n "Arquitectura & Docs", se habilit√≥ la pesta√±a:
+?? "Especificaci√≥n para Otra IA (Prompt Maestro)", que incluye:
+Bot√≥n "Copiar Prompt Completo": Copia todo el prompt al portapapeles con un clic.
+Bot√≥n "Descargar .MD": Descarga el archivo DOCUSEARCH_AI_ESPECIFICACION_TECNICA.md listo para adjuntar en repositorios o consolas de IA.
+Documento T√©cnico Completo
 code
 Markdown
-# ESPECIFICACI”N T…CNICA Y PROMPT MAESTRO DE INGENIERÕA: DOCUSEARCH AI
-**Sistema de GestiÛn Documental Inteligente (IDMS) con OCR, B˙squeda Sem·ntica Vectorial y Control de Acceso Basado en Roles (RBAC)**
+# ESPECIFICACI√ìN T√âCNICA Y PROMPT MAESTRO DE INGENIER√çA: DOCUSEARCH AI
+**Sistema de Gesti√≥n Documental Inteligente (IDMS) con OCR, B√∫squeda Sem√°ntica Vectorial y Control de Acceso Basado en Roles (RBAC)**
 
 ---
 
 ## 1. RESUMEN DEL SISTEMA Y ALCANCE FUNCIONAL
-DocuSearch AI es una plataforma web corporativa diseÒada para organizaciones p˙blicas y privadas que centraliza, procesa y explora expedientes documentales PDF mediante inteligencia artificial.
+DocuSearch AI es una plataforma web corporativa dise√±ada para organizaciones p√∫blicas y privadas que centraliza, procesa y explora expedientes documentales PDF mediante inteligencia artificial.
 
 ### Capacidades Principales:
-1. **Acceso directo sin barrera de login:** Apertura instant·nea en el Dashboard principal, con un **Selector de Rol Activo** en el Header para conmutar en caliente entre 5 perfiles RBAC.
-2. **Ingesta y OCR Automatizado:** RecepciÛn de archivos PDF, c·lculo de Hash criptogr·fico SHA-256 para evitar duplicados y extracciÛn estructurada de texto.
-3. **IndexaciÛn y B˙squeda Sem·ntica Vectorial:** B˙squeda en lenguaje natural con c·lculo de similitud de coseno, snippet de contexto resaltado, porcentaje de relevancia y salto directo a la p·gina del documento.
-4. **Visor Contextualizado de Documentos:** Canvas de lectura multi-p·gina con selector de folios, zoom in/out, marca de agua para documentos restringidos, panel de resumen ejecutivo por IA, entidades clave detectadas (NER) y formulario de notas colaborativas.
-5. **Seguridad y Trazabilidad:** Matriz de permisos RBAC con 5 roles, 4 niveles de confidencialidad y bit·cora de auditorÌa inmutable (*append-only*) exportable a Excel (CSV).
+1. **Acceso directo sin barrera de login:** Apertura instant√°nea en el Dashboard principal, con un **Selector de Rol Activo** en el Header para conmutar en caliente entre 5 perfiles RBAC.
+2. **Ingesta y OCR Automatizado:** Recepci√≥n de archivos PDF, c√°lculo de Hash criptogr√°fico SHA-256 para evitar duplicados y extracci√≥n estructurada de texto.
+3. **Indexaci√≥n y B√∫squeda Sem√°ntica Vectorial:** B√∫squeda en lenguaje natural con c√°lculo de similitud de coseno, snippet de contexto resaltado, porcentaje de relevancia y salto directo a la p√°gina del documento.
+4. **Visor Contextualizado de Documentos:** Canvas de lectura multi-p√°gina con selector de folios, zoom in/out, marca de agua para documentos restringidos, panel de resumen ejecutivo por IA, entidades clave detectadas (NER) y formulario de notas colaborativas.
+5. **Seguridad y Trazabilidad:** Matriz de permisos RBAC con 5 roles, 4 niveles de confidencialidad y bit√°cora de auditor√≠a inmutable (*append-only*) exportable a Excel (CSV).
 
 ---
 
@@ -81,27 +81,27 @@ DocuSearch AI es una plataforma web corporativa diseÒada para organizaciones p˙b
 
 ```text
 +--------------------------------------------------------------------------+
-¶                             CAPA DE PRESENTACI”N                         ¶
-¶   React 19 / Next.js 15 (TypeScript) + Tailwind CSS + Lucide Icons       ¶
-¶   - SPA Interactiva con Dashboard, Tablas, Buscador, Visor y AuditorÌa   ¶
-¶   - Selector de Roles RBAC para alternancia en caliente                  ¶
+¬¶                             CAPA DE PRESENTACI√ìN                         ¬¶
+¬¶   React 19 / Next.js 15 (TypeScript) + Tailwind CSS + Lucide Icons       ¬¶
+¬¶   - SPA Interactiva con Dashboard, Tablas, Buscador, Visor y Auditor√≠a   ¬¶
+¬¶   - Selector de Roles RBAC para alternancia en caliente                  ¬¶
 +--------------------------------------------------------------------------+
-                                     ¶ HTTPS / REST JSON
+                                     ¬¶ HTTPS / REST JSON
 +------------------------------------?-------------------------------------+
-¶                            CAPA DE API GATEWAY                           ¶
-¶   ASP.NET Core 9 Web API (o FastAPI / Node.js Express / NestJS)          ¶
-¶   - AutenticaciÛn JWT / Microsoft Entra ID (Azure AD)                    ¶
-¶   - AutorizaciÛn declarativa por Claims y PolÌticas RBAC                 ¶
-¶   - Mediador CQRS (MediatR) y ValidaciÛn con FluentValidation            ¶
+¬¶                            CAPA DE API GATEWAY                           ¬¶
+¬¶   ASP.NET Core 9 Web API (o FastAPI / Node.js Express / NestJS)          ¬¶
+¬¶   - Autenticaci√≥n JWT / Microsoft Entra ID (Azure AD)                    ¬¶
+¬¶   - Autorizaci√≥n declarativa por Claims y Pol√≠ticas RBAC                 ¬¶
+¬¶   - Mediador CQRS (MediatR) y Validaci√≥n con FluentValidation            ¬¶
 +--------------------------------------------------------------------------+
-                    ¶ MensajerÌa AMQP                   ¶ SQL / Driver
+                    ¬¶ Mensajer√≠a AMQP                   ¬¶ SQL / Driver
 +-------------------?------------------+ +--------------?------------------+
-¶        WORKERS ASÕNCRONOS OCR & AI   ¶ ¶     ALMACENAMIENTO PERSISTENTE   ¶
-¶ - Motor OCR: Tesseract 5 / Azure DI  ¶ ¶ - PostgreSQL 16 + pgvector       ¶
-¶ - Embeddings: OpenAI text-embed-3 /  ¶ ¶   (Embeddings 1,536 dim, HNSW)   ¶
-¶   Vertex AI / HuggingFace BGE-M3     ¶ ¶ - Object Storage: S3 / Azure Blob¶
-¶ - LLM Resumen/NER: Claude / Gemini / ¶ ¶ - Redis 7: CachÈ de sesiones y   ¶
-¶   GPT-4o                             ¶ ¶   consultas frecuentes           ¶
+¬¶        WORKERS AS√çNCRONOS OCR & AI   ¬¶ ¬¶     ALMACENAMIENTO PERSISTENTE   ¬¶
+¬¶ - Motor OCR: Tesseract 5 / Azure DI  ¬¶ ¬¶ - PostgreSQL 16 + pgvector       ¬¶
+¬¶ - Embeddings: OpenAI text-embed-3 /  ¬¶ ¬¶   (Embeddings 1,536 dim, HNSW)   ¬¶
+¬¶   Vertex AI / HuggingFace BGE-M3     ¬¶ ¬¶ - Object Storage: S3 / Azure Blob¬¶
+¬¶ - LLM Resumen/NER: Claude / Gemini / ¬¶ ¬¶ - Redis 7: Cach√© de sesiones y   ¬¶
+¬¶   GPT-4o                             ¬¶ ¬¶   consultas frecuentes           ¬¶
 +--------------------------------------+ +----------------------------------+
 3. MODELO DE DATOS Y ESQUEMA RELACIONAL (POSTGRESQL + PGVECTOR)
 code
@@ -147,7 +147,7 @@ CREATE TABLE documents (
     department_id UUID NOT NULL REFERENCES departments(department_id) ON DELETE RESTRICT,
     category VARCHAR(100) NOT NULL,
     author VARCHAR(150) NOT NULL,
-    confidentiality VARCHAR(50) NOT NULL CHECK (confidentiality IN ('P˙blico', 'Uso Interno', 'Confidencial', 'Estrictamente Secreto')),
+    confidentiality VARCHAR(50) NOT NULL CHECK (confidentiality IN ('P√∫blico', 'Uso Interno', 'Confidencial', 'Estrictamente Secreto')),
     download_restricted BOOLEAN DEFAULT FALSE,
     version VARCHAR(20) DEFAULT 'v1.0',
     page_count INT DEFAULT 1,
@@ -159,7 +159,7 @@ CREATE TABLE documents (
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. P·ginas OCR y Vectores de Embeddings
+-- 4. P√°ginas OCR y Vectores de Embeddings
 CREATE TABLE document_pages (
     page_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     document_id UUID NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
@@ -171,7 +171,7 @@ CREATE TABLE document_pages (
     CONSTRAINT uq_doc_page UNIQUE (document_id, page_number)
 );
 
--- Õndice HNSW de alta velocidad para similitud de coseno
+-- √çndice HNSW de alta velocidad para similitud de coseno
 CREATE INDEX idx_document_pages_embedding_hnsw 
 ON document_pages USING hnsw (embedding vector_cosine_ops)
 WITH (m = 16, ef_construction = 64);
@@ -186,7 +186,7 @@ CREATE TABLE document_entities (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- 6. Bit·cora de AuditorÌa Inmutable (Append-Only)
+-- 6. Bit√°cora de Auditor√≠a Inmutable (Append-Only)
 CREATE TABLE audit_logs (
     log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -200,17 +200,17 @@ CREATE TABLE audit_logs (
     result_status VARCHAR(30) NOT NULL CHECK (result_status IN ('Exitoso', 'Bloqueado', 'Advertencia')),
     details TEXT
 );
-4. PIPELINE DE PROCESAMIENTO OCR Y B⁄SQUEDA SEM¡NTICA
+4. PIPELINE DE PROCESAMIENTO OCR Y B√öSQUEDA SEM√ÅNTICA
 4.1. Pasos del Flujo de Ingesta:
-DeduplicaciÛn: C·lculo de SHA-256 en el backend. Si el hash ya existe, se rechaza la carga para optimizar almacenamiento.
+Deduplicaci√≥n: C√°lculo de SHA-256 en el backend. Si el hash ya existe, se rechaza la carga para optimizar almacenamiento.
 Almacenamiento Seguro: Subida del PDF original a S3/Azure Blob Storage cifrado con AES-256 (SSE-KMS).
-ExtracciÛn OCR y Bounding Boxes: Worker analiza cada p·gina y extrae el texto plano.
-An·lisis por LLM (Resumen + NER):
+Extracci√≥n OCR y Bounding Boxes: Worker analiza cada p√°gina y extrae el texto plano.
+An√°lisis por LLM (Resumen + NER):
 Resumen ejecutivo de 100-150 palabras.
-ExtracciÛn de entidades estructuradas: Personas, Fechas, Montos monetarios, Organizaciones y ArtÌculos/Leyes.
-GeneraciÛn de Embeddings: ConversiÛn de cada p·gina/p·rrafo a un vector de 1,536 dimensiones mediante modelo de lenguaje denso (text-embedding-3-small o bge-m3).
-Almacenamiento en pgvector: InserciÛn con Ìndice HNSW.
-4.2. Consulta SQL de B˙squeda Vectorial por Coseno:
+Extracci√≥n de entidades estructuradas: Personas, Fechas, Montos monetarios, Organizaciones y Art√≠culos/Leyes.
+Generaci√≥n de Embeddings: Conversi√≥n de cada p√°gina/p√°rrafo a un vector de 1,536 dimensiones mediante modelo de lenguaje denso (text-embedding-3-small o bge-m3).
+Almacenamiento en pgvector: Inserci√≥n con √≠ndice HNSW.
+4.2. Consulta SQL de B√∫squeda Vectorial por Coseno:
 code
 SQL
 SELECT 
@@ -232,51 +232,51 @@ ORDER BY p.embedding <=> :query_embedding ASC
 LIMIT 20;
 5. REGLAS DE NEGOCIO Y MATRIZ DE PERMISOS RBAC
 Perfiles:
-admin_general: Control total sin restricciones. GestiÛn de usuarios, configuraciÛn global, eliminaciÛn fÌsica/lÛgica y descarga de cualquier documento clasificado.
-admin_depto: GestiÛn completa de expedientes de su propio departamento y supervisiÛn de auditorÌa departamental.
-gestor_documental: Carga de archivos, ediciÛn de metadatos, reprocesamiento OCR/IA y descarga de documentos de nivel P˙blico a Confidencial.
-consultor: B˙squeda sem·ntica, lectura en visor y notas colaborativas. Descarga bloqueada para documentos Estrictamente Secreto o Confidencial.
-auditor: Solo lectura transversal (read-only), acceso exclusivo para examinar y exportar la Bit·cora de AuditorÌa en formato CSV.
+admin_general: Control total sin restricciones. Gesti√≥n de usuarios, configuraci√≥n global, eliminaci√≥n f√≠sica/l√≥gica y descarga de cualquier documento clasificado.
+admin_depto: Gesti√≥n completa de expedientes de su propio departamento y supervisi√≥n de auditor√≠a departamental.
+gestor_documental: Carga de archivos, edici√≥n de metadatos, reprocesamiento OCR/IA y descarga de documentos de nivel P√∫blico a Confidencial.
+consultor: B√∫squeda sem√°ntica, lectura en visor y notas colaborativas. Descarga bloqueada para documentos Estrictamente Secreto o Confidencial.
+auditor: Solo lectura transversal (read-only), acceso exclusivo para examinar y exportar la Bit√°cora de Auditor√≠a en formato CSV.
 Niveles de Confidencialidad:
-P˙blico: Libre acceso y descarga.
-Uso Interno: Acceso para personal de la organizaciÛn.
+P√∫blico: Libre acceso y descarga.
+Uso Interno: Acceso para personal de la organizaci√≥n.
 Confidencial: Descarga restringida para gestores o administradores.
 Estrictamente Secreto: Descarga bloqueada exclusivamente reservada para Administrador General. En el visor se despliega marca de agua de seguridad transparente.
 6. PROMPT MAESTRO TURNKEY PARA OTRA IA
 (Copia y pega este bloque en Claude 3.7, ChatGPT GPT-4o, Cursor o DeepSeek)
 code
 Markdown
-Act˙a como un Arquitecto de Software Principal y Desarrollador Full-Stack Senior especializado en TypeScript, React, Tailwind CSS y Sistemas de Inteligencia Artificial para GestiÛn Documental.
+Act√∫a como un Arquitecto de Software Principal y Desarrollador Full-Stack Senior especializado en TypeScript, React, Tailwind CSS y Sistemas de Inteligencia Artificial para Gesti√≥n Documental.
 
-Tu objetivo es diseÒar y construir de extremo a extremo una aplicaciÛn web corporativa idÈntica a "DocuSearch AI", un Sistema de GestiÛn Documental Inteligente (IDMS) con OCR, B˙squeda Sem·ntica Vectorial y Control de Acceso Basado en Roles (RBAC).
+Tu objetivo es dise√±ar y construir de extremo a extremo una aplicaci√≥n web corporativa id√©ntica a "DocuSearch AI", un Sistema de Gesti√≥n Documental Inteligente (IDMS) con OCR, B√∫squeda Sem√°ntica Vectorial y Control de Acceso Basado en Roles (RBAC).
 
-REQUISITOS FUNCIONALES Y DE DISE—O OBLIGATORIOS:
+REQUISITOS FUNCIONALES Y DE DISE√ëO OBLIGATORIOS:
 
 1. ARQUITECTURA DE ENTRADA DIRECTA (SIN LOGIN):
-   - La aplicaciÛn debe abrir inmediatamente en el "Dashboard Principal". No agregues pantallas de login restrictivas ni formularios bloqueantes de inicio de sesiÛn.
+   - La aplicaci√≥n debe abrir inmediatamente en el "Dashboard Principal". No agregues pantallas de login restrictivas ni formularios bloqueantes de inicio de sesi√≥n.
    - En la cabecera superior (Header), incluye un selector interactivo de "Rol Activo" que permita alternar en caliente entre 5 perfiles: "Administrador General", "Administrador de Departamento", "Gestor Documental", "Usuario Consultor" y "Auditor".
-   - Al cambiar el rol, la aplicaciÛn debe actualizar din·micamente los permisos de los botones (ej. habilitar/deshabilitar botÛn de eliminar, descargar documentos secretos o ver auditorÌa) y emitir un toast de notificaciÛn.
+   - Al cambiar el rol, la aplicaci√≥n debe actualizar din√°micamente los permisos de los botones (ej. habilitar/deshabilitar bot√≥n de eliminar, descargar documentos secretos o ver auditor√≠a) y emitir un toast de notificaci√≥n.
 
-2. NAVEGACI”N Y ESTRUCTURA DE PANTALLAS (SIDEBAR LATERAL):
-   - Implementa un Sidebar lateral con las siguientes pestaÒas navegables:
-     a) Dashboard Principal: KPIs (Total Documentos, % …xito OCR, Usuarios Activos, B˙squedas del DÌa), gr·ficos de barras/distribuciÛn por categorÌa y departamento, acceso r·pido a carga y ˙ltimos documentos.
-     b) GestiÛn Documental: Tabla exhaustiva de documentos con filtros por departamento, categorÌa, nivel de confidencialidad y estado OCR. Acciones por fila: ver en visor, descargar PDF, reprocesar IA y eliminar.
-     c) Pipeline OCR & IA: Monitor de procesamiento en tiempo real de lotes y colas, resumen de entidades detectadas y estado de vectorizaciÛn.
-     d) Buscador Inteligente: Interfaz central inspirada en Google con barra de b˙squeda, selector entre "Lenguaje Natural (Sem·ntica)" y "Coincidencia Exacta", chips de consultas frecuentes sugeridas ("Mostrar contratos firmados en 2025", "PolÌticas de seguridad", etc.), y resultados con snippet contextual resaltado, % de relevancia y botÛn para saltar directamente a la p·gina exacta.
-     e) Visor Contextualizado de Documentos (Modal/Vista): Lienzo de lectura simulando la p·gina PDF original con selector de p·gina, zoom in/out, marca de agua de seguridad y panel lateral con 4 pestaÒas: "Resumen & IA" (resumen y entidades NER cliqueables), "Coincidencias", "Notas Colaborativas" (con formulario para agregar observaciones fechadas) y "Ficha de Metadatos".
-     f) Reportes & MÈtricas: Indicadores operativos con botÛn de "Exportar Excel (CSV)" funcional que genera y descarga el archivo .csv en el navegador, y botÛn de imprimir/PDF.
-     g) Bit·cora de AuditorÌa: Tabla inmutable con eventos de lectura, descargas, altas, bloqueos de seguridad y exportaciÛn de evidencia en CSV.
-     h) AdministraciÛn & RBAC: Directorio de usuarios, matriz visual de permisos RBAC y cat·logo de departamentos con cuotas de disco.
-     i) Arquitectura & Docs: Entregables tÈcnicos con arquitectura de 4 capas, modelo ERD, script SQL DDL con pgvector, contratos de APIs RESTful, backlog de historias de usuario con story points, roadmap y especificaciones de escalabilidad.
+2. NAVEGACI√ìN Y ESTRUCTURA DE PANTALLAS (SIDEBAR LATERAL):
+   - Implementa un Sidebar lateral con las siguientes pesta√±as navegables:
+     a) Dashboard Principal: KPIs (Total Documentos, % √âxito OCR, Usuarios Activos, B√∫squedas del D√≠a), gr√°ficos de barras/distribuci√≥n por categor√≠a y departamento, acceso r√°pido a carga y √∫ltimos documentos.
+     b) Gesti√≥n Documental: Tabla exhaustiva de documentos con filtros por departamento, categor√≠a, nivel de confidencialidad y estado OCR. Acciones por fila: ver en visor, descargar PDF, reprocesar IA y eliminar.
+     c) Pipeline OCR & IA: Monitor de procesamiento en tiempo real de lotes y colas, resumen de entidades detectadas y estado de vectorizaci√≥n.
+     d) Buscador Inteligente: Interfaz central inspirada en Google con barra de b√∫squeda, selector entre "Lenguaje Natural (Sem√°ntica)" y "Coincidencia Exacta", chips de consultas frecuentes sugeridas ("Mostrar contratos firmados en 2025", "Pol√≠ticas de seguridad", etc.), y resultados con snippet contextual resaltado, % de relevancia y bot√≥n para saltar directamente a la p√°gina exacta.
+     e) Visor Contextualizado de Documentos (Modal/Vista): Lienzo de lectura simulando la p√°gina PDF original con selector de p√°gina, zoom in/out, marca de agua de seguridad y panel lateral con 4 pesta√±as: "Resumen & IA" (resumen y entidades NER cliqueables), "Coincidencias", "Notas Colaborativas" (con formulario para agregar observaciones fechadas) y "Ficha de Metadatos".
+     f) Reportes & M√©tricas: Indicadores operativos con bot√≥n de "Exportar Excel (CSV)" funcional que genera y descarga el archivo .csv en el navegador, y bot√≥n de imprimir/PDF.
+     g) Bit√°cora de Auditor√≠a: Tabla inmutable con eventos de lectura, descargas, altas, bloqueos de seguridad y exportaci√≥n de evidencia en CSV.
+     h) Administraci√≥n & RBAC: Directorio de usuarios, matriz visual de permisos RBAC y cat√°logo de departamentos con cuotas de disco.
+     i) Arquitectura & Docs: Entregables t√©cnicos con arquitectura de 4 capas, modelo ERD, script SQL DDL con pgvector, contratos de APIs RESTful, backlog de historias de usuario con story points, roadmap y especificaciones de escalabilidad.
 
-3. EST…TICA VISUAL Y CALIDAD DE C”DIGO:
+3. EST√âTICA VISUAL Y CALIDAD DE C√ìDIGO:
    - Utiliza React con TypeScript y Tailwind CSS.
-   - Emplea la librerÌa lucide-react para toda la iconografÌa.
-   - Paleta de diseÒo sobria y corporativa: blancos limpios (`bg-white`), fondos neutros suaves (`bg-slate-100`), bordes sutiles (`border-slate-200`), acentos en Ìndigo corporativo (`indigo-600`) y badges de estado en esmeralda, ·mbar y carmesÌ.
-   - Garantiza que cada botÛn y acciÛn tenga retroalimentaciÛn visual (toasts, modales de confirmaciÛn, simulaciones de carga y descargas reales de archivos blob).
-   - Genera datos iniciales enriquecidos en espaÒol con documentos realistas (Contratos de Servicios TI, PolÌticas de Seguridad de la InformaciÛn ISO 27001, Reglamentos de Trabajo, Informes Financieros y Dict·menes de AuditorÌa).
+   - Emplea la librer√≠a lucide-react para toda la iconograf√≠a.
+   - Paleta de dise√±o sobria y corporativa: blancos limpios (`bg-white`), fondos neutros suaves (`bg-slate-100`), bordes sutiles (`border-slate-200`), acentos en √≠ndigo corporativo (`indigo-600`) y badges de estado en esmeralda, √°mbar y carmes√≠.
+   - Garantiza que cada bot√≥n y acci√≥n tenga retroalimentaci√≥n visual (toasts, modales de confirmaci√≥n, simulaciones de carga y descargas reales de archivos blob).
+   - Genera datos iniciales enriquecidos en espa√±ol con documentos realistas (Contratos de Servicios TI, Pol√≠ticas de Seguridad de la Informaci√≥n ISO 27001, Reglamentos de Trabajo, Informes Financieros y Dict√°menes de Auditor√≠a).
 
-Procede a generar el cÛdigo modular, limpio, completamente tipado y listo para ejecuciÛn.
+Procede a generar el c√≥digo modular, limpio, completamente tipado y listo para ejecuci√≥n.
 
 INTERFAS 
 
@@ -346,15 +346,15 @@ export const ArchitectureView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-              DocumentaciÛn de IngenierÌa & Arquitectura
+              Documentaci√≥n de Ingenier√≠a & Arquitectura
             </span>
             <span className="text-xs text-slate-400">Entregables Oficiales del Proyecto</span>
           </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            EspecificaciÛn TÈcnica y Arquitectura de Software
+            Especificaci√≥n T√©cnica y Arquitectura de Software
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            DocumentaciÛn exhaustiva para el equipo de desarrollo (React/Next.js en Frontend y ASP.NET Core en Backend).
+            Documentaci√≥n exhaustiva para el equipo de desarrollo (React/Next.js en Frontend y ASP.NET Core en Backend).
           </p>
         </div>
 
@@ -374,7 +374,7 @@ export const ArchitectureView: React.FC = () => {
           }`}
         >
           <Bot className="w-4 h-4 text-purple-600" />
-          <span className="font-extrabold text-purple-900">EspecificaciÛn para Otra IA (Prompt Maestro)</span>
+          <span className="font-extrabold text-purple-900">Especificaci√≥n para Otra IA (Prompt Maestro)</span>
           <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px]">Listo</span>
         </button>
 
@@ -395,7 +395,7 @@ export const ArchitectureView: React.FC = () => {
           }`}
         >
           <Database className="w-4 h-4" />
-          <span>Modelo Entidad-RelaciÛn (ERD)</span>
+          <span>Modelo Entidad-Relaci√≥n (ERD)</span>
         </button>
 
         <button
@@ -405,7 +405,7 @@ export const ArchitectureView: React.FC = () => {
           }`}
         >
           <Code2 className="w-4 h-4" />
-          <span>DiseÒo BD (SQL DDL)</span>
+          <span>Dise√±o BD (SQL DDL)</span>
         </button>
 
         <button
@@ -457,13 +457,13 @@ export const ArchitectureView: React.FC = () => {
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-200 text-xs font-semibold mb-3">
                   <Sparkles className="w-3.5 h-3.5 text-purple-300" />
-                  <span>Prompt Maestro de IngenierÌa para IAs</span>
+                  <span>Prompt Maestro de Ingenier√≠a para IAs</span>
                 </div>
                 <h2 className="text-xl font-bold tracking-tight">
-                  EspecificaciÛn TÈcnica para Replicar DocuSearch AI en Otra IA
+                  Especificaci√≥n T√©cnica para Replicar DocuSearch AI en Otra IA
                 </h2>
                 <p className="text-sm text-purple-200/80 mt-1 max-w-2xl">
-                  Documento tÈcnico exhaustivo diseÒado para alimentar modelos avanzados (Claude 3.7 Sonnet, ChatGPT GPT-4o, Cursor IDE, Gemini o DeepSeek R1) para generar de forma determinista la misma aplicaciÛn.
+                  Documento t√©cnico exhaustivo dise√±ado para alimentar modelos avanzados (Claude 3.7 Sonnet, ChatGPT GPT-4o, Cursor IDE, Gemini o DeepSeek R1) para generar de forma determinista la misma aplicaci√≥n.
                 </p>
               </div>
 
@@ -473,7 +473,7 @@ export const ArchitectureView: React.FC = () => {
                   className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-2"
                 >
                   {copiedPrompt ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
-                  <span>{copiedPrompt ? '°Copiado al Portapapeles!' : 'Copiar Prompt Completo'}</span>
+                  <span>{copiedPrompt ? '¬°Copiado al Portapapeles!' : 'Copiar Prompt Completo'}</span>
                 </button>
 
                 <button
@@ -511,9 +511,9 @@ export const ArchitectureView: React.FC = () => {
           <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl text-xs text-amber-900 flex items-start gap-3">
             <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold text-amber-950">CÛmo usar este documento con otra Inteligencia Artificial:</p>
+              <p className="font-bold text-amber-950">C√≥mo usar este documento con otra Inteligencia Artificial:</p>
               <p className="mt-0.5 leading-relaxed text-amber-800">
-                Haz clic en <strong>"Copiar Prompt Completo"</strong> y pÈgalo directamente en la consola de <strong>Cursor, Claude 3.7 Sonnet, ChatGPT (GPT-4o) o DeepSeek</strong>. Incluye el esquema relacional DDL, el pipeline de extracciÛn OCR, las reglas RBAC, los contratos de API y el prompt turnkey para que la IA genere el cÛdigo de forma modular sin omitir ninguna funcionalidad.
+                Haz clic en <strong>"Copiar Prompt Completo"</strong> y p√©galo directamente en la consola de <strong>Cursor, Claude 3.7 Sonnet, ChatGPT (GPT-4o) o DeepSeek</strong>. Incluye el esquema relacional DDL, el pipeline de extracci√≥n OCR, las reglas RBAC, los contratos de API y el prompt turnkey para que la IA genere el c√≥digo de forma modular sin omitir ninguna funcionalidad.
               </p>
             </div>
           </div>
@@ -546,9 +546,9 @@ export const ArchitectureView: React.FC = () => {
       {activeSection === 'architecture' && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-4">
-            <h2 className="text-sm font-bold text-slate-900">Arquitectura Funcional y Flujo de NavegaciÛn</h2>
+            <h2 className="text-sm font-bold text-slate-900">Arquitectura Funcional y Flujo de Navegaci√≥n</h2>
             <p className="text-xs text-slate-600 leading-relaxed">
-              DocuSearch AI implementa un modelo desacoplado de microservicios con orquestaciÛn asÌncrona mediante mensajerÌa. Esto garantiza que la carga de archivos PDF de gran volumen no degrade la experiencia de b˙squeda o visualizaciÛn.
+              DocuSearch AI implementa un modelo desacoplado de microservicios con orquestaci√≥n as√≠ncrona mediante mensajer√≠a. Esto garantiza que la carga de archivos PDF de gran volumen no degrade la experiencia de b√∫squeda o visualizaci√≥n.
             </p>
 
             {/* Architecture Diagram Cards */}
@@ -562,19 +562,19 @@ export const ArchitectureView: React.FC = () => {
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">Capa 2</span>
                 <h3 className="font-bold text-slate-900 text-sm">API Gateway & Backend</h3>
-                <p className="text-slate-500">ASP.NET Core 9 Web API con autenticaciÛn JWT / Entra ID, autorizaciÛn RBAC por claims y mediador MediatR (CQRS).</p>
+                <p className="text-slate-500">ASP.NET Core 9 Web API con autenticaci√≥n JWT / Entra ID, autorizaci√≥n RBAC por claims y mediador MediatR (CQRS).</p>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">Capa 3</span>
                 <h3 className="font-bold text-slate-900 text-sm">Workers OCR & AI</h3>
-                <p className="text-slate-500">Servicios en background (Tesseract, Azure Document Intelligence y Vertex AI / Gemini) para extracciÛn, resumen y NER.</p>
+                <p className="text-slate-500">Servicios en background (Tesseract, Azure Document Intelligence y Vertex AI / Gemini) para extracci√≥n, resumen y NER.</p>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">Capa 4</span>
-                <h3 className="font-bold text-slate-900 text-sm">Almacenamiento HÌbrido</h3>
-                <p className="text-slate-500">PostgreSQL 16 con extensiÛn pgvector + S3 / Azure Blob Storage cifrado + Redis para cachÈ distribuida de consultas.</p>
+                <h3 className="font-bold text-slate-900 text-sm">Almacenamiento H√≠brido</h3>
+                <p className="text-slate-500">PostgreSQL 16 con extensi√≥n pgvector + S3 / Azure Blob Storage cifrado + Redis para cach√© distribuida de consultas.</p>
               </div>
             </div>
           </div>
@@ -582,11 +582,11 @@ export const ArchitectureView: React.FC = () => {
           <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-3">
             <h3 className="text-sm font-bold text-slate-900">Flujo Integral de Vida del Documento</h3>
             <ol className="space-y-3 text-xs text-slate-600 list-decimal pl-4">
-              <li><strong>Carga y ValidaciÛn:</strong> El usuario arrastra un PDF. El frontend calcula el hash SHA-256 para evitar duplicados y valida que no supere 50MB.</li>
-              <li><strong>Encolamiento AsÌncrono:</strong> La API almacena el binario en Blob Storage y encola un evento en RabbitMQ / Service Bus (<code>DocumentUploadedEvent</code>).</li>
-              <li><strong>ExtracciÛn OCR y NLP:</strong> El worker procesa cada p·gina extrayendo texto, reconociendo idioma, detectando entidades (personas, montos, fechas) y generando el resumen ejecutivo.</li>
-              <li><strong>VectorizaciÛn Sem·ntica:</strong> Se generan embeddings densos de 1,536 dimensiones por cada p·gina/fragmento y se guardan en el Ìndice HNSW/IVFFlat de pgvector.</li>
-              <li><strong>B˙squeda y Consulta:</strong> Los usuarios realizan consultas en lenguaje natural. El motor calcula la similitud de coseno y devuelve el fragmento contextualizado con su p·gina exacta en menos de 50ms.</li>
+              <li><strong>Carga y Validaci√≥n:</strong> El usuario arrastra un PDF. El frontend calcula el hash SHA-256 para evitar duplicados y valida que no supere 50MB.</li>
+              <li><strong>Encolamiento As√≠ncrono:</strong> La API almacena el binario en Blob Storage y encola un evento en RabbitMQ / Service Bus (<code>DocumentUploadedEvent</code>).</li>
+              <li><strong>Extracci√≥n OCR y NLP:</strong> El worker procesa cada p√°gina extrayendo texto, reconociendo idioma, detectando entidades (personas, montos, fechas) y generando el resumen ejecutivo.</li>
+              <li><strong>Vectorizaci√≥n Sem√°ntica:</strong> Se generan embeddings densos de 1,536 dimensiones por cada p√°gina/fragmento y se guardan en el √≠ndice HNSW/IVFFlat de pgvector.</li>
+              <li><strong>B√∫squeda y Consulta:</strong> Los usuarios realizan consultas en lenguaje natural. El motor calcula la similitud de coseno y devuelve el fragmento contextualizado con su p√°gina exacta en menos de 50ms.</li>
             </ol>
           </div>
         </div>
@@ -596,7 +596,7 @@ export const ArchitectureView: React.FC = () => {
       {activeSection === 'erd' && (
         <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-5">
           <div>
-            <h2 className="text-sm font-bold text-slate-900">Modelo Entidad-RelaciÛn Relacional (ERD)</h2>
+            <h2 className="text-sm font-bold text-slate-900">Modelo Entidad-Relaci√≥n Relacional (ERD)</h2>
             <p className="text-xs text-slate-500">
               Esquema normalizado de tercera forma normal (3NF) con soporte nativo de extensiones vectoriales.
             </p>
@@ -640,7 +640,7 @@ export const ArchitectureView: React.FC = () => {
 
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
               <span className="font-bold text-indigo-600 block border-b border-slate-200 pb-1 mb-2">
-                4. DocumentPages (P·ginas OCR)
+                4. DocumentPages (P√°ginas OCR)
               </span>
               <p className="text-slate-700 font-bold">PK PageId: UUID</p>
               <p className="text-slate-600">FK DocumentId: UUID (CASCADE)</p>
@@ -651,7 +651,7 @@ export const ArchitectureView: React.FC = () => {
 
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
               <span className="font-bold text-indigo-600 block border-b border-slate-200 pb-1 mb-2">
-                5. DocumentEntities (NER ExtraÌdo)
+                5. DocumentEntities (NER Extra√≠do)
               </span>
               <p className="text-slate-700 font-bold">PK EntityId: UUID</p>
               <p className="text-slate-600">FK DocumentId: UUID</p>
@@ -662,7 +662,7 @@ export const ArchitectureView: React.FC = () => {
 
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
               <span className="font-bold text-indigo-600 block border-b border-slate-200 pb-1 mb-2">
-                6. AuditLogs (Bit·cora Inmutable)
+                6. AuditLogs (Bit√°cora Inmutable)
               </span>
               <p className="text-slate-700 font-bold">PK LogId: UUID</p>
               <p className="text-slate-600">EventTimestamp: TIMESTAMPTZ</p>
@@ -679,7 +679,7 @@ export const ArchitectureView: React.FC = () => {
         <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold text-slate-900">Script SQL DDL de CreaciÛn de Tablas</h2>
+              <h2 className="text-sm font-bold text-slate-900">Script SQL DDL de Creaci√≥n de Tablas</h2>
               <p className="text-xs text-slate-500">Compatible con PostgreSQL 16 (pgvector) y Entity Framework Core 9</p>
             </div>
             <button
@@ -701,8 +701,8 @@ export const ArchitectureView: React.FC = () => {
       {activeSection === 'apis' && (
         <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-4">
           <div>
-            <h2 className="text-sm font-bold text-slate-900">EspecificaciÛn de Endpoints RESTful (OpenAPI / Swagger)</h2>
-            <p className="text-xs text-slate-500">Contratos de comunicaciÛn frontend-backend con cÛdigos de estado HTTP est·ndar</p>
+            <h2 className="text-sm font-bold text-slate-900">Especificaci√≥n de Endpoints RESTful (OpenAPI / Swagger)</h2>
+            <p className="text-xs text-slate-500">Contratos de comunicaci√≥n frontend-backend con c√≥digos de estado HTTP est√°ndar</p>
           </div>
 
           <div className="space-y-3">
@@ -747,8 +747,8 @@ export const ArchitectureView: React.FC = () => {
       {activeSection === 'stories' && (
         <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-4">
           <div>
-            <h2 className="text-sm font-bold text-slate-900">Historias de Usuario (MetodologÌa Scrum / ¡gil)</h2>
-            <p className="text-xs text-slate-500">Casos de uso expresados en historias con criterios de aceptaciÛn verificables</p>
+            <h2 className="text-sm font-bold text-slate-900">Historias de Usuario (Metodolog√≠a Scrum / √Ågil)</h2>
+            <p className="text-xs text-slate-500">Casos de uso expresados en historias con criterios de aceptaci√≥n verificables</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -775,7 +775,7 @@ export const ArchitectureView: React.FC = () => {
                 </p>
 
                 <div className="pt-2 border-t border-slate-200">
-                  <span className="font-bold text-slate-700 block mb-1 text-[11px]">Criterios de AceptaciÛn:</span>
+                  <span className="font-bold text-slate-700 block mb-1 text-[11px]">Criterios de Aceptaci√≥n:</span>
                   <ul className="list-disc pl-4 space-y-1 text-[11px] text-slate-600">
                     {story.acceptanceCriteria.map((c, i) => (
                       <li key={i}>{c}</li>
@@ -792,7 +792,7 @@ export const ArchitectureView: React.FC = () => {
       {activeSection === 'roadmap' && (
         <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-5">
           <div>
-            <h2 className="text-sm font-bold text-slate-900">Roadmap de Desarrollo de Producto (Fases de EvoluciÛn)</h2>
+            <h2 className="text-sm font-bold text-slate-900">Roadmap de Desarrollo de Producto (Fases de Evoluci√≥n)</h2>
             <p className="text-xs text-slate-500">Cronograma de despliegue desde el MVP funcional hasta capacidades cognitivas multi-agente</p>
           </div>
 
@@ -825,7 +825,7 @@ export const ArchitectureView: React.FC = () => {
         <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-2xs space-y-4">
           <div>
             <h2 className="text-sm font-bold text-slate-900">Recomendaciones de Escalabilidad, Disponibilidad y Seguridad</h2>
-            <p className="text-xs text-slate-500">Patrones de diseÒo recomendados para implementaciones con m·s de 10 millones de p·ginas PDF</p>
+            <p className="text-xs text-slate-500">Patrones de dise√±o recomendados para implementaciones con m√°s de 10 millones de p√°ginas PDF</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -846,65 +846,65 @@ export const ArchitectureView: React.FC = () => {
 };
 
 /**
- * EspecificaciÛn TÈcnica Completa y Prompt Maestro de ReproducciÛn para Modelos de Inteligencia Artificial
+ * Especificaci√≥n T√©cnica Completa y Prompt Maestro de Reproducci√≥n para Modelos de Inteligencia Artificial
  * (Claude 3.7 / GPT-4o / Cursor / DeepSeek / Gemini / Copilot)
  */
 
-export const TECHNICAL_SPEC_MARKDOWN = `# ESPECIFICACI”N T…CNICA Y PROMPT MAESTRO DE INGENIERÕA: DOCUSEARCH AI
-**Sistema Corporativo de GestiÛn Documental Inteligente (IDMS) con Procesamiento OCR, B˙squeda Sem·ntica Vectorial y Control de Acceso Basado en Roles (RBAC)**
+export const TECHNICAL_SPEC_MARKDOWN = `# ESPECIFICACI√ìN T√âCNICA Y PROMPT MAESTRO DE INGENIER√çA: DOCUSEARCH AI
+**Sistema Corporativo de Gesti√≥n Documental Inteligente (IDMS) con Procesamiento OCR, B√∫squeda Sem√°ntica Vectorial y Control de Acceso Basado en Roles (RBAC)**
 
 ---
 
 ## 1. RESUMEN EJECUTIVO Y OBJETIVO DEL SISTEMA
-**DocuSearch AI** es una plataforma web empresarial de gestiÛn documental diseÒada para resolver la ineficiencia operativa generada por la dispersiÛn y falta de indexaciÛn de expedientes digitales (PDFs) en instituciones gubernamentales y corporativas.
+**DocuSearch AI** es una plataforma web empresarial de gesti√≥n documental dise√±ada para resolver la ineficiencia operativa generada por la dispersi√≥n y falta de indexaci√≥n de expedientes digitales (PDFs) en instituciones gubernamentales y corporativas.
 
-El sistema digitaliza, clasifica y vectoriza autom·ticamente archivos PDF mediante un pipeline de Inteligencia Artificial (OCR + Procesamiento de Lenguaje Natural + Embeddings Vectoriales), permitiendo:
-1. **Consultas en lenguaje natural** que localizan p·rrafos y p·ginas exactas en milisegundos con score de relevancia.
-2. **Visor interactivo contextualizado** con navegaciÛn por folios, resaltado de texto OCR, resumen ejecutivo, extracciÛn de entidades nombradas (NER) y notas colaborativas.
-3. **Gobierno corporativo y seguridad avanzada** mediante control de acceso basado en roles (RBAC con 5 perfiles), clasificaciÛn de confidencialidad en 4 niveles y bit·cora de auditorÌa inmutable (*append-only audit trail*).
-4. **Reportes operacionales y mÈtricas** exportables a Excel (.CSV) e impresiÛn a PDF.
+El sistema digitaliza, clasifica y vectoriza autom√°ticamente archivos PDF mediante un pipeline de Inteligencia Artificial (OCR + Procesamiento de Lenguaje Natural + Embeddings Vectoriales), permitiendo:
+1. **Consultas en lenguaje natural** que localizan p√°rrafos y p√°ginas exactas en milisegundos con score de relevancia.
+2. **Visor interactivo contextualizado** con navegaci√≥n por folios, resaltado de texto OCR, resumen ejecutivo, extracci√≥n de entidades nombradas (NER) y notas colaborativas.
+3. **Gobierno corporativo y seguridad avanzada** mediante control de acceso basado en roles (RBAC con 5 perfiles), clasificaci√≥n de confidencialidad en 4 niveles y bit√°cora de auditor√≠a inmutable (*append-only audit trail*).
+4. **Reportes operacionales y m√©tricas** exportables a Excel (.CSV) e impresi√≥n a PDF.
 
 ---
 
-## 2. STACK TECNOL”GICO Y ARQUITECTURA T…CNICA
+## 2. STACK TECNOL√ìGICO Y ARQUITECTURA T√âCNICA
 
 ### 2.1. Arquitectura de Alto Nivel (4 Capas Desacopladas)
 \`\`\`text
 +--------------------------------------------------------------------------+
-¶                             CAPA DE PRESENTACI”N                         ¶
-¶   React 19 / Next.js 15 (TypeScript) + Tailwind CSS + Lucide Icons       ¶
-¶   - SPA Interactiva sin pantalla de bloqueo                              ¶
-¶   - Selector din·mico de Roles RBAC para pruebas en caliente             ¶
-¶   - Visor PDF multi-p·gina con canvas OCR y side-panel contextual        ¶
+¬¶                             CAPA DE PRESENTACI√ìN                         ¬¶
+¬¶   React 19 / Next.js 15 (TypeScript) + Tailwind CSS + Lucide Icons       ¬¶
+¬¶   - SPA Interactiva sin pantalla de bloqueo                              ¬¶
+¬¶   - Selector din√°mico de Roles RBAC para pruebas en caliente             ¬¶
+¬¶   - Visor PDF multi-p√°gina con canvas OCR y side-panel contextual        ¬¶
 +--------------------------------------------------------------------------+
-                                     ¶ HTTPS / REST JSON + SSE
+                                     ¬¶ HTTPS / REST JSON + SSE
 +------------------------------------?-------------------------------------+
-¶                            CAPA DE API GATEWAY                           ¶
-¶   ASP.NET Core 9 Web API (o Node.js Express / Fastify / FastAPI)         ¶
-¶   - AutenticaciÛn JWT / Microsoft Entra ID (Azure AD)                    ¶
-¶   - AutorizaciÛn declarativa por Claims y PolÌticas RBAC                 ¶
-¶   - Mediador CQRS (MediatR) y ValidaciÛn FluentValidation                ¶
+¬¶                            CAPA DE API GATEWAY                           ¬¶
+¬¶   ASP.NET Core 9 Web API (o Node.js Express / Fastify / FastAPI)         ¬¶
+¬¶   - Autenticaci√≥n JWT / Microsoft Entra ID (Azure AD)                    ¬¶
+¬¶   - Autorizaci√≥n declarativa por Claims y Pol√≠ticas RBAC                 ¬¶
+¬¶   - Mediador CQRS (MediatR) y Validaci√≥n FluentValidation                ¬¶
 +--------------------------------------------------------------------------+
-                    ¶ AMQP / Async Messages             ¶ SQL / REST
+                    ¬¶ AMQP / Async Messages             ¬¶ SQL / REST
 +-------------------?------------------+ +--------------?------------------+
-¶        WORKERS ASÕNCRONOS OCR & AI   ¶ ¶     ALMACENAMIENTO PERSISTENTE   ¶
-¶ - Motor OCR: Tesseract 5 / Azure DI  ¶ ¶ - PostgreSQL 16 + pgvector       ¶
-¶ - Embeddings: OpenAI text-embed-3 /  ¶ ¶   (Embeddings 1,536 dim, HNSW)   ¶
-¶   Vertex AI / HuggingFace            ¶ ¶ - Object Storage: S3 / Azure Blob¶
-¶ - LLM Resumen/NER: Claude / Gemini / ¶ ¶ - Redis 7: CachÈ de sesiones y   ¶
-¶   GPT-4o                             ¶ ¶   consultas frecuentes           ¶
+¬¶        WORKERS AS√çNCRONOS OCR & AI   ¬¶ ¬¶     ALMACENAMIENTO PERSISTENTE   ¬¶
+¬¶ - Motor OCR: Tesseract 5 / Azure DI  ¬¶ ¬¶ - PostgreSQL 16 + pgvector       ¬¶
+¬¶ - Embeddings: OpenAI text-embed-3 /  ¬¶ ¬¶   (Embeddings 1,536 dim, HNSW)   ¬¶
+¬¶   Vertex AI / HuggingFace            ¬¶ ¬¶ - Object Storage: S3 / Azure Blob¬¶
+¬¶ - LLM Resumen/NER: Claude / Gemini / ¬¶ ¬¶ - Redis 7: Cach√© de sesiones y   ¬¶
+¬¶   GPT-4o                             ¬¶ ¬¶   consultas frecuentes           ¬¶
 +--------------------------------------+ +----------------------------------+
 \`\`\`
 
-### 2.2. TecnologÌas Recomendadas
-| Componente | TecnologÌa Principal | Alternativa Valida |
+### 2.2. Tecnolog√≠as Recomendadas
+| Componente | Tecnolog√≠a Principal | Alternativa Valida |
 | :--- | :--- | :--- |
 | **Frontend** | React 19 + TypeScript + Vite + Tailwind CSS | Next.js 15 (App Router) |
-| **Componentes e IconografÌa** | Lucide-React, Headless UI | Radix UI / shadcn/ui |
+| **Componentes e Iconograf√≠a** | Lucide-React, Headless UI | Radix UI / shadcn/ui |
 | **Backend API** | ASP.NET Core 9 (C#) con Minimal APIs o Controllers | FastAPI (Python) / Node.js (TypeScript) |
 | **Base de Datos Relacional** | PostgreSQL 16 | SQL Server 2022 / Azure SQL |
-| **B˙squeda Vectorial** | ExtensiÛn \`pgvector\` (Õndices HNSW) | Qdrant / Pinecone / Milvus |
-| **ExtracciÛn OCR** | Azure AI Document Intelligence / Tesseract 5 | AWS Textract / Google Cloud Vision |
+| **B√∫squeda Vectorial** | Extensi√≥n \`pgvector\` (√çndices HNSW) | Qdrant / Pinecone / Milvus |
+| **Extracci√≥n OCR** | Azure AI Document Intelligence / Tesseract 5 | AWS Textract / Google Cloud Vision |
 | **Modelos de Embeddings** | \`text-embedding-3-small\` (1536 dim) o \`all-MiniLM-L6-v2\` | Cohere Embed v3 |
 | **Modelos de Resumen y NER** | Gemini 2.0 Flash / Claude 3.5 Sonnet / GPT-4o-mini | Llama 3.3 70B (On-Premise) |
 | **Object Storage** | MinIO / AWS S3 / Azure Blob Storage | Google Cloud Storage |
@@ -955,7 +955,7 @@ CREATE TABLE documents (
     department_id UUID NOT NULL REFERENCES departments(department_id) ON DELETE RESTRICT,
     category VARCHAR(100) NOT NULL,
     author VARCHAR(150) NOT NULL,
-    confidentiality VARCHAR(50) NOT NULL CHECK (confidentiality IN ('P˙blico', 'Uso Interno', 'Confidencial', 'Estrictamente Secreto')),
+    confidentiality VARCHAR(50) NOT NULL CHECK (confidentiality IN ('P√∫blico', 'Uso Interno', 'Confidencial', 'Estrictamente Secreto')),
     download_restricted BOOLEAN DEFAULT FALSE,
     version VARCHAR(20) DEFAULT 'v1.0',
     page_count INT DEFAULT 1,
@@ -967,7 +967,7 @@ CREATE TABLE documents (
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. P·ginas OCR y Embeddings Sem·nticos
+-- 4. P√°ginas OCR y Embeddings Sem√°nticos
 CREATE TABLE document_pages (
     page_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     document_id UUID NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
@@ -979,7 +979,7 @@ CREATE TABLE document_pages (
     CONSTRAINT uq_doc_page UNIQUE (document_id, page_number)
 );
 
--- Õndice vectorial HNSW para b˙squeda r·pida por similitud de coseno
+-- √çndice vectorial HNSW para b√∫squeda r√°pida por similitud de coseno
 CREATE INDEX idx_document_pages_embedding_hnsw 
 ON document_pages USING hnsw (embedding vector_cosine_ops)
 WITH (m = 16, ef_construction = 64);
@@ -994,7 +994,7 @@ CREATE TABLE document_entities (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- 6. Bit·cora de AuditorÌa Inmutable
+-- 6. Bit√°cora de Auditor√≠a Inmutable
 CREATE TABLE audit_logs (
     log_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -1012,23 +1012,23 @@ CREATE TABLE audit_logs (
 
 ---
 
-## 4. PIPELINE DE INTELIGENCIA ARTIFICIAL Y B⁄SQUEDA SEM¡NTICA
+## 4. PIPELINE DE INTELIGENCIA ARTIFICIAL Y B√öSQUEDA SEM√ÅNTICA
 
 ### 4.1. Pasos de Ingesta Documental
-1. **Hash Criptogr·fico y DeduplicaciÛn**: Al subir el archivo, se calcula el hash \`SHA-256\` del contenido binario. Si ya existe en la base de datos, se alerta duplicidad.
+1. **Hash Criptogr√°fico y Deduplicaci√≥n**: Al subir el archivo, se calcula el hash \`SHA-256\` del contenido binario. Si ya existe en la base de datos, se alerta duplicidad.
 2. **Almacenamiento de Archivo Crudo**: El archivo PDF se sube a un bucket S3 o Azure Blob Storage cifrado con AES-256 (Server-Side Encryption).
-3. **ExtracciÛn OCR**: Un worker procesa cada folio del PDF extrayendo el texto plano estructurado y las coordenadas de delimitaciÛn (bounding boxes).
-4. **Resumen Ejecutivo y NER**: Se envÌa el texto extraÌdo al LLM con un system prompt estructurado para obtener:
+3. **Extracci√≥n OCR**: Un worker procesa cada folio del PDF extrayendo el texto plano estructurado y las coordenadas de delimitaci√≥n (bounding boxes).
+4. **Resumen Ejecutivo y NER**: Se env√≠a el texto extra√≠do al LLM con un system prompt estructurado para obtener:
    - Resumen ejecutivo de 100-150 palabras.
-   - Lista de entidades clave (Persona, OrganizaciÛn, Fecha, Monto, Norma Legal).
-   - Sugerencia de tags y categorÌa.
-5. **VectorizaciÛn y Chunking**: Por cada p·gina o p·rrafo, se computa un vector embedding de 1,536 dimensiones mediante modelo de lenguaje denso (\`text-embedding-3-small\` o local \`bge-m3\`).
-6. **IndexaciÛn**: Los vectores se almacenan en la tabla \`document_pages\` indexados con HNSW.
+   - Lista de entidades clave (Persona, Organizaci√≥n, Fecha, Monto, Norma Legal).
+   - Sugerencia de tags y categor√≠a.
+5. **Vectorizaci√≥n y Chunking**: Por cada p√°gina o p√°rrafo, se computa un vector embedding de 1,536 dimensiones mediante modelo de lenguaje denso (\`text-embedding-3-small\` o local \`bge-m3\`).
+6. **Indexaci√≥n**: Los vectores se almacenan en la tabla \`document_pages\` indexados con HNSW.
 
-### 4.2. Algoritmo de B˙squeda Sem·ntica Vectorial
+### 4.2. Algoritmo de B√∫squeda Sem√°ntica Vectorial
 Para responder a consultas de usuario en lenguaje natural:
 \`\`\`sql
--- Consulta SQL de B˙squeda Vectorial por Similitud de Coseno
+-- Consulta SQL de B√∫squeda Vectorial por Similitud de Coseno
 SELECT 
     d.document_id,
     d.internal_code,
@@ -1055,80 +1055,80 @@ LIMIT 20;
 ### 5.1. Perfiles de Usuario (RBAC)
 1. **Administrador General (\`admin_general\`)**:
    - Acceso absoluto sin restricciones.
-   - GestiÛn de usuarios, asignaciÛn de roles, departamentos y cuotas.
-   - Descarga de cualquier documento, incluso con m·xima restricciÛn.
-   - Consulta y exportaciÛn de bit·coras de auditorÌa.
+   - Gesti√≥n de usuarios, asignaci√≥n de roles, departamentos y cuotas.
+   - Descarga de cualquier documento, incluso con m√°xima restricci√≥n.
+   - Consulta y exportaci√≥n de bit√°coras de auditor√≠a.
 2. **Administrador de Departamento (\`admin_depto\`)**:
-   - GestiÛn documental completa circunscrita a su propio departamento.
-   - AprobaciÛn de expedientes y visualizaciÛn de auditorÌa de su ·rea.
+   - Gesti√≥n documental completa circunscrita a su propio departamento.
+   - Aprobaci√≥n de expedientes y visualizaci√≥n de auditor√≠a de su √°rea.
 3. **Gestor Documental (\`gestor_documental\`)**:
-   - Carga masiva de archivos PDF, asignaciÛn de metadatos y reprocesamiento OCR/IA.
+   - Carga masiva de archivos PDF, asignaci√≥n de metadatos y reprocesamiento OCR/IA.
    - No puede eliminar documentos sensibles ni modificar usuarios.
 4. **Usuario Consultor (\`consultor\`)**:
-   - B˙squeda sem·ntica, lectura en visor y adiciÛn de notas colaborativas.
+   - B√∫squeda sem√°ntica, lectura en visor y adici√≥n de notas colaborativas.
    - Descarga bloqueada para documentos clasificados como *Estrictamente Secreto* o *Confidencial*.
-   - Sin permisos de ediciÛn, carga ni eliminaciÛn.
+   - Sin permisos de edici√≥n, carga ni eliminaci√≥n.
 5. **Auditor de Seguridad (\`auditor\`)**:
    - Perfil de solo lectura transversal (*Read-Only*).
-   - Acceso irrestricto a la Bit·cora de AuditorÌa con exportaciÛn de evidencia en CSV.
+   - Acceso irrestricto a la Bit√°cora de Auditor√≠a con exportaci√≥n de evidencia en CSV.
 
 ### 5.2. Niveles de Confidencialidad
-- **P˙blico**: Descargable y visible por todos los usuarios.
+- **P√∫blico**: Descargable y visible por todos los usuarios.
 - **Uso Interno**: Visible por cualquier colaborador autenticado.
 - **Confidencial**: Requiere rol de Gestor Documental o superior para descargar.
-- **Estrictamente Secreto**: Descarga bloqueada excepto para Administrador General. La visualizaciÛn en el visor muestra marca de agua de seguridad transparente.
+- **Estrictamente Secreto**: Descarga bloqueada excepto para Administrador General. La visualizaci√≥n en el visor muestra marca de agua de seguridad transparente.
 
 ---
 
-## 6. ESPECIFICACI”N DE ENDPOINTS RESTful (OPENAPI)
+## 6. ESPECIFICACI√ìN DE ENDPOINTS RESTful (OPENAPI)
 
-| MÈtodo | Endpoint | Roles Permitidos | DescripciÛn |
+| M√©todo | Endpoint | Roles Permitidos | Descripci√≥n |
 | :--- | :--- | :--- | :--- |
 | \`GET\` | \`/api/v1/dashboard/metrics\` | Todos | Obtiene KPIs consolidados (total docs, OCR success rate, usuarios activos, latencia media). |
-| \`GET\` | \`/api/v1/documents\` | Todos | Listado paginado con filtros de departamento, categorÌa, confidencialidad y estado. |
+| \`GET\` | \`/api/v1/documents\` | Todos | Listado paginado con filtros de departamento, categor√≠a, confidencialidad y estado. |
 | \`POST\` | \`/api/v1/documents/upload\` | Admin, Gestor | Carga multipart de archivo PDF con metadatos iniciales. Encola tarea OCR. |
-| \`GET\` | \`/api/v1/documents/{id}/pages/{page}\` | Conforme RBAC | Obtiene el texto OCR de la p·gina, entidades identificadas y comentarios. |
-| \`POST\` | \`/api/v1/documents/search\` | Todos | B˙squeda sem·ntica o exacta. Body: \`{ query, mode, dept, minRelevance }\`. |
+| \`GET\` | \`/api/v1/documents/{id}/pages/{page}\` | Conforme RBAC | Obtiene el texto OCR de la p√°gina, entidades identificadas y comentarios. |
+| \`POST\` | \`/api/v1/documents/search\` | Todos | B√∫squeda sem√°ntica o exacta. Body: \`{ query, mode, dept, minRelevance }\`. |
 | \`POST\` | \`/api/v1/documents/{id}/reprocess\` | Admin, Gestor | Solicita reprocesamiento completo de OCR, embeddings y resumen IA. |
-| \`DELETE\` | \`/api/v1/documents/{id}\` | Admin General | EliminaciÛn lÛgica del documento. Registra evento en auditorÌa. |
-| \`GET\` | \`/api/v1/audit/logs\` | Admin, Auditor | Consulta de bit·cora con filtros por acciÛn, resultado y rango de fechas. |
-| \`GET\` | \`/api/v1/reports/export-csv\` | Admin, Gestor, Auditor | Descarga archivo CSV consolidado para an·lisis en Excel. |
+| \`DELETE\` | \`/api/v1/documents/{id}\` | Admin General | Eliminaci√≥n l√≥gica del documento. Registra evento en auditor√≠a. |
+| \`GET\` | \`/api/v1/audit/logs\` | Admin, Auditor | Consulta de bit√°cora con filtros por acci√≥n, resultado y rango de fechas. |
+| \`GET\` | \`/api/v1/reports/export-csv\` | Admin, Gestor, Auditor | Descarga archivo CSV consolidado para an√°lisis en Excel. |
 
 ---
 
 ## 7. PROMPT MAESTRO TURNKEY PARA OTRA IA
-*(Copia y pega el bloque inferior en Claude 3.7 Sonnet, ChatGPT GPT-4o, Cursor o DeepSeek para construir exactamente esta aplicaciÛn)*
+*(Copia y pega el bloque inferior en Claude 3.7 Sonnet, ChatGPT GPT-4o, Cursor o DeepSeek para construir exactamente esta aplicaci√≥n)*
 
 \`\`\`markdown
-Act˙a como un Arquitecto de Software Principal y Desarrollador Full-Stack Senior especializado en TypeScript, React, Tailwind CSS y Sistemas de Inteligencia Artificial para GestiÛn Documental.
+Act√∫a como un Arquitecto de Software Principal y Desarrollador Full-Stack Senior especializado en TypeScript, React, Tailwind CSS y Sistemas de Inteligencia Artificial para Gesti√≥n Documental.
 
-Tu objetivo es diseÒar y construir de extremo a extremo una aplicaciÛn web corporativa idÈntica a "DocuSearch AI", un Sistema de GestiÛn Documental Inteligente (IDMS) con OCR, B˙squeda Sem·ntica Vectorial y Control de Acceso Basado en Roles (RBAC).
+Tu objetivo es dise√±ar y construir de extremo a extremo una aplicaci√≥n web corporativa id√©ntica a "DocuSearch AI", un Sistema de Gesti√≥n Documental Inteligente (IDMS) con OCR, B√∫squeda Sem√°ntica Vectorial y Control de Acceso Basado en Roles (RBAC).
 
-REQUISITOS FUNCIONALES Y DE DISE—O OBLIGATORIOS:
+REQUISITOS FUNCIONALES Y DE DISE√ëO OBLIGATORIOS:
 1. ARQUITECTURA DE ENTRADA DIRECTA (SIN LOGIN):
-   - La aplicaciÛn debe abrir inmediatamente en el "Dashboard Principal". No agregues pantallas de login restrictivas ni formularios bloqueantes de inicio de sesiÛn.
+   - La aplicaci√≥n debe abrir inmediatamente en el "Dashboard Principal". No agregues pantallas de login restrictivas ni formularios bloqueantes de inicio de sesi√≥n.
    - En la cabecera superior (Header), incluye un selector interactivo de "Rol Activo" que permita alternar en caliente entre 5 perfiles: "Administrador General", "Administrador de Departamento", "Gestor Documental", "Usuario Consultor" y "Auditor".
-   - Al cambiar el rol, la aplicaciÛn debe actualizar din·micamente los permisos de los botones (ej. habilitar/deshabilitar botÛn de eliminar, descargar documentos secretos o ver auditorÌa) y emitir un toast de notificaciÛn.
+   - Al cambiar el rol, la aplicaci√≥n debe actualizar din√°micamente los permisos de los botones (ej. habilitar/deshabilitar bot√≥n de eliminar, descargar documentos secretos o ver auditor√≠a) y emitir un toast de notificaci√≥n.
 
-2. NAVEGACI”N Y ESTRUCTURA DE PANTALLAS (SIDEBAR LATERAL):
-   - Implementa un Sidebar lateral con las siguientes pestaÒas navegables:
-     a) Dashboard Principal: KPIs (Total Documentos, % …xito OCR, Usuarios Activos, B˙squedas del DÌa), gr·ficos de barras/distribuciÛn por categorÌa y departamento, acceso r·pido a carga y ˙ltimos documentos.
-     b) GestiÛn Documental: Tabla exhaustiva de documentos con filtros por departamento, categorÌa, nivel de confidencialidad y estado OCR. Acciones por fila: ver en visor, descargar PDF, reprocesar IA y eliminar.
-     c) Pipeline OCR & IA: Monitor de procesamiento en tiempo real de lotes y colas, resumen de entidades detectadas y estado de vectorizaciÛn.
-     d) Buscador Inteligente: Interfaz central inspirada en Google con barra de b˙squeda, selector entre "Lenguaje Natural (Sem·ntica)" y "Coincidencia Exacta", chips de consultas frecuentes sugeridas ("Mostrar contratos firmados en 2025", "PolÌticas de seguridad", etc.), y resultados con snippet contextual resaltado, % de relevancia y botÛn para saltar directamente a la p·gina exacta.
-     e) Visor Contextualizado de Documentos (Modal/Vista): Lienzo de lectura simulando la p·gina PDF original con selector de p·gina, zoom in/out, marca de agua de seguridad y panel lateral con 4 pestaÒas: "Resumen & IA" (resumen y entidades NER cliqueables), "Coincidencias", "Notas Colaborativas" (con formulario para agregar observaciones fechadas) y "Ficha de Metadatos".
-     f) Reportes & MÈtricas: Indicadores operativos con botÛn de "Exportar Excel (CSV)" funcional que genera y descarga el archivo .csv en el navegador, y botÛn de imprimir/PDF.
-     g) Bit·cora de AuditorÌa: Tabla inmutable con eventos de lectura, descargas, altas, bloqueos de seguridad y exportaciÛn de evidencia en CSV.
-     h) AdministraciÛn & RBAC: Directorio de usuarios, matriz visual de permisos RBAC y cat·logo de departamentos con cuotas de disco.
-     i) Arquitectura & Docs: Entregables tÈcnicos con arquitectura de 4 capas, modelo ERD, script SQL DDL con pgvector, contratos de APIs RESTful, backlog de historias de usuario con story points, roadmap y especificaciones de escalabilidad.
+2. NAVEGACI√ìN Y ESTRUCTURA DE PANTALLAS (SIDEBAR LATERAL):
+   - Implementa un Sidebar lateral con las siguientes pesta√±as navegables:
+     a) Dashboard Principal: KPIs (Total Documentos, % √âxito OCR, Usuarios Activos, B√∫squedas del D√≠a), gr√°ficos de barras/distribuci√≥n por categor√≠a y departamento, acceso r√°pido a carga y √∫ltimos documentos.
+     b) Gesti√≥n Documental: Tabla exhaustiva de documentos con filtros por departamento, categor√≠a, nivel de confidencialidad y estado OCR. Acciones por fila: ver en visor, descargar PDF, reprocesar IA y eliminar.
+     c) Pipeline OCR & IA: Monitor de procesamiento en tiempo real de lotes y colas, resumen de entidades detectadas y estado de vectorizaci√≥n.
+     d) Buscador Inteligente: Interfaz central inspirada en Google con barra de b√∫squeda, selector entre "Lenguaje Natural (Sem√°ntica)" y "Coincidencia Exacta", chips de consultas frecuentes sugeridas ("Mostrar contratos firmados en 2025", "Pol√≠ticas de seguridad", etc.), y resultados con snippet contextual resaltado, % de relevancia y bot√≥n para saltar directamente a la p√°gina exacta.
+     e) Visor Contextualizado de Documentos (Modal/Vista): Lienzo de lectura simulando la p√°gina PDF original con selector de p√°gina, zoom in/out, marca de agua de seguridad y panel lateral con 4 pesta√±as: "Resumen & IA" (resumen y entidades NER cliqueables), "Coincidencias", "Notas Colaborativas" (con formulario para agregar observaciones fechadas) y "Ficha de Metadatos".
+     f) Reportes & M√©tricas: Indicadores operativos con bot√≥n de "Exportar Excel (CSV)" funcional que genera y descarga el archivo .csv en el navegador, y bot√≥n de imprimir/PDF.
+     g) Bit√°cora de Auditor√≠a: Tabla inmutable con eventos de lectura, descargas, altas, bloqueos de seguridad y exportaci√≥n de evidencia en CSV.
+     h) Administraci√≥n & RBAC: Directorio de usuarios, matriz visual de permisos RBAC y cat√°logo de departamentos con cuotas de disco.
+     i) Arquitectura & Docs: Entregables t√©cnicos con arquitectura de 4 capas, modelo ERD, script SQL DDL con pgvector, contratos de APIs RESTful, backlog de historias de usuario con story points, roadmap y especificaciones de escalabilidad.
 
-3. EST…TICA VISUAL Y CALIDAD DE C”DIGO:
+3. EST√âTICA VISUAL Y CALIDAD DE C√ìDIGO:
    - Utiliza React con TypeScript y Tailwind CSS.
-   - Emplea la librerÌa lucide-react para toda la iconografÌa.
-   - Paleta de diseÒo sobria y corporativa: blancos limpios (\`bg-white\`), fondos neutros suaves (\`bg-slate-100\`), bordes sutiles (\`border-slate-200\`), acentos en Ìndigo corporativo (\`indigo-600\`) y badges de estado en esmeralda, ·mbar y carmesÌ.
-   - Garantiza que cada botÛn y acciÛn tenga retroalimentaciÛn visual (toasts, modales de confirmaciÛn, simulaciones de carga y descargas reales de archivos blob).
-   - Genera datos iniciales enriquecidos en espaÒol con documentos realistas (Contratos de Servicios TI, PolÌticas de Seguridad de la InformaciÛn ISO 27001, Reglamentos de Trabajo, Informes Financieros y Dict·menes de AuditorÌa).
+   - Emplea la librer√≠a lucide-react para toda la iconograf√≠a.
+   - Paleta de dise√±o sobria y corporativa: blancos limpios (\`bg-white\`), fondos neutros suaves (\`bg-slate-100\`), bordes sutiles (\`border-slate-200\`), acentos en √≠ndigo corporativo (\`indigo-600\`) y badges de estado en esmeralda, √°mbar y carmes√≠.
+   - Garantiza que cada bot√≥n y acci√≥n tenga retroalimentaci√≥n visual (toasts, modales de confirmaci√≥n, simulaciones de carga y descargas reales de archivos blob).
+   - Genera datos iniciales enriquecidos en espa√±ol con documentos realistas (Contratos de Servicios TI, Pol√≠ticas de Seguridad de la Informaci√≥n ISO 27001, Reglamentos de Trabajo, Informes Financieros y Dict√°menes de Auditor√≠a).
 
-Procede a generar el cÛdigo modular, limpio, completamente tipado y listo para ejecuciÛn.
+Procede a generar el c√≥digo modular, limpio, completamente tipado y listo para ejecuci√≥n.
 \`\`\`
 `;
