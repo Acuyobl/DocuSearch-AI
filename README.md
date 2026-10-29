@@ -43,10 +43,10 @@ base se crea o se actualiza con `dotnet run -- --initialize-database`.
 | Autenticación | Windows, mediante la identidad que ejecuta ASP.NET Core |
 | Compatibilidad del proveedor | SQL Server 2019, nivel 150 |
 
-La base de referencia fue creada e inicializada con cinco expedientes, cinco usuarios y
-seis departamentos. No se modificaron bases ajenas. Para las pruebas se creó una base
-independiente `DocuSearch_tests`. No necesitas instalar otro motor de base de datos ni
-configurar una contraseña SQL.
+La base de referencia fue creada e inicializada con cinco expedientes, tres usuarios
+(los tres autorizados por TOTP) y seis departamentos. No se modificaron bases ajenas.
+Para las pruebas se creó una base independiente `DocuSearch_tests`. No necesitas
+instalar otro motor de base de datos ni configurar una contraseña SQL.
 
 Para una instalación limpia, define la instancia y la cadena en el entorno antes de
 inicializar. Así no dependes del nombre de equipo de quien creó este repositorio:
@@ -430,14 +430,14 @@ dotnet build
 dotnet run --project .\tests\DocuSearch.Checks.csproj
 ```
 
-68 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
+69 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
 HTML, PDF reales, límites exactos, esquema SQL Server y Ollama con HTTP simulado:
 privacidad, contexto acotado, citas, errores y liberación del estado ocupado. Incluye
 vectores RFC 6238 del algoritmo TOTP (código, ventana de reloj y Base32).
 Un fallo produce código de salida no cero.
 
 La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta
-la compilación y las 68 comprobaciones sin servicios.
+la compilación y las 69 comprobaciones sin servicios.
 
 Para añadir una generación real con el modelo local, usando únicamente una fuente sintética:
 
@@ -462,7 +462,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database
 
 La suite exige el sufijo `_tests` y restablece sus ejemplos. **No la apuntes a datos que
 quieras conservar.** La base se crea automáticamente si la identidad tiene permisos.
-La suite con `--database --langchain` ejecuta 82 comprobaciones: las 68 sin
+La suite con `--database --langchain` ejecuta 83 comprobaciones: las 69 sin
 servicios, tres de LangChain real y once de SQL Server. Incluye inicialización idempotente, cargas,
 original persistente, metadatos, notas, reproceso, permisos reales, cuotas, agente, importación,
 notas concurrentes, rollback de importaciones fallidas, contexto autorizado del consultor

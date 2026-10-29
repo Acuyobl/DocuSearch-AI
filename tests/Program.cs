@@ -53,10 +53,20 @@ LocalSession Session(string userId = "usr-1")
 
 var seed = DatabaseSetup.ReadSeed();
 var admin = seed.Users.Single(u => u.Role == "admin_general");
-var consultant = seed.Users.Single(u => u.Role == "consultor");
-var auditor = seed.Users.Single(u => u.Role == "auditor");
-var deptAdmin = seed.Users.Single(u => u.Role == "admin_depto");
 var manager = seed.Users.Single(u => u.Role == "gestor_documental");
+var auditor = seed.Users.Single(u => u.Role == "auditor");
+// Solo hay tres cuentas configuradas; los roles sin cuenta se prueban con fixtures
+// en memoria para cubrir la matriz RBAC completa sin sembrar usuarios de más.
+var consultant = new AppUser
+{
+    Id = "chk-consultor", Name = "Consultor de prueba", Email = "consultor.checks@example.test",
+    Role = "consultor", Department = "Recursos Humanos", Status = "Activo"
+};
+var deptAdmin = new AppUser
+{
+    Id = "chk-admin-depto", Name = "Admin de departamento de prueba", Email = "depto.checks@example.test",
+    Role = "admin_depto", Department = "Legal & Contratos", Status = "Activo"
+};
 var secret = seed.Documents.Single(d => d.Confidentiality == "Estrictamente Secreto");
 var contract = seed.Documents.Single(d => d.InternalCode == "CNT-2025-0892");
 var policy = seed.Documents.Single(d => d.InternalCode == "POL-2025-0012");
@@ -68,8 +78,17 @@ string ChatJson(string content, bool done = true, string reason = "stop") =>
     JsonSerializer.Serialize(new { done, done_reason = reason, message = new { content } });
 HttpResponseMessage JsonResponse(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
-await Check("Cinco expedientes, cinco perfiles y seis departamentos preservados", () => Sync(() =>
-    Assert(seed.Documents.Count == 5 && seed.Users.Count == 5 && seed.Departments.Count == 6)));
+await Check("Cinco expedientes, tres perfiles y seis departamentos preservados", () => Sync(() =>
+    Assert(seed.Documents.Count == 5 && seed.Users.Count == 3 && seed.Departments.Count == 6)));
+await Check("Los perfiles del seed coinciden con las cuentas TOTP configuradas", () => Sync(() =>
+{
+    var emails = seed.Users.Select(u => u.Email).OrderBy(e => e, StringComparer.Ordinal).ToArray();
+    Assert(emails.SequenceEqual(new[]
+    {
+        "acuyobl@gmail.com", "carloshm7@gmail.com", "hubertaf@gmail.com"
+    }));
+    Assert(seed.Users.All(u => u.Status == "Activo"));
+}));
 await Check("Páginas y notas de ejemplo preservadas", () => Sync(() =>
     Assert(seed.Documents.Sum(d => d.PageCount) == 124 && seed.Documents.Sum(d => d.Pages.Count) == 10 && seed.Documents.Sum(d => d.Notes.Count) == 2)));
 await Check("Ejemplos no inventan archivos PDF originales", () => Sync(() => Assert(seed.Documents.All(d => !d.HasOriginal))));
@@ -474,6 +493,15 @@ if (args.Contains("--database"))
         await DatabaseSetup.InitializeAsync(db);
         await service.ResetAsync("RESTABLECER");
         Assert((await service.LoadAsync()).Documents.Count >= 5);
+        // La base solo siembra los tres perfiles TOTP; el resto de roles se prueban con
+        // usuarios temporales creados por el administrador dentro de esta base de tests.
+        var dbConsultant = new AppUser
+        {
+            Name = "Consultor Checks", Email = "consultor.checks@example.test",
+            Role = "consultor", Department = admin.Department, Status = "Activo"
+        };
+        await service.SaveUserAsync(dbConsultant);
+        consultant = dbConsultant;
     });
     await Check("SQL Server: carga real, original persistente y metadatos", async () =>
     {

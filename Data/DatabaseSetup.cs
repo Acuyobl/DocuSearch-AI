@@ -28,7 +28,7 @@ public static class DatabaseSetup
             db.Audit.Add(new AuditEvent
             {
                 UserName = "Sistema", UserRole = "system", Action = "INITIALIZE",
-                Details = "Esquema SQL Server inicializado con cinco expedientes de ejemplo sin PDF original."
+                Details = "Esquema SQL Server inicializado con tres usuarios y cinco expedientes de ejemplo sin PDF original."
             });
             await db.SaveChangesAsync();
         }

@@ -348,47 +348,26 @@
   "users": [
     {
       "id": "usr-1",
-      "name": "Lic. Fernando Aranda",
-      "email": "fernando.aranda@empresa.com",
+      "name": "Acuyobl",
+      "email": "acuyobl@gmail.com",
       "role": "admin_general",
       "department": "Tecnología & TI",
-      "lastActive": "Hace 2 minutos",
       "status": "Activo"
     },
     {
       "id": "usr-2",
-      "name": "Ing. Carlos Mendoza",
-      "email": "carlos.mendoza@empresa.com",
+      "name": "Carloshm7",
+      "email": "carloshm7@gmail.com",
       "role": "gestor_documental",
       "department": "Tecnología & TI",
-      "lastActive": "Hace 15 minutos",
       "status": "Activo"
     },
     {
       "id": "usr-3",
-      "name": "Dra. Elena Rostova",
-      "email": "elena.rostova@empresa.com",
-      "role": "admin_depto",
-      "department": "Legal & Contratos",
-      "lastActive": "Hace 1 hora",
-      "status": "Activo"
-    },
-    {
-      "id": "usr-4",
-      "name": "Ana Belén Martínez",
-      "email": "ana.martinez@empresa.com",
-      "role": "consultor",
-      "department": "Recursos Humanos",
-      "lastActive": "Hace 3 horas",
-      "status": "Activo"
-    },
-    {
-      "id": "usr-5",
-      "name": "C.P. Mariana Silva",
-      "email": "mariana.silva@empresa.com",
+      "name": "Hubertaf",
+      "email": "hubertaf@gmail.com",
       "role": "auditor",
       "department": "Auditoría & Control",
-      "lastActive": "Hace 5 minutos",
       "status": "Activo"
     }
   ],
