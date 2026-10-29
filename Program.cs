@@ -15,6 +15,12 @@ using Microsoft.Extensions.Options;
 using QRCoder;
 
 var builder = WebApplication.CreateBuilder(args);
+// Falla al arrancar si algún servicio (p. ej. el asistente con OpenCode) no se puede construir.
+builder.Host.UseDefaultServiceProvider(options =>
+{
+    options.ValidateOnBuild = true;
+    options.ValidateScopes = builder.Environment.IsDevelopment();
+});
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents(options =>
     options.DetailedErrors = builder.Environment.IsDevelopment());
@@ -53,6 +59,8 @@ builder.Services.AddHttpClient<OllamaClient>().ConfigurePrimaryHttpMessageHandle
     ConnectTimeout = TimeSpan.FromSeconds(5)
 });
 builder.Services.Configure<OpenCodeOptions>(builder.Configuration.GetSection("OpenCode"));
+builder.Services.Configure<AssistantOptions>(builder.Configuration.GetSection("Assistant"));
+builder.Services.AddSingleton<AssistantRuntime>();
 builder.Services.AddHttpClient<OpenCodeClient>().ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
     AllowAutoRedirect = false,
@@ -235,18 +243,20 @@ app.MapGet("/enroll", (IOptions<AuthOptions> auth) =>
 });
 
 app.MapGet("/health", async (IDbContextFactory<AppDbContext> factory, ILogger<Program> logger,
-    IOptions<OllamaOptions> assistant, IOptions<OpenCodeOptions> openCode) =>
+    AssistantRuntime runtime) =>
 {
     try
     {
         await using var db = await factory.CreateDbContextAsync();
         _ = await db.Users.CountAsync();
-        var engine = openCode.Value.Enabled
-            ? $"opencode:{openCode.Value.ProviderId}/{openCode.Value.ModelId}"
-            : assistant.Value.Enabled
-                ? assistant.Value.UseLangChain ? "langchain-ollama-local" : "ollama-local"
-                : "local-extractive";
-        return Results.Ok(new { status = "ready", database = "SQL Server", assistant = engine });
+        var active = runtime.Active;
+        var engine = active.Engine.ToLowerInvariant() switch
+        {
+            "opencode" => $"opencode:{active.ProviderId}/{active.ModelId}",
+            "ollama" => "ollama-local",
+            _ => "local-extractive"
+        };
+        return Results.Ok(new { status = "ready", database = "SQL Server", assistant = engine, profile = active.Id });
     }
     catch (Exception ex) when (ex is DbException or InvalidOperationException)
     {

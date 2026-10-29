@@ -78,24 +78,31 @@ public sealed class OpenCodeClient
     }
 
     /// <summary>Comprueba que el servidor responde y que el agente configurado existe.</summary>
-    public async Task CheckAsync()
+    public async Task CheckAsync(string? agent = null)
     {
         if (!Enabled) return;
+        var expectedAgent = string.IsNullOrWhiteSpace(agent) ? settings.Agent : agent;
         var health = await GetAsync<HealthResponse>("global/health");
         if (!health.Healthy) throw new InvalidOperationException("El servidor OpenCode no se declara saludable.");
         var agents = await GetAsync<AgentInfo[]>("agent");
-        if (agents.All(agent => !string.Equals(agent.Name, settings.Agent, StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException($"El servidor OpenCode no tiene el agente «{settings.Agent}». Revísalo en opencode.json.");
+        if (agents.All(candidate => !string.Equals(candidate.Name, expectedAgent, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"El servidor OpenCode no tiene el agente «{expectedAgent}». Revísalo en opencode.json.");
     }
 
-    public async Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources)
+    public Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources) =>
+        GenerateAsync(query, sources, settings.ProviderId, settings.ModelId, settings.Agent);
+
+    public async Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources, string? providerId, string? modelId, string? agent)
     {
         if (!Enabled) throw new InvalidOperationException("La generación con OpenCode está desactivada.");
+        var provider = string.IsNullOrWhiteSpace(providerId) ? settings.ProviderId : providerId;
+        var model = string.IsNullOrWhiteSpace(modelId) ? settings.ModelId : modelId;
+        var agentName = string.IsNullOrWhiteSpace(agent) ? settings.Agent : agent;
         if (string.IsNullOrWhiteSpace(query) || query.Length > 2000)
             throw new InvalidOperationException("La consulta debe tener entre 1 y 2000 caracteres.");
         if (sources.Count == 0) throw new InvalidOperationException("No hay fuentes autorizadas para consultar al modelo.");
 
-        await CheckAsync();
+        await CheckAsync(agentName);
         var selected = sources.DistinctBy(source => (source.Document.Id, source.PageNumber)).Take(6).ToList();
         var context = selected.Select((source, index) => new
         {
@@ -114,15 +121,15 @@ public sealed class OpenCodeClient
         {
             var message = new
             {
-                agent = settings.Agent,
-                model = new { providerID = settings.ProviderId, modelID = settings.ModelId },
+                agent = agentName,
+                model = new { providerID = provider, modelID = model },
                 system = AssistantPrompt.System,
                 parts = new[] { new { type = "text", text = payload } }
             };
             var response = await PostAsync<MessageResponse>($"session/{Uri.EscapeDataString(sessionId)}/message", message);
             var text = string.Concat((response?.Parts ?? [])
                 .Where(part => part.Type == "text" && !string.IsNullOrWhiteSpace(part.Text))
-                .Select(part => part.Text));
+                .Select(part => part.Text!));
             if (string.IsNullOrWhiteSpace(text))
                 throw new InvalidOperationException("OpenCode devolvió una respuesta vacía.");
 
@@ -146,7 +153,7 @@ public sealed class OpenCodeClient
             if (tokens is { Input: < 0 } or { Output: < 0 })
                 throw new InvalidOperationException("OpenCode devolvió contadores de tokens inválidos.");
             return new(generated.Answer.Trim(), generated.Citations.Distinct().Select(id => selected[id - 1]).ToList(),
-                $"{Engine}", tokens?.Input, tokens?.Output);
+                $"OpenCode · {provider}/{model}", tokens?.Input, tokens?.Output);
         }
         finally
         {

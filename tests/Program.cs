@@ -598,6 +598,40 @@ await Check("OpenCode: informa credenciales rechazadas (401)", async () =>
     }
     Assert(rejected);
 });
+await Check("OpenCode: usa el modelo del perfil seleccionado", async () =>
+{
+    string? body = null;
+    using var http = OpenCodeMock("{\"answer\":\"ok\",\"citations\":[1]}", request =>
+    {
+        if (request.RequestUri!.AbsolutePath.EndsWith("/message", StringComparison.Ordinal))
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+    });
+    var document = new DocumentItem { InternalCode = "CNT-2025-0892", Title = "Contrato" };
+    var answer = await OpenCodeFor(http).GenerateAsync("q", [new(document, 1, "texto", 100)],
+        "deepseek", "deepseek-flash", "zodiac-asistente");
+    Assert(body is not null && body.Contains("\"providerID\":\"deepseek\"", StringComparison.Ordinal) &&
+        body.Contains("\"modelID\":\"deepseek-flash\"", StringComparison.Ordinal));
+    Assert(answer.Provider.Contains("deepseek/deepseek-flash", StringComparison.Ordinal));
+});
+await Check("Asistente: el selector de motor cambia de perfil y marca los remotos", () => Sync(() =>
+{
+    var options = Options.Create(new AssistantOptions
+    {
+        DefaultProfile = "local",
+        Profiles =
+        [
+            new AssistantProfile { Id = "local", Label = "Local", Engine = "opencode", ProviderId = "ollama", ModelId = "qwen3:4b", Agent = "zodiac-asistente" },
+            new AssistantProfile { Id = "remote", Label = "Remoto", Engine = "opencode", ProviderId = "deepseek", ModelId = "deepseek-flash", Agent = "zodiac-asistente" },
+            new AssistantProfile { Id = "rules", Label = "Reglas", Engine = "extractive" }
+        ]
+    });
+    var runtime = new AssistantRuntime(options, Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
+    Assert(runtime.Active.Id == "local" && !AssistantRuntime.IsRemote(runtime.Active));
+    Assert(runtime.TrySelect("remote", out var remote) && remote!.Id == "remote" && AssistantRuntime.IsRemote(remote));
+    Assert(!runtime.TrySelect("desconocido", out _));
+    Assert(runtime.TrySelect("rules", out _) && runtime.Active.Engine == "extractive");
+    Assert(runtime.Profiles.Count == 3 && runtime.Describe(remote!).Contains("remoto", StringComparison.Ordinal));
+}));
 if (args.Contains("--database"))
 {
     var connection = Environment.GetEnvironmentVariable("DOCUSEARCH_TEST_CONNECTION")

@@ -414,6 +414,8 @@ td .text-button { max-width: 340px; }
 .assistant-connection .badge { white-space: normal; overflow-wrap: anywhere; }
 .assistant-connection button { font-size: 10px; padding: 6px 9px; }
 .assistant-connection .app-icon { width: 13px; height: 13px; }
+.assistant-connection select { font-size: 11px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--elevated); color: var(--ink); max-width: 340px; }
+.assistant-hint { display: block; margin: 6px 0 0; color: var(--muted); font-size: 11px; }
 .reports-page, .architecture-page { max-width: 1024px; margin: 0 auto; }
 .reports-page .module-heading { flex-wrap: wrap; }
 .report-filters .filters { margin-bottom: 12px; }

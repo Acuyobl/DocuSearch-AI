@@ -258,6 +258,26 @@ Selección de modelo (ambos soportados):
   Los fragmentos autorizados salen del equipo y la interfaz muestra un aviso rojo; no
   debe usarse con expedientes confidenciales o secretos.
 
+### Selector de motor en la interfaz
+
+El **administrador general** puede cambiar de motor sin editar archivos ni reiniciar:
+en la cabecera del asistente hay un selector **Motor** junto a *Comprobar conexión*.
+Los perfiles se declaran en `Assistant:Profiles` de `appsettings.json`; el valor inicial
+es `Assistant:DefaultProfile`. El cambio es inmediato, afecta a todas las consultas y
+vive en memoria (al reiniciar se vuelve al perfil por defecto). Los perfiles de
+referencia son:
+
+| Id | Motor | Privacidad |
+|---|---|---|
+| `qwen-local` | OpenCode + `ollama/qwen3:4b` | Local; requiere Ollama activo |
+| `deepseek` | OpenCode + `deepseek/deepseek-flash` | Remoto; aviso en la interfaz |
+| `ollama-direct` | LangChain/Ollama directo | Local |
+| `extractive` | Sin LLM (reglas) | Sin generación |
+
+Un usuario sin rol de administración general ve el motor activo y su aviso, pero no
+puede cambiarlo. El servidor no confía en el navegador: la selección se aplica como
+estado del servidor (`AssistantRuntime`) y cada consulta la vuelve a resolver el host.
+
 La aplicación crea una sesión por consulta (`POST /session`), envía pregunta + fuentes a
 `POST /session/:id/message`, valida que la respuesta sea JSON con citas dentro de las
 fuentes enviadas y elimina la sesión al terminar. La contraseña se pasa por entorno
@@ -474,13 +494,13 @@ dotnet build
 dotnet run --project .\tests\DocuSearch.Checks.csproj
 ```
 
-76 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
+78 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
 HTML, PDF reales, límites exactos, esquema SQL Server, TOTP y Ollama/OpenCode con HTTP
 simulado: privacidad, contexto acotado, citas, errores y liberación del estado ocupado.
 Un fallo produce código de salida no cero.
 
 La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta
-la compilación y las 76 comprobaciones sin servicios.
+la compilación y las 78 comprobaciones sin servicios.
 
 Para añadir una generación real con el modelo local, usando únicamente una fuente sintética:
 
@@ -516,7 +536,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database
 
 La suite exige el sufijo `_tests` y restablece sus ejemplos. **No la apuntes a datos que
 quieras conservar.** La base se crea automáticamente si la identidad tiene permisos.
-La suite con `--database --langchain` ejecuta 90 comprobaciones: las 76 sin
+La suite con `--database --langchain` ejecuta 92 comprobaciones: las 78 sin
 servicios, tres de LangChain real y once de SQL Server. Incluye inicialización idempotente, cargas,
 original persistente, metadatos, notas, reproceso, permisos reales, cuotas, agente, importación,
 notas concurrentes, rollback de importaciones fallidas, contexto autorizado del consultor

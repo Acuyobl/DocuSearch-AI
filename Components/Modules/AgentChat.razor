@@ -3,18 +3,34 @@
 @inject IJSRuntime JS
 @inject OllamaClient Ollama
 @inject OpenCodeClient OpenCode
+@inject AssistantRuntime Runtime
 <div class="assistant-page">
 <ModuleHeading Icon="agent" Title="Asistente IA documental" Description="@($"Acceso: hasta «{Permissions.ReadableLevels(State.Data!.Actor).Last()}» · {State.Data.Documents.Count} expediente(s) consultables · solo lectura")">
     <button disabled="@State.Busy" @onclick="RefreshDocuments"><AppIcon Name="refresh" />Actualizar documentos</button>
     <button @onclick="Clear" disabled="@(State.Busy || messages.Count == 0)"><AppIcon Name="delete" />Nueva conversación</button>
 </ModuleHeading>
 <div class="assistant-connection">
-    <span class="badge @(modelVerified ? "success" : "warning")">@(HasEngine ? $"{EngineLabel} · {(modelVerified ? "Verificado" : "Sin verificar")}" : "Modo extractivo local · sin generación")</span>
+    <span class="badge @(modelVerified ? "success" : "warning")">@EngineLabel · @(modelVerified ? "Verificado" : "Sin verificar")</span>
+    @if (CanSelectProfile)
+    {
+        <label class="inline">Motor
+            <select @bind="selectedProfile" @bind:after="ApplyProfile" disabled="@State.Busy" aria-label="Elegir el motor del asistente">
+                @foreach (var profile in Runtime.Profiles)
+                {
+                    <option value="@profile.Id">@profile.Label</option>
+                }
+            </select>
+        </label>
+    }
     <button disabled="@State.Busy" @onclick="CheckConnection"><AppIcon Name="refresh" />Comprobar conexión</button>
 </div>
-@if (OpenCode.Enabled && OpenCode.IsRemote)
+@if (IsRemote)
 {
-    <div class="alert error" role="alert">Motor remoto configurado: los fragmentos autorizados se envían a «@OpenCode.Model» a través de OpenCode. No consultes expedientes confidenciales ni secretos en este modo.</div>
+    <div class="alert error" role="alert">Motor remoto seleccionado («@Active.Label»): los fragmentos autorizados se envían a «@Active.ProviderId/@Active.ModelId» a través de OpenCode. No consultes expedientes confidenciales ni secretos en este modo.</div>
+}
+else if (CanSelectProfile)
+{
+    <small class="assistant-hint">Cambia el motor con el selector de arriba; solo administración puede modificarlo y afecta a todas las consultas del asistente.</small>
 }
 <section class="conversation" @ref="conversation" aria-label="Conversación documental" aria-live="polite">
     @if (messages.Count == 0)
@@ -34,7 +50,7 @@
             }
         </div></article>
     }
-    @if (State.Busy) { <p role="status">Consultando expedientes… La primera carga del modelo local puede tardar unos minutos.</p> }
+    @if (State.Busy) { <p role="status">Consultando expedientes… La primera carga del modelo puede tardar unos minutos.</p> }
 </section>
 <form class="chat-composer" @onsubmit="Send" @onsubmit:preventDefault>
     <label>Tu consulta<textarea @bind="query" @bind:event="oninput" maxlength="2000" rows="2" placeholder="Escribe tu pregunta sobre los expedientes…"></textarea></label>
@@ -46,39 +62,62 @@
     [Parameter] public EventCallback<SearchHit> OnView { get; set; }
     [Inject] private LocalSession Session { get; set; } = default!;
     private string query = "";
+    private string selectedProfile = "";
     private ElementReference conversation;
     private bool scrollPending;
     private bool modelVerified;
     private readonly List<ChatMessage> messages = [];
-    private bool HasEngine => OpenCode.Enabled || Ollama.Enabled;
-    private string EngineLabel => OpenCode.Enabled
-        ? $"OpenCode · {OpenCode.Model} · {OpenCode.Agent}"
-        : Ollama.Enabled ? $"{Ollama.Provider} · {Ollama.Model}" : "Modo extractivo local";
-    private string EngineDetail => OpenCode.Enabled
-        ? OpenCode.IsRemote
-            ? $"OpenCode con modelo remoto {OpenCode.Model}; los fragmentos autorizados se envían fuera del equipo."
-            : $"OpenCode con modelo local {OpenCode.Model}; el modelo se ejecuta en tu equipo."
-        : Ollama.Enabled
-            ? $"{Ollama.Provider} con {Ollama.Model}. Sin servicios externos."
-            : "Modo extractivo local · sin servicios externos.";
-    private string EngineDisclaimer => OpenCode.Enabled
-        ? "La IA puede cometer errores: verifica las citas. El motor OpenCode no cambia de proveedor si falla."
-        : Ollama.Enabled
-            ? "La IA puede cometer errores: verifica las citas. Si Ollama falla, el error se muestra sin cambiar a un proveedor remoto."
-            : "Respuestas por reglas y extracción, sin modelo generativo.";
+    private AssistantProfile Active => Runtime.Active;
+    private bool CanSelectProfile => State.Data is { } snapshot && Permissions.CanAdmin(snapshot.Actor);
+    private bool IsRemote => AssistantRuntime.IsRemote(Active);
+    private string EngineLabel => Runtime.Describe(Active);
+    private string EngineDetail => Active.Engine.ToLowerInvariant() switch
+    {
+        "opencode" => IsRemote
+            ? $"Perfil «{Active.Label}»: modelo remoto; los fragmentos autorizados salen del equipo."
+            : $"Perfil «{Active.Label}»: el modelo se ejecuta en tu equipo.",
+        "ollama" => $"Perfil «{Active.Label}»: LangChain/Ollama local, sin servicios externos.",
+        _ => "Modo extractivo local: respuestas por reglas, sin modelo generativo."
+    };
+    private string EngineDisclaimer => Active.Engine.ToLowerInvariant() switch
+    {
+        "opencode" => "La IA puede cometer errores: verifica las citas. El motor no cambia de proveedor si falla.",
+        "ollama" => "La IA puede cometer errores: verifica las citas. Si Ollama falla, el error se muestra sin cambiar a un proveedor remoto.",
+        _ => "Respuestas por reglas y extracción, sin modelo generativo."
+    };
     private static readonly string[] Suggestions = ["¿Qué contratos tienen SLA del 99.99%?", "Resume el expediente POL-2025-0012", "Extrae montos de FIN-2024-Q4-01", "Lista documentos de uso interno"];
     private Task Suggest(string value) { query = value; return Send(); }
     private sealed record ChatMessage(bool IsUser, string Text, List<SearchHit> Sources, string Provider = "");
-    protected override Task OnInitializedAsync() => CheckConnection();
+    protected override async Task OnInitializedAsync()
+    {
+        selectedProfile = Runtime.Active.Id;
+        await CheckConnection();
+    }
     private Task RefreshDocuments() => State.RunAsync(State.RefreshAsync);
-    private Task CheckConnection() => State.RunAsync(async () =>
+    private Task CheckConnection() => State.RunAsync(CheckActiveEngineAsync);
+    private async Task CheckActiveEngineAsync()
     {
         await State.RefreshAsync();
         modelVerified = false;
-        if (OpenCode.Enabled) await OpenCode.CheckAsync();
-        else if (Ollama.Enabled) await Ollama.CheckAsync();
-        modelVerified = HasEngine;
-    });
+        switch (Active.Engine.ToLowerInvariant())
+        {
+            case "opencode":
+                if (!OpenCode.Enabled) throw new InvalidOperationException("OpenCode está desactivado en la configuración (OpenCode:Enabled).");
+                await OpenCode.CheckAsync(Active.Agent);
+                break;
+            case "ollama":
+                if (!Ollama.Enabled) throw new InvalidOperationException("Ollama está desactivado en la configuración (Ollama:Enabled).");
+                await Ollama.CheckAsync();
+                break;
+        }
+        modelVerified = true;
+    }
+    private Task ApplyProfile() => State.RunAsync(async () =>
+    {
+        if (!Runtime.TrySelect(selectedProfile, out _))
+            throw new InvalidOperationException("El perfil de motor seleccionado no existe en la configuración.");
+        await CheckActiveEngineAsync();
+    }, "Motor del asistente actualizado.");
     private Task Send() => State.RunAsync(async () =>
     {
         var text = query.Trim();

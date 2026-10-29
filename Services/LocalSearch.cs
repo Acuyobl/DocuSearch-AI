@@ -31,7 +31,7 @@ public static class LocalSearch
 }
 
 public sealed class LocalAgent(DocumentService documents, LocalSession session, OllamaClient ollama,
-    AgentObservability observability, OpenCodeClient? opencode = null)
+    AgentObservability observability, OpenCodeClient? opencode = null, AssistantRuntime? assistant = null)
 {
     private bool UseOpenCode => opencode is { Enabled: true };
 
@@ -65,16 +65,22 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
         var snapshot = await documents.LoadAsync();
         await documents.LogQueryAsync("AGENT_QUERY", "Consulta del asistente; contenido omitido por privacidad.");
         var extracted = AnswerFromSources(query, snapshot.Documents, session);
-        if ((!UseOpenCode && !ollama.Enabled) || extracted.Sources.Count == 0 || IsExactRequest(query)) return extracted;
+        var profile = assistant?.Active;
+        var engine = profile?.Engine?.ToLowerInvariant()
+            ?? (UseOpenCode ? "opencode" : ollama.Enabled ? "ollama" : "extractive");
+        if (engine is not ("opencode" or "ollama") || extracted.Sources.Count == 0 || IsExactRequest(query)) return extracted;
         AgentAnswer answer;
-        if (UseOpenCode)
+        if (engine == "opencode")
         {
+            if (!UseOpenCode)
+                throw new InvalidOperationException("El motor OpenCode está seleccionado en la interfaz, pero OpenCode:Enabled está desactivado en la configuración.");
             trace.Engine = "opencode";
-            trace.Model = $"{opencode!.Model} ({opencode.Agent})";
-            answer = await opencode.GenerateAsync(query, extracted.Sources);
+            trace.Model = $"{profile?.ProviderId}/{profile?.ModelId} ({profile?.Agent})";
+            answer = await opencode!.GenerateAsync(query, extracted.Sources, profile?.ProviderId, profile?.ModelId, profile?.Agent);
         }
         else
         {
+            if (!ollama.Enabled) return extracted;
             trace.Engine = ollama.UseLangChain ? "langchain-ollama" : "ollama";
             trace.Model = ollama.Model;
             answer = await ollama.GenerateAsync(query, extracted.Sources);
