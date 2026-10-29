@@ -428,6 +428,32 @@ if (args.Contains("--ollama"))
         Console.WriteLine($"INFO Modelo real: {answer.Provider}; respuesta: {answer.Text}");
     });
 }
+await Check("TOTP: vectores RFC 6238 con 6 dígitos", () => Sync(() =>
+{
+    const string rfcSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"; // "12345678901234567890" en Base32
+    Assert(Totp.Generate(rfcSecret, DateTimeOffset.FromUnixTimeSeconds(59)) == "287082");
+    Assert(Totp.Generate(rfcSecret, DateTimeOffset.FromUnixTimeSeconds(1111111109)) == "081804");
+    Assert(Totp.Generate(rfcSecret, DateTimeOffset.FromUnixTimeSeconds(1234567890)) == "005924");
+}));
+await Check("TOTP: ventana de reloj y rechazo de códigos inválidos", () => Sync(() =>
+{
+    const string rfcSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+    var now = DateTimeOffset.FromUnixTimeSeconds(1111111109);
+    Assert(Totp.TryVerify(rfcSecret, "081804", now, 1, out var step) && step == Totp.StepAt(now));
+    var previous = Totp.Generate(rfcSecret, now.AddSeconds(-Totp.PeriodSeconds));
+    Assert(Totp.TryVerify(rfcSecret, previous, now, 1, out var previousStep) && previousStep == Totp.StepAt(now) - 1);
+    Assert(!Totp.TryVerify(rfcSecret, previous, now, 0, out _));
+    Assert(!Totp.TryVerify(rfcSecret, "12345", now, 1, out _));
+    Assert(!Totp.TryVerify(rfcSecret, "abcdef", now, 1, out _));
+    Assert(!Totp.TryVerify(rfcSecret, "", now, 1, out _));
+}));
+await Check("TOTP: Base32 tolera minúsculas y separadores y se formatea en grupos", () => Sync(() =>
+{
+    Assert(Totp.Generate("gezd gnbv gy3t qojq gezd gnbv gy3t qojq", DateTimeOffset.FromUnixTimeSeconds(59)) == "287082");
+    Assert(Totp.FormatSecret("GEZDGNBVGY3TQOJQ") == "GEZD GNBV GY3T QOJQ");
+    var uri = Totp.OtpAuthUri("DocuSearch AI", "acuyobl@gmail.com", "VL45YEQOYLCSP6TQHG563ULJZBMOO3ZG");
+    Assert(uri.StartsWith("otpauth://totp/", StringComparison.Ordinal) && uri.Contains("secret=VL45YEQO", StringComparison.Ordinal));
+}));
 if (args.Contains("--database"))
 {
     var connection = Environment.GetEnvironmentVariable("DOCUSEARCH_TEST_CONNECTION")

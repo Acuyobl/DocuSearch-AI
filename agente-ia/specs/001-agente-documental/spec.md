@@ -141,7 +141,8 @@ Descargar es un permiso diferente de leer: secretos solo los descarga administra
 general; confidenciales requieren además un rol de escritura. Se necesita original
 para descargar o reprocesar. El visor no proporciona DRM.
 
-**Advertencia:** el selector de perfiles demuestra RBAC, no autentica usuarios.
+**Advertencia:** el inicio de sesión exige un código TOTP de la app autenticadora
+(`/login` y alta en `/enroll`); los secretos y roles viven en `Auth:Users`.
 La identidad Windows se usa para SQL Server, no para autenticar al navegador.
 
 ## 6. Límites medibles

@@ -46,8 +46,8 @@ La matriz se define en [Permissions.cs](../../Services/Permissions.cs) y se reut
 en la interfaz y los servicios. El administrador departamental solo accede a su
 departamento. El consultor no accede a confidenciales ni secretos.
 
-El selector de perfiles es una demostración local. Antes de publicar en una red,
-debe sustituirse por una identidad autenticada y autorización por usuario.
+El acceso usa cookie de ASP.NET Core y verificación TOTP. Antes de publicar en una red,
+debe sustituirse por ASP.NET Core Identity u OIDC con TOTP/passkeys.
 
 ## Pruebas
 

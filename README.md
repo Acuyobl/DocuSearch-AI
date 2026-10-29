@@ -14,7 +14,7 @@ OpenCode ni servicios externos de IA.
 - [Integridad y concurrencia](#integridad-y-concurrencia)
 - [Asistente generativo local con LangChain y Ollama](#asistente-generativo-local-con-langchain-y-ollama)
 - [Observabilidad local sin Node.js](#observabilidad-local-sin-nodejs)
-- [Autenticación, permisos y modo local](#autenticación-permisos-y-modo-local)
+- [Autenticación en dos pasos (TOTP), permisos y modo local](#autenticación-en-dos-pasos-totp-permisos-y-modo-local)
 - [Recuperar datos del navegador anterior](#recuperar-datos-del-navegador-anterior)
 - [Validación](#validación)
 - [Migraciones y publicación](#migraciones-y-publicación)
@@ -80,11 +80,11 @@ dotnet restore
 dotnet run
 ```
 
-Abre <http://localhost:5068>. La aplicación redirige a **/login**: inicia sesión con un
-usuario de demostración (por ejemplo `fernando.aranda@empresa.com`, contraseña
-`DocuSearch#2026`) y los módulos respetan su rol. La base debe estar inicializada con
-los usuarios de ejemplo. **Salir**, en la cabecera, o `GET /account/logout` cierra la
-sesión y vuelve al formulario de inicio.
+Abre <http://localhost:5068>. La aplicación redirige a **/login**. La primera vez, abre
+<http://localhost:5068/enroll> y escanea con tu app autenticadora el QR del correo que te
+corresponde (o teclea la clave manual). Después entra con ese correo y el código de 6
+dígitos que muestre el teléfono; los módulos respetan tu rol. **Salir**, en la cabecera,
+o `GET /account/logout` cierra la sesión y vuelve al formulario de inicio.
 
 ```powershell
 Invoke-RestMethod http://localhost:5068/health
@@ -329,34 +329,46 @@ dotnet run -- --initialize-database
 No restablece los documentos existentes. LangSmith y los exportadores externos
 permanecen desactivados; no se conecta a Langfuse Cloud.
 
-## Autenticación, permisos y modo local
+## Autenticación en dos pasos (TOTP), permisos y modo local
 
-La aplicación usa **autenticación por cookie de ASP.NET Core**. La página de inicio de
-sesión está en `GET /login`; el formulario envía `POST /account/login` con `email`,
-`password`, `returnUrl` y token antiforgery. La salida es `GET /account/logout` o el
-botón **Salir** de la cabecera. La cookie se llama `DocuSearch.Auth`, es HttpOnly y la
-sesión es deslizante con `Auth:SessionHours` (8 horas por defecto). La identidad procede
-de los claims del usuario autenticado (`NameIdentifier`, `Name`, `Email`, `Role` y
-`department`); `LocalSession` se rellena con ellos y el RBAC se sigue aplicando en el
-servidor. El selector de perfiles desapareció: la cabecera muestra el usuario
-autenticado. La autenticación de Windows se usa solo para conectar con SQL Server; no
-identifica a los usuarios del navegador.
+La aplicación usa **cookie de autenticación de ASP.NET Core** y exige **verificación en
+dos pasos con TOTP** (RFC 6238: HMAC-SHA1, 6 dígitos, pasos de 30 s), compatible con
+Google Authenticator, Microsoft Authenticator, Authy, 1Password y similares. La
+contraseña no se escribe: **la clave de acceso es el código temporal de la app
+autenticadora**.
 
-Usuarios de demostración, todos con contraseña `DocuSearch#2026`:
+- `GET /login`: formulario con correo y código de 6 dígitos. `POST /account/login`
+  recibe `email`, `code`, `returnUrl` y el token antiforgery.
+- `GET /enroll`: alta de dispositivos. Muestra el QR y la clave manual de cada usuario;
+  cada persona escanea **solo su** código. Se desactiva con `Auth:EnrollmentEnabled=false`
+  cuando todos los teléfonos estén inscritos.
+- `GET /account/logout` o el botón **Salir** de la cabecera cierran la sesión.
+- La cookie se llama `DocuSearch.Auth`, es HttpOnly y la sesión es deslizante con
+  `Auth:SessionHours` (8 horas por defecto).
+- Cada código TOTP es de **un solo uso**: se rechaza reutilizar el mismo paso de 30 s,
+  aunque siga dentro de la ventana de tolerancia (`Auth:TotpWindow`, ±1 por defecto).
+- La identidad procede de los claims del usuario (`NameIdentifier`, `Name`, `Email`,
+  `Role` y `department`); `LocalSession` se rellena con ellos y el RBAC se sigue
+  aplicando en el servidor. La cabecera muestra el usuario autenticado.
+- Los usuarios se sincronizan con la configuración: en el primer acceso se crea el
+  usuario con el rol y el departamento indicados en `Auth:Users` (o se actualizan).
+- La autenticación de Windows se usa solo para conectar con SQL Server; no identifica a
+  los usuarios del navegador.
+
+Usuarios autorizados en `Auth:Users` de `appsettings.json`:
 
 | Correo | Rol | Departamento |
 |---|---|---|
-| `fernando.aranda@empresa.com` | Administrador General | Tecnología & TI |
-| `carlos.mendoza@empresa.com` | Gestor Documental | Tecnología & TI |
-| `elena.rostova@empresa.com` | Admin Departamento | Legal & Contratos |
-| `ana.martinez@empresa.com` | Usuario Consultor | Recursos Humanos |
-| `mariana.silva@empresa.com` | Auditor de Seguridad | Auditoría & Control |
+| `acuyobl@gmail.com` | Administrador General | Tecnología & TI |
+| `carloshm7@gmail.com` | Gestor Documental | Tecnología & TI |
+| `hubertaf@gmail.com` | Auditor de Seguridad | Auditoría & Control |
 
-Las credenciales se definen en `Auth:Users` de `appsettings.json` con hash
-**PBKDF2-SHA256**; nunca se guardan contraseñas en claro. El inicio de sesión exige
-además que el correo corresponda a un usuario activo de la base. Estas credenciales de
-demostración viven en configuración: para producción hay que sustituirlas por ASP.NET
-Core Identity u OIDC, junto con TLS. Ya no es un selector sin autenticación.
+Cada entrada tiene su propio secreto `TotpSecret` en Base32 (32 caracteres). Para rotar
+un dispositivo, sustituye el secreto por otro valor Base32, guarda el archivo y vuelve a
+inscribir el teléfono desde `/enroll`; los códigos anteriores dejan de ser válidos. Los
+secretos y los roles viven en configuración: para producción hay que sustituir este
+esquema por ASP.NET Core Identity u OIDC con TOTP o passkeys, junto con TLS. Ya no es un
+selector de perfiles sin autenticación.
 
 El middleware `Demo:LocalOnly` (por defecto `true`) rechaza las peticiones que no
 provengan de loopback y también las que traigan cabeceras de reenvío (`X-Forwarded-*`
@@ -418,13 +430,14 @@ dotnet build
 dotnet run --project .\tests\DocuSearch.Checks.csproj
 ```
 
-65 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
+68 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
 HTML, PDF reales, límites exactos, esquema SQL Server y Ollama con HTTP simulado:
-privacidad, contexto acotado, citas, errores y liberación del estado ocupado.
+privacidad, contexto acotado, citas, errores y liberación del estado ocupado. Incluye
+vectores RFC 6238 del algoritmo TOTP (código, ventana de reloj y Base32).
 Un fallo produce código de salida no cero.
 
 La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta
-la compilación y las 65 comprobaciones sin servicios.
+la compilación y las 68 comprobaciones sin servicios.
 
 Para añadir una generación real con el modelo local, usando únicamente una fuente sintética:
 
@@ -449,7 +462,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database
 
 La suite exige el sufijo `_tests` y restablece sus ejemplos. **No la apuntes a datos que
 quieras conservar.** La base se crea automáticamente si la identidad tiene permisos.
-La suite con `--database --langchain` ejecuta 79 comprobaciones: las 65 sin
+La suite con `--database --langchain` ejecuta 82 comprobaciones: las 68 sin
 servicios, tres de LangChain real y once de SQL Server. Incluye inicialización idempotente, cargas,
 original persistente, metadatos, notas, reproceso, permisos reales, cuotas, agente, importación,
 notas concurrentes, rollback de importaciones fallidas, contexto autorizado del consultor

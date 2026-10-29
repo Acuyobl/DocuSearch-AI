@@ -46,12 +46,16 @@ Se incluye migración de esquema y recuperación de datos anteriores desde el na
 
 Resumen de los cambios de esta rama:
 
-1. **Autenticación real:** cookie de ASP.NET Core con formulario en `GET /login`,
-   `POST /account/login` (`email`, `password`, `returnUrl` y token antiforgery) y
-   `GET /account/logout`. `LocalSession` se rellena desde los claims; el selector de
-   perfiles se retiró de la cabecera, que ahora muestra el usuario autenticado y
-   **Salir**. Hay cinco usuarios de demostración en `Auth:Users` (contraseña
-   `DocuSearch#2026`), almacenados con hash PBKDF2-SHA256, nunca en claro.
+1. **Autenticación real en dos pasos (TOTP):** cookie de ASP.NET Core con formulario en
+   `GET /login`, `POST /account/login` (`email`, `code` de 6 dígitos, `returnUrl` y token
+   antiforgery) y `GET /account/logout`. `LocalSession` se rellena desde los claims; el
+   selector de perfiles se retiró de la cabecera, que ahora muestra el usuario
+   autenticado y **Salir**. `GET /enroll` muestra el QR y la clave manual de cada usuario
+   para darlo de alta en Google Authenticator, Microsoft Authenticator, Authy o similar.
+   Los códigos son de un solo uso (se rechaza reutilizar el mismo paso de 30 s) y la
+   ventana de tolerancia es configurable (`Auth:TotpWindow`). Hay tres usuarios
+   autorizados en `Auth:Users` (`acuyobl@gmail.com`, `carloshm7@gmail.com` y
+   `hubertaf@gmail.com`) con su secreto Base32 y su rol.
 2. **Endurecimiento:** cabeceras `X-Content-Type-Options`, `X-Frame-Options`,
    `Referrer-Policy`, `Permissions-Policy` y `Cross-Origin-Opener-Policy`, más el
    middleware `Demo:LocalOnly`, que rechaza peticiones no loopback y con cabeceras
@@ -68,7 +72,7 @@ Resumen de los cambios de esta rama:
    inicial en diálogos, `WorkspaceState` captura cualquier excepción (salvo cancelación)
    para no tumbar el circuito y las barras de cuota usan cultura invariante.
 7. **Repositorio:** licencia MIT, `DocuSearch.sln`, `.editorconfig`, `.gitattributes`,
-   `SECURITY.md`, `CONTRIBUTING.md` y CI en `.github/workflows/ci.yml` (build y 65
+   `SECURITY.md`, `CONTRIBUTING.md` y CI en `.github/workflows/ci.yml` (build y 68
    comprobaciones). Se retiraron artefactos (`package-lock.json` e
    `IA de generacion .txt`) y los prompts pasaron a UTF-8.
 
@@ -81,19 +85,19 @@ de foco.
 Se dispone de compilación .NET y suite ejecutable de comprobaciones sin base,
 incluidos PDF reales, límites exactos, permisos y respuestas del asistente con citas.
 La base `DocuSearch` fue creada e inicializada en la instancia confirmada.
-La suite dispone de 79 comprobaciones: 65 sin servicios, tres de LangChain real
-y once de integración en la base aislada `DocuSearch_tests`:
+La suite dispone de 82 comprobaciones: 68 sin servicios (incluidos los vectores RFC 6238
+del algoritmo TOTP), tres de LangChain real y once de integración en la base aislada `DocuSearch_tests`:
 inicialización idempotente, PDF persistente,
 metadatos, notas, reproceso, permisos, cuotas, asistente, importación, concurrencia y rollback;
 se verifican el envío exclusivo de fuentes autorizadas y la revocación durante la generación.
 La observabilidad propia persiste metadatos en SQL Server, sin contenido ni identidad,
 con acceso de administración general/auditoría. No usa Langfuse ni Node.js.
 Se verificaron los nueve módulos, el agente con fuente por página, RBAC y exportación CSV
-en el navegador. La integración continua ejecuta `dotnet build` y las 65 comprobaciones
+en el navegador. La integración continua ejecuta `dotnet build` y las 68 comprobaciones
 sin servicios.
 
-Antes de uso en red faltan sustituir las credenciales de demostración por ASP.NET Core
-Identity u OIDC, TLS y políticas de despliegue.
+Antes de uso en red faltan sustituir los secretos TOTP y roles de configuración por
+ASP.NET Core Identity u OIDC con TOTP/passkeys, TLS y políticas de despliegue.
 OCR de imágenes y búsqueda semántica con embeddings son ampliaciones no implementadas.
 
 Consulta [README](README.md) para instalar, configurar, ejecutar y verificar.

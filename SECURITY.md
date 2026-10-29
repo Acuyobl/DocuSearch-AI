@@ -29,11 +29,14 @@ No se ofrece recompensa económica por los reportes.
 ## Alcance y advertencia importante
 
 - **Esta aplicación es una demo y solo debe ejecutarse en `localhost`.**
-- La autenticación por cookie ya está implementada (`/login`, RBAC en servidor y
-  `Demo:LocalOnly`), pero las credenciales de demostración viven en
-  `appsettings.json`. **No es un sistema de identidad de producción**: antes de
-  publicarla hay que sustituirlas por ASP.NET Core Identity u OIDC, activar TLS y
-  revisar la matriz de permisos.
+- La autenticación por cookie y la verificación en dos pasos **TOTP** ya están
+  implementadas (`/login`, `/enroll`, RBAC en servidor y `Demo:LocalOnly`), pero los
+  secretos TOTP y los roles viven en `appsettings.json`. **No es un sistema de
+  identidad de producción**: antes de publicar hay que sustituirlo por ASP.NET Core
+  Identity u OIDC con TOTP o passkeys, activar TLS y revisar la matriz de permisos.
+- La página `/enroll` muestra los secretos TOTP en claro para poder inscribir los
+  teléfonos. Desactívala con `Auth:EnrollmentEnabled=false` cuando termines y no la
+  publiques.
 - No la expongas a Internet ni a una red compartida, y no la publiques detrás de
   un proxy o túnel sin una capa de autenticación delante.
 - No introduzcas datos reales ni sensibles: es un entorno de demostración.

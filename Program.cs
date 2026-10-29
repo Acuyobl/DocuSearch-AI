@@ -10,7 +10,9 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using QRCoder;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +21,7 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents(options =>
 builder.Services.AddCascadingAuthenticationState();
 // El estado de autenticación del circuito interactivo procede de la cookie del handshake.
 builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
+builder.Services.AddMemoryCache();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
@@ -142,6 +145,7 @@ app.Use(async (context, next) =>
         || path.StartsWith("/_content", StringComparison.OrdinalIgnoreCase);
     var isPublic = path.Equals("/login", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/account/", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("/enroll", StringComparison.OrdinalIgnoreCase)
         || path.Equals("/health", StringComparison.OrdinalIgnoreCase);
     if (isStatic || isPublic)
     {
@@ -161,7 +165,7 @@ app.MapGet("/login", (HttpContext context, IAntiforgery antiforgery, IOptions<Au
     var returnUrl = context.Request.Query["returnUrl"].ToString();
     var failed = context.Request.Query.ContainsKey("error");
     var denied = context.Request.Query.ContainsKey("denied");
-    var html = AuthPages.Login(tokens.RequestToken ?? "", returnUrl, failed, denied, auth.Value.Users.Count);
+    var html = AuthPages.Login(tokens.RequestToken ?? "", returnUrl, failed, denied, auth.Value.EnrollmentEnabled);
     return Results.Content(html, "text/html; charset=utf-8");
 });
 
@@ -178,9 +182,9 @@ app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforge
 
     var form = await context.Request.ReadFormAsync();
     var email = form["email"].ToString();
-    var password = form["password"].ToString();
+    var code = form["code"].ToString();
     var returnUrl = form["returnUrl"].ToString();
-    var user = await auth.ValidateAsync(email, password);
+    var user = await auth.ValidateAsync(email, code);
     if (user is null) return Results.Redirect("/login?error=1");
 
     var identity = new ClaimsIdentity(AuthService.BuildClaims(user), CookieAuthenticationDefaults.AuthenticationScheme);
@@ -201,6 +205,26 @@ app.MapGet("/account/logout", async (HttpContext context) =>
 {
     await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Redirect("/login");
+});
+
+// --- Alta de dispositivos TOTP ---------------------------------------------
+// Muestra el secreto y el QR de cada usuario autorizado. Solo debe estar activo
+// mientras se inscriben los teléfonos: Auth:EnrollmentEnabled=false lo desactiva.
+app.MapGet("/enroll", (IOptions<AuthOptions> auth) =>
+{
+    var options = auth.Value;
+    if (!options.EnrollmentEnabled) return Results.NotFound();
+
+    var users = new List<(AuthUserConfig User, string OtpAuthUri, string QrSvg)>();
+    foreach (var user in options.Users.Where(u => !string.IsNullOrWhiteSpace(u.TotpSecret)))
+    {
+        var uri = Totp.OtpAuthUri(options.Issuer, user.Email, user.TotpSecret);
+        using var generator = new QRCodeGenerator();
+        using var data = generator.CreateQrCode(uri, QRCodeGenerator.ECCLevel.Q);
+        var svg = new SvgQRCode(data).GetGraphic(6);
+        users.Add((user, uri, svg));
+    }
+    return Results.Content(AuthPages.Enroll(options.Issuer, users), "text/html; charset=utf-8");
 });
 
 app.MapGet("/health", async (IDbContextFactory<AppDbContext> factory, ILogger<Program> logger, IOptions<OllamaOptions> assistant) =>
