@@ -73,6 +73,28 @@ var policy = seed.Documents.Single(d => d.InternalCode == "POL-2025-0012");
 var pdf = PdfFixture.Create("Cloud contract SLA 99.99%. Annual price $450000 USD.");
 var processor = new PdfProcessor();
 OllamaClient Ollama(HttpClient http, bool enabled = true) => new(http, Options.Create(new OllamaOptions { Enabled = enabled }));
+OpenCodeClient OpenCodeFor(HttpClient http, bool enabled = true, string password = "secreto", string provider = "ollama", string model = "qwen3:4b") =>
+    new(http, Options.Create(new OpenCodeOptions
+    {
+        Enabled = enabled, BaseUrl = "http://127.0.0.1:4097", Password = password,
+        Agent = "zodiac-asistente", ProviderId = provider, ModelId = model
+    }));
+HttpClient OpenCodeMock(string answerText, Action<HttpRequestMessage>? capture = null) =>
+    new(new TestHttpHandler((request, _) =>
+    {
+        capture?.Invoke(request);
+        if (request.Method == HttpMethod.Delete) return Task.FromResult(JsonResponse("true"));
+        var path = request.RequestUri!.AbsolutePath;
+        var body = path switch
+        {
+            "/global/health" => """{"healthy":true,"version":"1.18.32"}""",
+            "/agent" => """[{"name":"build"},{"name":"zodiac-asistente"}]""",
+            "/session" => """{"id":"ses_test"}""",
+            "/session/ses_test/message" => "{\"info\":{\"tokens\":{\"input\":10,\"output\":5}},\"parts\":[{\"type\":\"text\",\"text\":" + JsonSerializer.Serialize(answerText) + "}]}",
+            _ => "{}"
+        };
+        return Task.FromResult(JsonResponse(body));
+    }));
 const string localModelJson = """{"details":{"format":"gguf"},"capabilities":["completion"]}""";
 string ChatJson(string content, bool done = true, string reason = "stop") =>
     JsonSerializer.Serialize(new { done, done_reason = reason, message = new { content } });
@@ -436,6 +458,34 @@ if (args.Contains("--langchain"))
         Console.WriteLine($"INFO LangChain real: {answer.Provider}; {answer.Text}");
     });
 }
+if (args.Contains("--opencode"))
+{
+    var url = Environment.GetEnvironmentVariable("DOCUSEARCH_OPENCODE_URL")
+        ?? throw new InvalidOperationException("Configura DOCUSEARCH_OPENCODE_URL con el servidor OpenCode (p. ej. http://host.docker.internal:4097).");
+    var password = Environment.GetEnvironmentVariable("DOCUSEARCH_OPENCODE_PASSWORD") ?? "";
+    var provider = Environment.GetEnvironmentVariable("DOCUSEARCH_OPENCODE_PROVIDER") ?? "deepseek";
+    var model = Environment.GetEnvironmentVariable("DOCUSEARCH_OPENCODE_MODEL") ?? "deepseek-flash";
+    var agent = Environment.GetEnvironmentVariable("DOCUSEARCH_OPENCODE_AGENT") ?? "zodiac-asistente";
+    using var http = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false });
+    var client = new OpenCodeClient(http, Options.Create(new OpenCodeOptions
+    {
+        Enabled = true, BaseUrl = url, Password = password, AllowNonLoopback = true,
+        Agent = agent, ProviderId = provider, ModelId = model, TimeoutSeconds = 180
+    }));
+    await Check("OpenCode real: salud y agente disponibles", async () =>
+    {
+        await client.CheckAsync();
+        Console.WriteLine($"INFO OpenCode real conectado: {client.Engine} · agente {client.Agent}");
+    });
+    await Check("OpenCode real: genera respuesta con cita autorizada", async () =>
+    {
+        var document = new DocumentItem { InternalCode = "TEST-2026-OPENCODE", Title = "Prueba sintética OpenCode" };
+        var answer = await client.GenerateAsync("¿Qué disponibilidad garantiza el contrato?",
+            [new(document, 1, "El contrato garantiza una disponibilidad SLA de 99.99%.", 100)]);
+        Assert(answer.Text.Length > 0 && answer.Sources.Single().Document.Id == document.Id);
+        Console.WriteLine($"INFO OpenCode real: {answer.Provider}; respuesta: {answer.Text}");
+    });
+}
 if (args.Contains("--ollama"))
 {
     await Check("Ollama real: modelo local genera respuesta con cita autorizada", async () =>
@@ -473,6 +523,81 @@ await Check("TOTP: Base32 tolera minúsculas y separadores y se formatea en grup
     var uri = Totp.OtpAuthUri("DocuSearch AI", "acuyobl@gmail.com", "VL45YEQOYLCSP6TQHG563ULJZBMOO3ZG");
     Assert(uri.StartsWith("otpauth://totp/", StringComparison.Ordinal) && uri.Contains("secret=VL45YEQO", StringComparison.Ordinal));
 }));
+await Check("OpenCode: exige loopback o contraseña para servidores remotos", () => Sync(() =>
+{
+    Throws<InvalidOperationException>(() => _ = new OpenCodeClient(new HttpClient(),
+        Options.Create(new OpenCodeOptions { Enabled = true, BaseUrl = "http://192.168.1.10:4097" })));
+    Throws<InvalidOperationException>(() => _ = new OpenCodeClient(new HttpClient(),
+        Options.Create(new OpenCodeOptions { Enabled = true, BaseUrl = "http://192.168.1.10:4097", AllowNonLoopback = true })));
+    var remote = new OpenCodeClient(new HttpClient(), Options.Create(new OpenCodeOptions
+    {
+        Enabled = true, BaseUrl = "http://192.168.1.10:4097", AllowNonLoopback = true, Password = "x",
+        ProviderId = "deepseek", ModelId = "deepseek-flash"
+    }));
+    Assert(remote.Enabled && remote.IsRemote);
+}));
+await Check("OpenCode: comprueba salud y agente configurado", async () =>
+{
+    var calls = new List<string>();
+    using var http = OpenCodeMock("{\"answer\":\"ok\",\"citations\":[1]}", request => calls.Add($"{request.Method.Method} {request.RequestUri!.AbsolutePath}"));
+    await OpenCodeFor(http).CheckAsync();
+    Assert(calls.Contains("GET /global/health") && calls.Contains("GET /agent"));
+});
+await Check("OpenCode: genera respuesta con citas, tokens y autenticación", async () =>
+{
+    string? messageBody = null, auth = null;
+    var calls = new List<string>();
+    using var http = OpenCodeMock("{\"answer\":\"ok\",\"citations\":[1]}", request =>
+    {
+        calls.Add($"{request.Method.Method} {request.RequestUri!.AbsolutePath}");
+        if (request.RequestUri.AbsolutePath.EndsWith("/message", StringComparison.Ordinal))
+        {
+            messageBody = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            auth = request.Headers.Authorization?.ToString();
+        }
+    });
+    var document = new DocumentItem { InternalCode = "CNT-2025-0892", Title = "Contrato" };
+    var answer = await OpenCodeFor(http).GenerateAsync("¿Qué SLA garantiza el contrato?", [new(document, 4, "SLA 99.99%", 100)]);
+    Assert(answer.Text == "ok" && answer.Sources.Single().PageNumber == 4);
+    Assert(answer.Provider.Contains("OpenCode", StringComparison.Ordinal) && answer.InputTokens == 10 && answer.OutputTokens == 5);
+    Assert(messageBody is not null && messageBody.Contains("\"agent\":\"zodiac-asistente\"", StringComparison.Ordinal) &&
+        messageBody.Contains("\"providerID\":\"ollama\"", StringComparison.Ordinal) &&
+        messageBody.Contains("\"modelID\":\"qwen3:4b\"", StringComparison.Ordinal));
+    Assert(messageBody!.Contains("SLA", StringComparison.Ordinal) &&
+        messageBody.Contains("CNT-2025-0892", StringComparison.Ordinal));
+    Assert(auth is not null && auth.StartsWith("Basic ", StringComparison.Ordinal));
+    Assert(calls.Contains("DELETE /session/ses_test"));
+});
+await Check("OpenCode: bloquea citas fuera de las fuentes autorizadas", async () =>
+{
+    using var http = OpenCodeMock("{\"answer\":\"ok\",\"citations\":[2]}");
+    var document = new DocumentItem { InternalCode = "CNT-2025-0892", Title = "Contrato" };
+    await ThrowsAsync<InvalidOperationException>(() => OpenCodeFor(http).GenerateAsync("q",
+        [new(document, 1, "Solo una fuente", 100)]));
+});
+await Check("OpenCode: rechaza respuestas sin JSON estructurado", async () =>
+{
+    using var http = OpenCodeMock("esto no es json");
+    var document = new DocumentItem { InternalCode = "CNT-2025-0892", Title = "Contrato" };
+    await ThrowsAsync<InvalidOperationException>(() => OpenCodeFor(http).GenerateAsync("q",
+        [new(document, 1, "Solo una fuente", 100)]));
+});
+await Check("OpenCode: sin fuentes no llama al servidor", async () =>
+{
+    using var http = OpenCodeMock("{\"answer\":\"ok\",\"citations\":[1]}");
+    await ThrowsAsync<InvalidOperationException>(() => OpenCodeFor(http).GenerateAsync("q", []));
+});
+await Check("OpenCode: informa credenciales rechazadas (401)", async () =>
+{
+    using var http = new HttpClient(new TestHttpHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized))));
+    var rejected = false;
+    try { await OpenCodeFor(http).CheckAsync(); }
+    catch (InvalidOperationException ex)
+    {
+        rejected = ex.Message.Contains("401", StringComparison.Ordinal) || ex.Message.Contains("credenciales", StringComparison.OrdinalIgnoreCase);
+    }
+    Assert(rejected);
+});
 if (args.Contains("--database"))
 {
     var connection = Environment.GetEnvironmentVariable("DOCUSEARCH_TEST_CONNECTION")

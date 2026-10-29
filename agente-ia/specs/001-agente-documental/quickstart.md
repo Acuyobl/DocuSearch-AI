@@ -3,7 +3,8 @@
 **Referencia:** [AGENTE-001](spec.md) · **Entorno:** Windows/PowerShell.
 
 Ejecutar los comandos desde la raíz del proyecto, no desde esta carpeta de specs.
-No se requiere Node.js, npm, Docker ni OpenCode.
+El modo LangChain/Ollama no requiere Node.js, npm, Docker ni OpenCode. El motor OpenCode
+es opcional y se ejecuta como servicio externo (`opencode serve`).
 
 ## 1. Requisitos
 
@@ -152,7 +153,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database --langchain
 
 **Nunca apuntes estas pruebas a `DocuSearch` ni a una base que quieras conservar.**
 La suite exige sufijo `_tests`, inicializa y restablece datos de prueba.
-Línea base verificada antes de crear estos documentos: 83 comprobaciones .NET con
+Línea base verificada antes de crear estos documentos: 90 comprobaciones .NET con
 SQL/LangChain y ocho pruebas Python correctas.
 
 ## 8. Resolución de problemas

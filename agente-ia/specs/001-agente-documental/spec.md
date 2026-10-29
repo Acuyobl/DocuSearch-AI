@@ -36,7 +36,9 @@ Validar una cita no garantiza la exactitud factual de una respuesta generativa.
 | Citas, seguimiento por último código y visor | Memoria conversacional completa o persistente |
 | Panel propio de observabilidad Blazor/SQL Server | Langfuse, LangSmith tracing y exportadores externos |
 
-OpenCode CLI fue explorado, pero no forma parte del flujo activo. No se incorpora
+OpenCode es un motor **opcional** del asistente desde 2026-10-29: la aplicación se
+conecta a un servidor `opencode serve` local con un agente sin herramientas, pero no lo
+instala ni lo necesita para compilar o para el modo LangChain/Ollama. No se incorpora
 Langfuse porque su servidor utiliza Node.js. La observabilidad actual no implementa
 la API ni todas las capacidades de Langfuse.
 

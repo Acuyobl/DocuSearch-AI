@@ -72,9 +72,15 @@ Resumen de los cambios de esta rama:
    inicial en diálogos, `WorkspaceState` captura cualquier excepción (salvo cancelación)
    para no tumbar el circuito y las barras de cuota usan cultura invariante.
 7. **Repositorio:** licencia MIT, `DocuSearch.sln`, `.editorconfig`, `.gitattributes`,
-   `SECURITY.md`, `CONTRIBUTING.md` y CI en `.github/workflows/ci.yml` (build y 68
+   `SECURITY.md`, `CONTRIBUTING.md` y CI en `.github/workflows/ci.yml` (build y 76
    comprobaciones). Se retiraron artefactos (`package-lock.json` e
    `IA de generacion .txt`) y los prompts pasaron a UTF-8.
+8. **Asistente con OpenCode:** motor seleccionable por configuración que usa el servidor
+   local de OpenCode (`POST /session` y `POST /session/:id/message`) con un agente sin
+   herramientas (`zodiac-asistente`), validación de citas y borrado de la sesión. Mantiene
+   LangChain/Ollama y el modo extractivo como alternativas; los modelos local (`ollama/qwen3:4b`)
+   y remoto (`deepseek/deepseek-flash`) se eligen por configuración y la interfaz avisa
+   cuando el modelo es remoto. Añade 8 comprobaciones (7 simuladas y 2 reales con `--opencode`).
 
 Pendientes que no cubre esta rama: embeddings/OCR, autenticación de producción con
 Identity u OIDC, un lock global para la importación y accesibilidad completa con trampa
@@ -85,7 +91,7 @@ de foco.
 Se dispone de compilación .NET y suite ejecutable de comprobaciones sin base,
 incluidos PDF reales, límites exactos, permisos y respuestas del asistente con citas.
 La base `DocuSearch` fue creada e inicializada en la instancia confirmada.
-La suite dispone de 83 comprobaciones: 69 sin servicios (incluidos los vectores RFC 6238
+La suite dispone de 90 comprobaciones: 76 sin servicios (incluidos los vectores RFC 6238
 del algoritmo TOTP), tres de LangChain real y once de integración en la base aislada `DocuSearch_tests`:
 inicialización idempotente, PDF persistente,
 metadatos, notas, reproceso, permisos, cuotas, asistente, importación, concurrencia y rollback;
@@ -93,7 +99,7 @@ se verifican el envío exclusivo de fuentes autorizadas y la revocación durante
 La observabilidad propia persiste metadatos en SQL Server, sin contenido ni identidad,
 con acceso de administración general/auditoría. No usa Langfuse ni Node.js.
 Se verificaron los nueve módulos, el agente con fuente por página, RBAC y exportación CSV
-en el navegador. La integración continua ejecuta `dotnet build` y las 69 comprobaciones
+en el navegador. La integración continua ejecuta `dotnet build` y las 76 comprobaciones
 sin servicios.
 
 Antes de uso en red faltan sustituir los secretos TOTP y roles de configuración por

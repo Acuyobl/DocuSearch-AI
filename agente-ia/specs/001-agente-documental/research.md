@@ -93,14 +93,17 @@ inteligencia del modelo ni añade automáticamente OCR, memoria o embeddings.
 - **Evidencia:** [cliente](../../../Services/OllamaClient.cs),
   [chat](../../../Components/Modules/AgentChat.razor).
 
-## ADR-08. OpenCode no activo
+## ADR-08. OpenCode opcional como motor del asistente
 
-- **Contexto:** se pidió explorar OpenCode CLI y se identificó una versión nativa.
-- **Resultado:** la prueba de inferencia por CLI no quedó verificada por restricciones
-  de autorización de ejecución; no se reemplazó la integración funcional.
-- **Decisión vigente:** LangChain → Ollama; sin OpenCode en el flujo de la aplicación.
-- **Consecuencia:** no anunciar compatibilidad OpenAI en `localhost:4096/v1` por
-  suposición ni tratar un HTTP 200 con HTML como API válida.
+- **Contexto:** se pidió conectar el agente con OpenCode (2026-10-29) y se verificó su
+  servidor HTTP (`opencode serve`: sesiones, mensajes, agentes y model override).
+- **Decisión vigente:** OpenCode es un motor opcional con prioridad sobre
+  LangChain/Ollama cuando `OpenCode:Enabled=true`; usa el agente sin herramientas
+  `zodiac-asistente`, valida citas y crea/elimina una sesión por consulta. No forma
+  parte del build ni de la instalación de la aplicación: es un servicio externo.
+- **Consecuencia:** el modelo se elige por configuración (`ollama/qwen3:4b` local o
+  `deepseek/deepseek-flash` remoto, con aviso en la interfaz); no anunciar compatibilidad
+  OpenAI en `localhost:4096/v1` por suposición.
 
 ## ADR-09. Observabilidad propia, no Langfuse
 

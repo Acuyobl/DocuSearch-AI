@@ -1,8 +1,9 @@
 # DocuSearch AI
 
 Control documental con **Blazor Interactive Server, ASP.NET Core 10 y SQL Server Express**.
-Se compila y ejecuta con .NET y NuGet. No requiere Node.js, npm, React, Vite, Tailwind,
-OpenCode ni servicios externos de IA.
+Se compila y ejecuta con .NET y NuGet; **no necesita Node.js ni npm para compilar**. El
+asistente puede usar un servidor **OpenCode** opcional (instalado aparte) o el modo
+LangChain/Ollama local; si ambos están desactivados responde en modo extractivo.
 
 ## Índice
 
@@ -12,7 +13,7 @@ OpenCode ni servicios externos de IA.
 - [Módulos conservados](#módulos-conservados)
 - [Procesamiento y almacenamiento](#procesamiento-y-almacenamiento)
 - [Integridad y concurrencia](#integridad-y-concurrencia)
-- [Asistente generativo local con LangChain y Ollama](#asistente-generativo-local-con-langchain-y-ollama)
+- [Asistente generativo: OpenCode, LangChain y Ollama](#asistente-generativo-opencode-langchain-y-ollama)
 - [Observabilidad local sin Node.js](#observabilidad-local-sin-nodejs)
 - [Autenticación en dos pasos (TOTP), permisos y modo local](#autenticación-en-dos-pasos-totp-permisos-y-modo-local)
 - [Recuperar datos del navegador anterior](#recuperar-datos-del-navegador-anterior)
@@ -91,8 +92,9 @@ Invoke-RestMethod http://localhost:5068/health
 ```
 
 La respuesta saludable indica `status: ready`, `database: SQL Server` y
-`assistant: langchain-ollama-local` (o `ollama-local` en modo directo,
-o `local-extractive` si desactivas la generación).
+`assistant: opencode:<proveedor>/<modelo>` (OpenCode), `langchain-ollama-local`
+(o `ollama-local` en modo directo), o `local-extractive` si desactivas las dos
+generaciones.
 Este campo identifica la configuración, no certifica la disponibilidad del modelo:
 usa **Comprobar conexión** en el asistente. Una conexión o esquema SQL no disponible devuelve HTTP 503
 y un error explícito; no existe respaldo en memoria que simule éxito.
@@ -130,7 +132,7 @@ de Windows utilizada para conectarse a SQL Server.
 | Carga | Individual o lote, hasta 20 archivos con progreso y resultado independiente |
 | Pipeline | Estado persistente, SHA-256 y reprocesamiento real |
 | Buscador | Pestañas Buscar documentos y Asistente IA; coincidencia exacta o relevancia por términos, filtros e historial de sesión |
-| Asistente integrado en el buscador | Respuestas generativas con Ollama local y citas; listas, fichas, páginas y entidades exactas; seguimiento del expediente anterior |
+| Asistente integrado en el buscador | Respuestas generativas con OpenCode (agente sin herramientas) o LangChain/Ollama local, con citas; listas, fichas, páginas y entidades exactas; seguimiento del expediente anterior |
 | Visor | Original PDF, texto por página, zoom, resumen, entidades, notas y ficha técnica |
 | Reportes | Catálogo CSV, informe HTML autónomo e impresión a PDF |
 | Auditoría | Eventos persistentes, filtros y exportación del historial |
@@ -186,7 +188,8 @@ porcentajes de éxito ni servicios de IA simulados. No se afirma igualdad píxel
 - PdfPig extrae la **capa de texto**, no imágenes. Una página sin texto marca el expediente
   como **Requiere OCR**; no se inventa contenido.
 - La ingesta mantiene resúmenes extractivos y entidades por reglas. El asistente añade
-  generación con Ollama local, sin enviar documentos a terceros.
+  generación con OpenCode (local o remoto según configuración) o con Ollama local; el
+  modo determinista sigue disponible sin modelo.
 - Relevancia por términos, **no similitud vectorial ni embeddings**.
 - Los cinco ejemplos conservan sus páginas de referencia y notas, pero no incluyen PDF
   original. Sus hashes históricos no prueban un archivo que no se proporcionó; la
@@ -216,12 +219,53 @@ porcentajes de éxito ni servicios de IA simulados. No se afirma igualdad píxel
   de la transacción y del lock para no retenerlo durante el trabajo pesado.
 - **Contadores:** se actualizan con `ExecuteUpdateAsync`, sin lecturas intermedias.
 
-## Asistente generativo local con LangChain y Ollama
+## Asistente generativo: OpenCode, LangChain y Ollama
 
-Conexión **ASP.NET Core → Python / LangChain → Ollama → `qwen2.5-coder:7b`**.
-No utiliza OpenCode, Node.js, npm ni claves de proveedores externos.
-Ollama debe estar abierto y el modelo descargado. En este equipo ya está instalado;
-la aplicación no instala ni descarga modelos automáticamente.
+El motor se elige explícitamente: **OpenCode** (si `OpenCode:Enabled=true`), después
+**LangChain/Ollama local** (si `Ollama:Enabled=true`) y, si ambos están desactivados,
+respuesta **extractiva** por reglas. En todos los modos la recuperación de fuentes, el
+RBAC y la validación de citas siguen en C#; el modelo solo recibe fragmentos autorizados.
+
+### Motor OpenCode (opcional, prioritario)
+
+`OpenCode` es un agente de terminal que ya está instalado en este equipo (Node 24 +
+`opencode`). La aplicación **no lo arranca**: se conecta a un servidor `opencode serve`.
+El agente usado (`zodiac-asistente`) tiene **todas las herramientas desactivadas**, de
+modo que no accede a archivos, shell ni internet.
+
+```powershell
+$env:OPENCODE_SERVER_PASSWORD = "cambia-esta-clave"
+opencode serve --port 4097 --hostname 127.0.0.1
+```
+
+Configuración en `appsettings.json` (o variables `OpenCode__*`):
+
+| Clave | Valor de referencia | Nota |
+|---|---|---|
+| `Enabled` | `true` | Con `true` tiene prioridad sobre LangChain/Ollama |
+| `BaseUrl` | `http://127.0.0.1:4097` | Debe ser loopback salvo `AllowNonLoopback=true` |
+| `Username` / `Password` | `opencode` / *(vacío)* | Basic auth de `OPENCODE_SERVER_PASSWORD`; la contraseña no se versiona |
+| `Agent` | `zodiac-asistente` | Debe existir en `opencode.json` y no tener herramientas |
+| `ProviderId` / `ModelId` | `ollama` / `qwen3:4b` | Local por defecto; ver abajo el modo remoto |
+| `TimeoutSeconds` | `120` | 5–600 |
+| `AllowNonLoopback` | `false` | Necesario para `host.docker.internal`; exige contraseña |
+
+Selección de modelo (ambos soportados):
+
+- **Local (privacidad):** `ProviderId=ollama`, `ModelId=qwen3:4b`. Requiere Ollama activo
+  y el modelo descargado. Ningún fragmento sale del equipo.
+- **Remoto:** `ProviderId=deepseek`, `ModelId=deepseek-flash`, `Agent=zodiac-asistente`.
+  Los fragmentos autorizados salen del equipo y la interfaz muestra un aviso rojo; no
+  debe usarse con expedientes confidenciales o secretos.
+
+La aplicación crea una sesión por consulta (`POST /session`), envía pregunta + fuentes a
+`POST /session/:id/message`, valida que la respuesta sea JSON con citas dentro de las
+fuentes enviadas y elimina la sesión al terminar. La contraseña se pasa por entorno
+(`OpenCode__Password`), nunca en el repositorio.
+
+Conexión **LangChain/Ollama** (cuando OpenCode está desactivado): ASP.NET Core →
+Python / LangChain → Ollama → `qwen2.5-coder:7b`. Ollama debe estar activo y el modelo
+descargado; la aplicación no instala ni descarga modelos automáticamente.
 
 Python se ejecuta por consulta como proceso hijo con `-I`, sin shell ni servidor
 Python adicional. La pregunta y las fuentes viajan por stdin, y la respuesta JSON
@@ -430,14 +474,13 @@ dotnet build
 dotnet run --project .\tests\DocuSearch.Checks.csproj
 ```
 
-69 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
-HTML, PDF reales, límites exactos, esquema SQL Server y Ollama con HTTP simulado:
-privacidad, contexto acotado, citas, errores y liberación del estado ocupado. Incluye
-vectores RFC 6238 del algoritmo TOTP (código, ventana de reloj y Base32).
+76 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
+HTML, PDF reales, límites exactos, esquema SQL Server, TOTP y Ollama/OpenCode con HTTP
+simulado: privacidad, contexto acotado, citas, errores y liberación del estado ocupado.
 Un fallo produce código de salida no cero.
 
 La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta
-la compilación y las 69 comprobaciones sin servicios.
+la compilación y las 76 comprobaciones sin servicios.
 
 Para añadir una generación real con el modelo local, usando únicamente una fuente sintética:
 
@@ -447,7 +490,18 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --langchain
 
 Esto añade tres pruebas: disponibilidad del worker, rechazo de endpoint remoto y
 generación real desde C# con LangChain y Ollama. `--ollama` permite probar también
-la conexión directa anterior. Pruebas Python (ocho, sin modelo ni red):
+la conexión directa anterior. La integración con OpenCode se prueba contra un servidor real:
+
+```powershell
+$env:DOCUSEARCH_OPENCODE_URL = "http://127.0.0.1:4097"
+$env:DOCUSEARCH_OPENCODE_PASSWORD = "cambia-esta-clave"
+$env:DOCUSEARCH_OPENCODE_PROVIDER = "deepseek"      # o "ollama"
+$env:DOCUSEARCH_OPENCODE_MODEL = "deepseek-flash"   # o "qwen3:4b"
+dotnet run --project .\tests\DocuSearch.Checks.csproj -- --opencode
+```
+
+Añade dos pruebas (salud + agente y generación con cita) y envía únicamente una fuente
+sintética. Pruebas Python (ocho, sin modelo ni red):
 
 ```powershell
 & "$env:LOCALAPPDATA\DocuSearch\LangChain\.venv\Scripts\python.exe" -m unittest discover -s .\LangChain -p "test_*.py" -v
@@ -462,7 +516,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database
 
 La suite exige el sufijo `_tests` y restablece sus ejemplos. **No la apuntes a datos que
 quieras conservar.** La base se crea automáticamente si la identidad tiene permisos.
-La suite con `--database --langchain` ejecuta 83 comprobaciones: las 69 sin
+La suite con `--database --langchain` ejecuta 90 comprobaciones: las 76 sin
 servicios, tres de LangChain real y once de SQL Server. Incluye inicialización idempotente, cargas,
 original persistente, metadatos, notas, reproceso, permisos reales, cuotas, agente, importación,
 notas concurrentes, rollback de importaciones fallidas, contexto autorizado del consultor

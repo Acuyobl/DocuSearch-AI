@@ -31,8 +31,10 @@ public static class LocalSearch
 }
 
 public sealed class LocalAgent(DocumentService documents, LocalSession session, OllamaClient ollama,
-    AgentObservability observability)
+    AgentObservability observability, OpenCodeClient? opencode = null)
 {
+    private bool UseOpenCode => opencode is { Enabled: true };
+
     public async Task<AgentAnswer> AskAsync(string query)
     {
         var trace = new AgentTrace();
@@ -63,10 +65,20 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
         var snapshot = await documents.LoadAsync();
         await documents.LogQueryAsync("AGENT_QUERY", "Consulta del asistente; contenido omitido por privacidad.");
         var extracted = AnswerFromSources(query, snapshot.Documents, session);
-        if (!ollama.Enabled || extracted.Sources.Count == 0 || IsExactRequest(query)) return extracted;
-        trace.Engine = ollama.UseLangChain ? "langchain-ollama" : "ollama";
-        trace.Model = ollama.Model;
-        var answer = await ollama.GenerateAsync(query, extracted.Sources);
+        if ((!UseOpenCode && !ollama.Enabled) || extracted.Sources.Count == 0 || IsExactRequest(query)) return extracted;
+        AgentAnswer answer;
+        if (UseOpenCode)
+        {
+            trace.Engine = "opencode";
+            trace.Model = $"{opencode!.Model} ({opencode.Agent})";
+            answer = await opencode.GenerateAsync(query, extracted.Sources);
+        }
+        else
+        {
+            trace.Engine = ollama.UseLangChain ? "langchain-ollama" : "ollama";
+            trace.Model = ollama.Model;
+            answer = await ollama.GenerateAsync(query, extracted.Sources);
+        }
         var current = await documents.LoadAsync();
         if (current.Actor.Id != snapshot.Actor.Id ||
             extracted.Sources.Any(s => current.Documents.All(d => d.Id != s.Document.Id)))

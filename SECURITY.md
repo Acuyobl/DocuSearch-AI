@@ -46,6 +46,19 @@ No se ofrece recompensa económica por los reportes.
 - Mantén actualizado el SDK de .NET dentro de la línea 10.0.x y revisa los
   avisos de dependencias (NuGet) de forma periódica.
 
+## Motor OpenCode
+
+- El asistente puede conectarse a un servidor OpenCode local (`opencode serve`).
+  Configura `OPENCODE_SERVER_PASSWORD` y `OpenCode:Password`; el servidor debe escuchar
+  en loopback salvo que se use `AllowNonLoopback=true` para un contenedor controlado.
+- El agente configurado (`zodiac-asistente`) debe tener **todas las herramientas
+  desactivadas** (sin shell, archivos, red ni MCP): la aplicación solo le envía texto.
+- Con un modelo remoto (`deepseek`, proveedores cloud), los fragmentos autorizados salen
+  del equipo. La interfaz muestra un aviso; **no consultes expedientes confidenciales ni
+  secretos en ese modo**. Para privacidad total usa `ProviderId=ollama` con un modelo local.
+- El cliente exige loopback o contraseña, valida que las citas pertenezcan a las fuentes
+  enviadas y elimina la sesión de OpenCode al terminar.
+
 ## Fuera de alcance
 
 - Vulnerabilidades en componentes de terceros no soportados por el proyecto

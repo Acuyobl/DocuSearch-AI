@@ -37,8 +37,10 @@ del modelo ni modificaciones documentales desde el chat. La recuperación sigue
 siendo léxica y el contexto es parcial. El texto de los expedientes se trata como
 datos; validar citas no garantiza exactitud factual.
 
-El framework es LangChain Python, no LangChain.js. OpenCode no está activo.
-La observabilidad es propia en Blazor/SQL Server, no Langfuse; se mantiene cero Node.js.
+El motor puede ser OpenCode (servidor local opcional, agente sin herramientas),
+LangChain Python con Ollama o el modo extractivo; OpenCode tiene prioridad cuando está
+habilitado. La observabilidad es propia en Blazor/SQL Server, no Langfuse; el proyecto
+no compila con Node.js y OpenCode se ejecuta como servicio externo opcional.
 
 ## Permisos
 

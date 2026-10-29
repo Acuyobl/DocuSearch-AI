@@ -52,6 +52,13 @@ builder.Services.AddHttpClient<OllamaClient>().ConfigurePrimaryHttpMessageHandle
     UseProxy = false,
     ConnectTimeout = TimeSpan.FromSeconds(5)
 });
+builder.Services.Configure<OpenCodeOptions>(builder.Configuration.GetSection("OpenCode"));
+builder.Services.AddHttpClient<OpenCodeClient>().ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    AllowAutoRedirect = false,
+    UseProxy = false,
+    ConnectTimeout = TimeSpan.FromSeconds(5)
+});
 builder.Services.AddScoped<LocalAgent>();
 builder.Services.AddScoped<AgentObservability>();
 builder.Services.AddScoped<LegacyImport>();
@@ -227,13 +234,19 @@ app.MapGet("/enroll", (IOptions<AuthOptions> auth) =>
     return Results.Content(AuthPages.Enroll(options.Issuer, users), "text/html; charset=utf-8");
 });
 
-app.MapGet("/health", async (IDbContextFactory<AppDbContext> factory, ILogger<Program> logger, IOptions<OllamaOptions> assistant) =>
+app.MapGet("/health", async (IDbContextFactory<AppDbContext> factory, ILogger<Program> logger,
+    IOptions<OllamaOptions> assistant, IOptions<OpenCodeOptions> openCode) =>
 {
     try
     {
         await using var db = await factory.CreateDbContextAsync();
         _ = await db.Users.CountAsync();
-        return Results.Ok(new { status = "ready", database = "SQL Server", assistant = assistant.Value.Enabled ? assistant.Value.UseLangChain ? "langchain-ollama-local" : "ollama-local" : "local-extractive" });
+        var engine = openCode.Value.Enabled
+            ? $"opencode:{openCode.Value.ProviderId}/{openCode.Value.ModelId}"
+            : assistant.Value.Enabled
+                ? assistant.Value.UseLangChain ? "langchain-ollama-local" : "ollama-local"
+                : "local-extractive";
+        return Results.Ok(new { status = "ready", database = "SQL Server", assistant = engine });
     }
     catch (Exception ex) when (ex is DbException or InvalidOperationException)
     {
