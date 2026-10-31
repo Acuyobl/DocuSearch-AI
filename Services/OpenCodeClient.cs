@@ -258,7 +258,19 @@ public sealed class OpenCodeClient
             ids = toolIds is not null && DateTimeOffset.UtcNow < toolIdsExpires ? toolIds : null;
         if (ids is null)
         {
-            ids = await GetAsync<string[]>("experimental/tool/ids");
+            using var response = await http.GetAsync("experimental/tool/ids");
+            response.EnsureSuccessStatusCode();
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var root = document.RootElement;
+            // OpenCode 1.19 devuelve {"value":[...],"Count":N}; versiones anteriores, un array.
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("value", out var wrapped)) root = wrapped;
+            if (root.ValueKind != JsonValueKind.Array)
+                throw new InvalidOperationException("OpenCode devolvió una lista de herramientas con un formato desconocido.");
+            ids = root.EnumerateArray()
+                .Where(item => item.ValueKind == JsonValueKind.String)
+                .Select(item => item.GetString()!)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .ToArray();
             lock (toolGate)
             {
                 toolIds = ids;

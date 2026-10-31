@@ -79,7 +79,7 @@ OpenCodeClient OpenCodeFor(HttpClient http, bool enabled = true, string password
         Enabled = enabled, BaseUrl = "http://127.0.0.1:4097", Password = password,
         Agent = agent, ProviderId = provider, ModelId = model
     }));
-HttpClient OpenCodeMock(string answerText, Action<HttpRequestMessage>? capture = null) =>
+HttpClient OpenCodeMock(string answerText, Action<HttpRequestMessage>? capture = null, string toolIds = """["bash","read"]""") =>
     new(new TestHttpHandler((request, _) =>
     {
         capture?.Invoke(request);
@@ -89,7 +89,7 @@ HttpClient OpenCodeMock(string answerText, Action<HttpRequestMessage>? capture =
         {
             "/global/health" => """{"healthy":true,"version":"1.18.32"}""",
             "/agent" => """[{"name":"build"},{"name":"zodiac-asistente"}]""",
-            "/experimental/tool/ids" => """["bash","read"]""",
+            "/experimental/tool/ids" => toolIds,
             "/session" => """{"id":"ses_test"}""",
             "/session/ses_test/message" => "{\"info\":{\"tokens\":{\"input\":10,\"output\":5}},\"parts\":[{\"type\":\"text\",\"text\":" + JsonSerializer.Serialize(answerText) + "}]}",
             _ => "{}"
@@ -739,6 +739,18 @@ await Check("OpenCode: desactiva herramientas y omite agente vacío", async () =
     await OpenCodeFor(http, agent: "").GenerateAsync("q", [new(document, 1, "texto", 100)]);
     Assert(body is not null && body.Contains("\"tools\":{\"bash\":false,\"read\":false}", StringComparison.Ordinal));
     Assert(!body!.Contains("\"agent\":", StringComparison.Ordinal));
+});
+await Check("OpenCode 1.19: acepta herramientas envueltas en value", async () =>
+{
+    string? body = null;
+    using var http = OpenCodeMock("{\"answer\":\"ok\",\"citations\":[1]}", request =>
+    {
+        if (request.RequestUri!.AbsolutePath.EndsWith("/message", StringComparison.Ordinal))
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+    }, """{"value":["bash","read"],"Count":2}""");
+    var document = new DocumentItem { InternalCode = "CNT-2025-0892", Title = "Contrato" };
+    await OpenCodeFor(http, agent: "").GenerateAsync("q", [new(document, 1, "texto", 100)]);
+    Assert(body is not null && body.Contains("\"tools\":{\"bash\":false,\"read\":false}", StringComparison.Ordinal));
 });
 await Check("OpenCode: el modo LangChain se refleja en el motor", () => Sync(() =>
 {

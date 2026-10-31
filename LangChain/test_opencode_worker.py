@@ -75,6 +75,13 @@ class FakeClient:
         return FakeResponse({})
 
 
+class WrappedFakeClient(FakeClient):
+    def get(self, path: str) -> FakeResponse:
+        if path == "/experimental/tool/ids":
+            return FakeResponse({"value": ["bash", "read"], "Count": 2})
+        return super().get(path)
+
+
 class OpenCodeWorkerTests(unittest.TestCase):
     def setUp(self) -> None:
         FakeClient.instances.clear()
@@ -117,6 +124,15 @@ class OpenCodeWorkerTests(unittest.TestCase):
     def test_parse_answer_rejects_plain_text(self) -> None:
         with self.assertRaises(ValueError):
             opencode_worker.parse_answer("no json here")
+
+    def test_chain_accepts_wrapped_tool_ids(self) -> None:
+        with patch.object(opencode_worker.httpx, "Client", WrappedFakeClient):
+            result = opencode_worker.build_chain(request()).invoke(
+                {"context": '{"question":"What SLA?","sources":[{"id":1,"text":"SLA 99.99%."}]}'}
+            )
+        self.assertEqual(result["answer"], "SLA 99.99%")
+        payload = WrappedFakeClient.instances[-1].payloads[-1]
+        self.assertEqual(payload["tools"], {"bash": False, "read": False})
 
 
 if __name__ == "__main__":

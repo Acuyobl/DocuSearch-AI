@@ -230,8 +230,12 @@ RBAC y la validación de citas siguen en C#; el modelo solo recibe fragmentos au
 
 `OpenCode` es un agente de terminal que ya está instalado en este equipo (Node 24 +
 `opencode`). La aplicación **no lo arranca**: se conecta a un servidor `opencode serve`.
-El agente usado (`zodiac-asistente`) tiene **todas las herramientas desactivadas**, de
-modo que no accede a archivos, shell ni internet.
+En cada consulta se envían **todas las herramientas desactivadas**, de modo que el modelo
+no accede a archivos, shell ni internet.
+
+Probado con **OpenCode CLI 1.19.5**. Esa versión devuelve `/experimental/tool/ids` como
+`{value:[...],Count:N}`; el cliente acepta también el formato de array de versiones
+anteriores.
 
 ```powershell
 $env:OPENCODE_SERVER_PASSWORD = "cambia-esta-clave"
@@ -534,13 +538,13 @@ dotnet build
 dotnet run --project .\tests\DocuSearch.Checks.csproj
 ```
 
-83 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
+84 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
 HTML, PDF reales, límites exactos, esquema SQL Server, TOTP y Ollama/OpenCode con HTTP
 simulado: privacidad, contexto acotado, citas, errores y liberación del estado ocupado.
 Un fallo produce código de salida no cero.
 
 La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta
-la compilación y las 83 comprobaciones sin servicios.
+la compilación y las 84 comprobaciones sin servicios.
 
 Para añadir una generación real con el modelo local, usando únicamente una fuente sintética:
 
@@ -576,7 +580,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database
 
 La suite exige el sufijo `_tests` y restablece sus ejemplos. **No la apuntes a datos que
 quieras conservar.** La base se crea automáticamente si la identidad tiene permisos.
-La suite con `--database --langchain` ejecuta 98 comprobaciones: las 83 sin
+La suite con `--database --langchain` ejecuta 99 comprobaciones: las 84 sin
 servicios, tres de LangChain real y once de SQL Server. Incluye inicialización idempotente, cargas,
 original persistente, metadatos, notas, reproceso, permisos reales, cuotas, agente, importación,
 notas concurrentes, rollback de importaciones fallidas, contexto autorizado del consultor

@@ -101,6 +101,11 @@ def call_opencode(request: Request, prompt_value) -> tuple[str, dict]:
     ) as client:
         tool_ids = client.get("/experimental/tool/ids")
         tool_ids.raise_for_status()
+        tool_list = tool_ids.json()
+        if isinstance(tool_list, dict):
+            tool_list = tool_list.get("value", [])
+        if not isinstance(tool_list, list) or not all(isinstance(item, str) for item in tool_list):
+            raise ValueError("OpenCode returned an unexpected tool id list.")
         session = client.post("/session", json={"title": "DocuSearch LangChain"})
         session.raise_for_status()
         session_id = session.json().get("id", "")
@@ -110,7 +115,7 @@ def call_opencode(request: Request, prompt_value) -> tuple[str, dict]:
             payload = {
                 "model": {"providerID": request.provider_id, "modelID": request.model_id},
                 "system": system,
-                "tools": {tool: False for tool in tool_ids.json()},
+                "tools": {tool: False for tool in tool_list},
                 "parts": [{"type": "text", "text": human}],
             }
             if request.agent:
