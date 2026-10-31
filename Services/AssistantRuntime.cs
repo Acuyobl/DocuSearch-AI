@@ -20,10 +20,14 @@ public sealed class AssistantProfile
 
 public sealed class AssistantOptions
 {
-    /// <summary>Id preferido (p. ej. "free:opencode/deepseek-v4.1-flash-free" o "local:ollama/qwen3:4b").</summary>
+    /// <summary>Id preferido (p. ej. "paid:deepseek/deepseek-flash" o "free:opencode/…").</summary>
     public string DefaultProfile { get; set; } = "";
     public int MaxFreeModels { get; set; } = 40;
     public int MaxLocalModels { get; set; } = 20;
+    /// <summary>Muestra los modelos locales de OpenCode; desactivado por defecto.</summary>
+    public bool IncludeLocalModels { get; set; }
+    /// <summary>Máximo de modelos de pago listados por proveedor conectado (0 = ocultar).</summary>
+    public int MaxPaidModels { get; set; } = 10;
 }
 
 /// <summary>
@@ -38,6 +42,7 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
 {
     private static readonly string[] LocalProviders = ["ollama", "lmstudio", "llamacpp"];
     private static readonly string[] PreferredFreeModels = ["deepseek-v4.1-flash-free", "nemotron-3.5-lightning-free"];
+    private static readonly string[] PreferredPaidModels = ["deepseek-flash", "deepseek-v4-pro"];
 
     private readonly AssistantOptions settings = options.Value;
     private readonly SemaphoreSlim refreshGate = new(1, 1);
@@ -125,7 +130,7 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
                 error = "OpenCode y Ollama están desactivados; solo está disponible el modo extractivo.";
             }
 
-            if (ollama is { Enabled: true })
+            if (settings.IncludeLocalModels && ollama is { Enabled: true })
                 built.Add(await BuildOllamaProfileAsync());
 
             built.Add(ExtractiveProfile());
@@ -188,32 +193,37 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
         foreach (var provider in catalog.Providers)
         {
             var isLocal = IsLocalProvider(provider);
-            if (!isLocal && !connected.Contains(provider.Id)) continue;
+            if (isLocal && !settings.IncludeLocalModels) continue;
             var isConnected = connected.Contains(provider.Id);
-            var models = provider.Models
-                .Where(model => !string.Equals(model.Status, "disabled", StringComparison.OrdinalIgnoreCase))
-                .Where(model => isLocal || (model.InputCost == 0 && model.OutputCost == 0))
-                .Take(isLocal ? settings.MaxLocalModels : settings.MaxFreeModels)
-                .OrderBy(model => model.Name ?? model.Id, StringComparer.OrdinalIgnoreCase);
+            if (!isLocal && !isConnected) continue;
+            var active = provider.Models
+                .Where(model => !string.Equals(model.Status, "disabled", StringComparison.OrdinalIgnoreCase));
+            var models = isLocal
+                ? active.Take(settings.MaxLocalModels)
+                : active.Where(model => model.InputCost == 0 && model.OutputCost == 0).Take(settings.MaxFreeModels)
+                    .Concat(active.Where(model => model.InputCost > 0 || model.OutputCost > 0).Take(settings.MaxPaidModels));
             foreach (var model in models)
             {
+                var free = model.InputCost == 0 && model.OutputCost == 0;
+                var group = isLocal ? "Locales" : free ? "Gratis" : "Pago";
+                var prefix = isLocal ? "local" : free ? "free" : "paid";
                 result.Add(new AssistantProfile
                 {
-                    Id = $"{(isLocal ? "local" : "free")}:{provider.Id}/{model.Id}",
+                    Id = $"{prefix}:{provider.Id}/{model.Id}",
                     Label = (isLocal
                         ? $"Local · {provider.Name} · {model.Name ?? model.Id}" + (isConnected ? "" : " (sin conexión)")
-                        : $"Gratis · {provider.Name} · {model.Name ?? model.Id}")
+                        : $"{(free ? "Gratis" : "Pago")} · {provider.Name} · {model.Name ?? model.Id}")
                         + (openCode.UseLangChain ? " · LangChain" : ""),
                     Engine = "opencode",
                     ProviderId = provider.Id,
                     ModelId = model.Id,
-                    Group = isLocal ? "Locales" : "Gratis",
-                    Available = !isLocal || isConnected
+                    Group = group,
+                    Available = isConnected
                 });
             }
         }
         result = result
-            .OrderBy(profile => profile.Group == "Locales" ? 0 : 1)
+            .OrderBy(profile => profile.Group == "Locales" ? 0 : profile.Group == "Pago" ? 1 : 2)
             .ThenBy(profile => profile.Label, StringComparer.OrdinalIgnoreCase)
             .ToList();
         return result;
@@ -239,8 +249,13 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
             var preferred = candidates.FirstOrDefault(profile => string.Equals(profile.Id, settings.DefaultProfile, StringComparison.OrdinalIgnoreCase));
             if (preferred is not null) return preferred;
         }
-        // Los modelos gratis conectados funcionan sin depender de un servidor local;
-        // si no hay ninguno, se usa el local conectado y luego cualquier local.
+        // Prioridad: modelo de pago configurado (DeepSeek), luego gratis y, por último,
+        // locales solo si se muestran. Los gratis pueden agotar cuota en el proveedor.
+        foreach (var name in PreferredPaidModels)
+            foreach (var profile in candidates.Where(profile => profile.Group == "Pago"))
+                if (profile.ModelId.Contains(name, StringComparison.OrdinalIgnoreCase)) return profile;
+        var paid = candidates.FirstOrDefault(profile => profile.Group == "Pago");
+        if (paid is not null) return paid;
         foreach (var name in PreferredFreeModels)
             foreach (var profile in candidates.Where(profile => profile.Group == "Gratis"))
                 if (profile.ModelId.Contains(name, StringComparison.OrdinalIgnoreCase)) return profile;

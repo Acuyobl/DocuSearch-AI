@@ -255,16 +255,15 @@ Configuración en `appsettings.json` (o variables `OpenCode__*`):
 ### Modelos gratis y locales: catálogo dinámico (funciona en cualquier equipo)
 
 No hay modelos escritos a mano. Al abrir el asistente (y al pulsar **Actualizar motores**)
-la aplicación consulta `GET /provider` del OpenCode local y construye el selector con
-**dos grupos**, según lo que cada usuario tenga configurado en su OpenCode:
+la aplicación consulta `GET /provider` del OpenCode local y construye el selector con:
 
-- **Locales** — proveedores locales (`ollama`, `lmstudio`, `llamacpp` o con `baseURL` de
-  loopback). Se listan sus modelos; si el servidor local no está arrancado aparecen como
-  «sin conexión». Ningún fragmento sale del equipo.
-- **Gratis** — modelos con `cost.input = 0` y `cost.output = 0` de proveedores
-  **conectados**, excluyendo los locales. En un OpenCode recién instalado suelen ser los
-  `*-free` del proveedor `opencode`; si el usuario conecta otros proveedores con modelos
-  gratuitos, aparecen automáticamente.
+- **Pago** — modelos con coste de proveedores **conectados** (p. ej. los dos de DeepSeek:
+  `deepseek-flash` y `deepseek-v4-pro`). Se envían fragmentos autorizados al proveedor y
+  el coste lo marca su tarifa; no hay fallback automático entre proveedores.
+- **Gratis** — modelos con `cost.input = 0` y `cost.output = 0` de proveedores conectados.
+  Suelen ser los `*-free` del proveedor `opencode`; dependen de la cuota del proveedor.
+- **Locales** — opcionales y **ocultos por defecto** (`Assistant:IncludeLocalModels=false`):
+  proveedores `ollama`/`lmstudio`/`llamacpp` o con `baseURL` de loopback.
 - **Sin LLM** — modo extractivo por reglas, siempre disponible.
 
 El catálogo depende del OpenCode de cada máquina, no del repositorio; por eso funciona
@@ -272,20 +271,21 @@ igual en otro equipo. Límites y preferencias:
 
 | Clave | Valor | Efecto |
 |---|---|---|
-| `Assistant:DefaultProfile` | *(vacío)* | Id preferido (`free:opencode/…`, `local:ollama/…`, `extractive`). Si está vacío: modelo gratis preferido, luego primero gratis, luego local conectado |
+| `Assistant:DefaultProfile` | *(vacío)* | Id preferido (`paid:deepseek/deepseek-flash`, `free:opencode/…`, `extractive`). Si está vacío: primer modelo de pago preferido (DeepSeek Flash), luego gratis, luego locales si se muestran |
 | `Assistant:MaxFreeModels` | `40` | Máximo de modelos gratis listados |
+| `Assistant:MaxPaidModels` | `10` | Máximo de modelos de pago por proveedor (`0` los oculta) |
 | `Assistant:MaxLocalModels` | `20` | Máximo de modelos locales listados |
+| `Assistant:IncludeLocalModels` | `false` | Muestra el grupo Locales y el perfil LangChain/Ollama |
 
 El **administrador general** cambia de motor en el selector **Motor** de la cabecera del
 asistente, sin editar archivos ni reiniciar; el cambio es inmediato y vive en memoria.
-Un usuario normal ve el motor activo y su aviso. La lista se puede inspeccionar sin abrir
-la interfaz con `GET /assistant/engines` (requiere sesión autenticada).
+Un usuario normal ve el motor activo. La lista se puede inspeccionar sin abrir la
+interfaz con `GET /assistant/engines` (requiere sesión autenticada).
 
 **Aviso sobre los modelos gratis:** dependen de la cuota del proveedor en OpenCode (por
-ejemplo, el proveedor `opencode` puede responder «Free usage exceeded»). Si un modelo
-gratis falla o agota cuota, elige un modelo local (con Ollama/LM Studio activo) o el modo
-extractivo; la interfaz muestra el error sin cambiar de proveedor por su cuenta. Los
-modelos remotos envían los fragmentos fuera del equipo y la interfaz lo advierte.
+ejemplo, el proveedor `opencode` puede responder «Free usage exceeded» y dejar de
+responder). En ese caso elige un modelo de pago o el modo extractivo; la interfaz no
+cambia de proveedor por su cuenta.
 
 La aplicación crea una sesión por consulta (`POST /session`), envía pregunta + fuentes a
 `POST /session/:id/message`, valida que la respuesta sea JSON con citas dentro de las

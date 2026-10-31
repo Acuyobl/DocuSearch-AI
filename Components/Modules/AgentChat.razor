@@ -40,7 +40,7 @@ else
 }
 @if (!Active.Available)
 {
-    <div class="alert error" role="alert">El modelo «@Active.Label» está configurado pero su proveedor local no está conectado. Inicia Ollama/LM Studio y pulsa «Actualizar motores».</div>
+    <div class="alert error" role="alert">El modelo «@Active.Label» está configurado pero su proveedor no está conectado en OpenCode. Revisa la conexión y pulsa «Actualizar motores».</div>
 }
 @if (CanSelectProfile)
 {
@@ -85,7 +85,6 @@ else
     private readonly List<ChatMessage> messages = [];
     private AssistantProfile Active => Runtime.Active;
     private bool CanSelectProfile => State.Data is { } snapshot && Permissions.CanAdmin(snapshot.Actor);
-    private bool IsRemote => AssistantRuntime.IsRemote(Active);
     private string EngineLabel => Runtime.Describe(Active) + (Active.Available ? "" : " · sin conexión");
     private string ProfileSummary
     {
@@ -93,16 +92,13 @@ else
         {
             var locals = Runtime.Profiles.Count(profile => profile.Group == "Locales");
             var free = Runtime.Profiles.Count(profile => profile.Group == "Gratis");
-            return $"{locals} modelo(s) local(es) · {free} gratis";
+            var paid = Runtime.Profiles.Count(profile => profile.Group == "Pago");
+            return $"{paid} de pago · {free} gratis" + (locals > 0 ? $" · {locals} local(es)" : "");
         }
     }
     private string EngineDetail => Active.Engine.ToLowerInvariant() switch
     {
-        "opencode" => !Active.Available
-            ? $"Perfil «{Active.Label}»: el proveedor local no está conectado."
-            : IsRemote
-                ? $"Perfil «{Active.Label}»: modelo remoto; los fragmentos autorizados salen del equipo."
-                : $"Perfil «{Active.Label}»: el modelo se ejecuta en tu equipo.",
+        "opencode" => $"Perfil «{Active.Label}».",
         "ollama" => $"Perfil «{Active.Label}»: LangChain/Ollama local, sin servicios externos.",
         _ => "Modo extractivo local: respuestas por reglas, sin modelo generativo."
     };

@@ -681,19 +681,18 @@ await Check("OpenCode: usa el modelo del perfil seleccionado", async () =>
         body.Contains("\"modelID\":\"deepseek-flash\"", StringComparison.Ordinal));
     Assert(answer.Provider.Contains("deepseek/deepseek-flash", StringComparison.Ordinal));
 });
-await Check("Asistente: catálogo dinámico separa gratis y locales", async () =>
+await Check("Asistente: catálogo dinámico separa gratis, pago y oculta locales", async () =>
 {
     var runtime = new AssistantRuntime(Options.Create(new AssistantOptions()), OpenCodeFor(OpenCodeCatalogMock(catalogJson)),
         Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
     await runtime.RefreshAsync(force: true);
     var locals = runtime.Profiles.Where(profile => profile.Group == "Locales").ToList();
     var free = runtime.Profiles.Where(profile => profile.Group == "Gratis").ToList();
-    Assert(locals.Count == 2 && free.Count == 1);
-    Assert(locals.Any(profile => profile.ProviderId == "ollama" && profile.Available));
-    Assert(locals.Any(profile => profile.ProviderId == "lmstudio" && !profile.Available));
+    var paid = runtime.Profiles.Where(profile => profile.Group == "Pago").ToList();
+    Assert(locals.Count == 0 && free.Count == 1 && paid.Count == 1);
     Assert(free.Single().ModelId == "free-model" && AssistantRuntime.IsRemote(free.Single()));
-    Assert(!runtime.Profiles.Any(profile => profile.ModelId == "paid-model"));
-    Assert(runtime.Active.Group == "Gratis" && runtime.Active.ModelId == "free-model");
+    Assert(paid.Single().ModelId == "paid-model" && paid.Single().Available);
+    Assert(runtime.Active.Group == "Pago" && runtime.Active.ModelId == "paid-model");
     Assert(runtime.TrySelect(free.Single().Id, out var selected) && selected!.ModelId == "free-model");
     Assert(!runtime.TrySelect("local:no/existe", out _));
     Assert(runtime.Profiles.Any(profile => profile.Engine == "extractive"));
@@ -761,7 +760,7 @@ await Check("Asistente: incluye LangChain/Ollama local en el catálogo", async (
     {
         Enabled = true, UseLangChain = true, BaseUrl = "http://127.0.0.1:11434", Model = "qwen3:4b"
     }));
-    var runtime = new AssistantRuntime(Options.Create(new AssistantOptions()), OpenCodeFor(OpenCodeCatalogMock(catalogJson)),
+    var runtime = new AssistantRuntime(Options.Create(new AssistantOptions { IncludeLocalModels = true }), OpenCodeFor(OpenCodeCatalogMock(catalogJson)),
         Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance, ollamaClient);
     await runtime.RefreshAsync(force: true);
     var langchain = runtime.Profiles.SingleOrDefault(profile => profile.Id == "ollama:local");
@@ -773,7 +772,7 @@ await Check("Asistente: incluye LangChain/Ollama local en el catálogo", async (
     {
         Enabled = true, UseLangChain = true, BaseUrl = "http://127.0.0.1:11434", Model = "qwen3:4b"
     }));
-    var withoutOpenCode = new AssistantRuntime(Options.Create(new AssistantOptions()), OpenCodeFor(new HttpClient(), enabled: false),
+    var withoutOpenCode = new AssistantRuntime(Options.Create(new AssistantOptions { IncludeLocalModels = true }), OpenCodeFor(new HttpClient(), enabled: false),
         Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance, offlineOllama);
     await withoutOpenCode.RefreshAsync(force: true);
     Assert(withoutOpenCode.Profiles.Any(profile => profile.Engine == "ollama") &&
