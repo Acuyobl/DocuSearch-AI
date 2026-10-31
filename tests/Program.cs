@@ -679,6 +679,29 @@ await Check("Asistente: sin OpenCode queda solo el modo extractivo", async () =>
     await runtime.RefreshAsync(force: true);
     Assert(runtime.Profiles.Count == 1 && runtime.Active.Engine == "extractive" && runtime.LastError is not null);
 });
+await Check("Asistente: conserva el catálogo anterior si OpenCode falla después", async () =>
+{
+    var fail = false;
+    using var http = new HttpClient(new TestHttpHandler((request, _) =>
+    {
+        if (fail) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        var path = request.RequestUri!.AbsolutePath;
+        return Task.FromResult(JsonResponse(path switch
+        {
+            "/global/health" => """{"healthy":true,"version":"1.18.32"}""",
+            "/provider" => catalogJson,
+            _ => "{}"
+        }));
+    }));
+    var runtime = new AssistantRuntime(Options.Create(new AssistantOptions()), OpenCodeFor(http),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
+    await runtime.RefreshAsync(force: true);
+    var previous = runtime.Profiles.Count;
+    Assert(previous > 1);
+    fail = true;
+    await runtime.RefreshAsync(force: true);
+    Assert(runtime.Profiles.Count == previous && runtime.LastError is not null);
+});
 await Check("OpenCode: desactiva herramientas y omite agente vacío", async () =>
 {
     string? body = null;
@@ -743,6 +766,32 @@ if (args.Contains("--database"))
         Assert(answer.Text.Contains("$450,000 USD") && answer.Sources.Any(h => h.PageNumber == 4));
         var followup = await agent.AskAsync("Resume ese expediente");
         Assert(followup.Text.Contains("Cloud"));
+    });
+    await Check("SQL Server: el asistente responde en extractivo si el motor falla", async () =>
+    {
+        using var http = new HttpClient(new TestHttpHandler((request, _) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/message", StringComparison.Ordinal))
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+            return Task.FromResult(JsonResponse(path switch
+            {
+                "/global/health" => """{"healthy":true,"version":"1.18.32"}""",
+                "/provider" => catalogJson,
+                "/agent" => """[{"name":"zodiac-asistente"}]""",
+                "/experimental/tool/ids" => """["bash","read"]""",
+                "/session" => """{"id":"ses_fallback"}""",
+                _ => "{}"
+            }));
+        }));
+        var failing = OpenCodeFor(http);
+        var runtime = new AssistantRuntime(Options.Create(new AssistantOptions()), failing,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
+        await runtime.RefreshAsync(force: true);
+        var fallbackAgent = new LocalAgent(service, session, Ollama(new HttpClient(), false), telemetry, failing, runtime,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<LocalAgent>.Instance);
+        var answer = await fallbackAgent.AskAsync("Resume POL-2025-0012");
+        Assert(answer.Provider.Contains("extractiva", StringComparison.Ordinal) && answer.Sources.Count > 0);
     });
     await Check("SQL Server: permisos no dependen de la interfaz", async () =>
     {

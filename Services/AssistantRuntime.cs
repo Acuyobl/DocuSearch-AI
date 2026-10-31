@@ -111,8 +111,21 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
             }
             catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
             {
-                logger.LogWarning(ex, "No se pudo consultar el catálogo de OpenCode; queda disponible el modo extractivo.");
-                Apply([ExtractiveProfile()], "No se pudo consultar OpenCode (" + ex.Message + "). Solo está disponible el modo extractivo.");
+                logger.LogWarning(ex, "No se pudo consultar el catálogo de OpenCode; se conserva el último catálogo válido.");
+                var keepPrevious = Profiles.Any(profile => profile.Engine != "extractive");
+                if (keepPrevious)
+                {
+                    lock (state)
+                    {
+                        loadedAt = DateTimeOffset.UtcNow;
+                        lastError = "No se pudo actualizar el catálogo de OpenCode (" + ex.Message + "). Se mantiene el catálogo anterior; pulsa «Actualizar motores» para reintentar.";
+                    }
+                    Changed?.Invoke();
+                }
+                else
+                {
+                    Apply([ExtractiveProfile()], "No se pudo consultar OpenCode (" + ex.Message + "). Solo está disponible el modo extractivo.");
+                }
             }
         }
         finally

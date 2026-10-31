@@ -505,13 +505,13 @@ dotnet build
 dotnet run --project .\tests\DocuSearch.Checks.csproj
 ```
 
-80 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
+81 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
 HTML, PDF reales, límites exactos, esquema SQL Server, TOTP y Ollama/OpenCode con HTTP
 simulado: privacidad, contexto acotado, citas, errores y liberación del estado ocupado.
 Un fallo produce código de salida no cero.
 
 La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta
-la compilación y las 80 comprobaciones sin servicios.
+la compilación y las 81 comprobaciones sin servicios.
 
 Para añadir una generación real con el modelo local, usando únicamente una fuente sintética:
 
@@ -547,7 +547,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database
 
 La suite exige el sufijo `_tests` y restablece sus ejemplos. **No la apuntes a datos que
 quieras conservar.** La base se crea automáticamente si la identidad tiene permisos.
-La suite con `--database --langchain` ejecuta 94 comprobaciones: las 80 sin
+La suite con `--database --langchain` ejecuta 96 comprobaciones: las 81 sin
 servicios, tres de LangChain real y once de SQL Server. Incluye inicialización idempotente, cargas,
 original persistente, metadatos, notas, reproceso, permisos reales, cuotas, agente, importación,
 notas concurrentes, rollback de importaciones fallidas, contexto autorizado del consultor

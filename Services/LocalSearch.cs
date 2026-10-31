@@ -31,7 +31,8 @@ public static class LocalSearch
 }
 
 public sealed class LocalAgent(DocumentService documents, LocalSession session, OllamaClient ollama,
-    AgentObservability observability, OpenCodeClient? opencode = null, AssistantRuntime? assistant = null)
+    AgentObservability observability, OpenCodeClient? opencode = null, AssistantRuntime? assistant = null,
+    ILogger<LocalAgent>? logger = null)
 {
     private bool UseOpenCode => opencode is { Enabled: true };
 
@@ -71,20 +72,36 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
             ?? (UseOpenCode ? "opencode" : ollama.Enabled ? "ollama" : "extractive");
         if (engine is not ("opencode" or "ollama") || extracted.Sources.Count == 0 || IsExactRequest(query)) return extracted;
         AgentAnswer answer;
-        if (engine == "opencode")
+        var engineLabel = engine == "opencode" ? "OpenCode" : "Ollama";
+        try
         {
-            if (!UseOpenCode)
-                throw new InvalidOperationException("El motor OpenCode está seleccionado en la interfaz, pero OpenCode:Enabled está desactivado en la configuración.");
-            trace.Engine = "opencode";
-            trace.Model = $"{profile?.ProviderId}/{profile?.ModelId} ({profile?.Agent})";
-            answer = await opencode!.GenerateAsync(query, extracted.Sources, profile?.ProviderId, profile?.ModelId, profile?.Agent);
+            if (engine == "opencode")
+            {
+                if (!UseOpenCode)
+                    throw new InvalidOperationException("El motor OpenCode está seleccionado en la interfaz, pero OpenCode:Enabled está desactivado en la configuración.");
+                trace.Engine = "opencode";
+                trace.Model = $"{profile?.ProviderId}/{profile?.ModelId} ({profile?.Agent})";
+                answer = await opencode!.GenerateAsync(query, extracted.Sources, profile?.ProviderId, profile?.ModelId, profile?.Agent);
+            }
+            else
+            {
+                if (!ollama.Enabled) return extracted;
+                trace.Engine = ollama.UseLangChain ? "langchain-ollama" : "ollama";
+                trace.Model = ollama.Model;
+                answer = await ollama.GenerateAsync(query, extracted.Sources);
+            }
         }
-        else
+        catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
         {
-            if (!ollama.Enabled) return extracted;
-            trace.Engine = ollama.UseLangChain ? "langchain-ollama" : "ollama";
-            trace.Model = ollama.Model;
-            answer = await ollama.GenerateAsync(query, extracted.Sources);
+            // El motor puede fallar por cuota, timeout o caída del servidor. La recuperación
+            // extractiva ya está calculada y con fuentes autorizadas: se devuelve de forma
+            // explícita en lugar de romper el asistente.
+            trace.ErrorCode = AgentObservability.ErrorCode(ex);
+            logger?.LogWarning(ex, "El motor {Engine} no respondió; se devuelve la respuesta extractiva.", engineLabel);
+            answer = new AgentAnswer(
+                extracted.Text + "\n\nNo se pudo usar el motor generativo seleccionado; se muestra la respuesta extractiva con las mismas fuentes.",
+                extracted.Sources,
+                $"{engineLabel} no disponible · respuesta extractiva");
         }
         var current = await documents.LoadAsync();
         if (current.Actor.Id != snapshot.Actor.Id ||

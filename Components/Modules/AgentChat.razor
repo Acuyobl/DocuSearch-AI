@@ -123,7 +123,9 @@ else if (CanSelectProfile)
     {
         await Runtime.EnsureLoadedAsync();
         selectedProfile = Runtime.Active.Id;
-        await CheckActiveEngineCoreAsync();
+        // La comprobación del motor no debe tumbar el componente si OpenCode no responde:
+        // State.RunAsync captura el error y lo muestra en la interfaz.
+        await State.RunAsync(CheckActiveEngineCoreAsync);
     }
     private Task RefreshDocuments() => State.RunAsync(State.RefreshAsync);
     private Task CheckConnection() => State.RunAsync(async () =>
