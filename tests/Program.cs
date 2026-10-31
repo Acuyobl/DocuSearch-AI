@@ -689,11 +689,19 @@ await Check("Asistente: catálogo dinámico separa gratis, pago y oculta locales
     var locals = runtime.Profiles.Where(profile => profile.Group == "Locales").ToList();
     var free = runtime.Profiles.Where(profile => profile.Group == "Gratis").ToList();
     var paid = runtime.Profiles.Where(profile => profile.Group == "Pago").ToList();
-    Assert(locals.Count == 0 && free.Count == 1 && paid.Count == 1);
-    Assert(free.Single().ModelId == "free-model" && AssistantRuntime.IsRemote(free.Single()));
+    Assert(locals.Count == 0 && free.Count == 0 && paid.Count == 1);
     Assert(paid.Single().ModelId == "paid-model" && paid.Single().Available);
     Assert(runtime.Active.Group == "Pago" && runtime.Active.ModelId == "paid-model");
-    Assert(runtime.TrySelect(free.Single().Id, out var selected) && selected!.ModelId == "free-model");
+    Assert(!runtime.Profiles.Any(profile => profile.ModelId == "free-model"));
+
+    var withFree = new AssistantRuntime(Options.Create(new AssistantOptions { IncludeFreeModels = true }),
+        OpenCodeFor(OpenCodeCatalogMock(catalogJson)),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
+    await withFree.RefreshAsync(force: true);
+    var freeEnabled = withFree.Profiles.Where(profile => profile.Group == "Gratis").ToList();
+    Assert(freeEnabled.Count == 1 && freeEnabled[0].ModelId == "free-model");
+    Assert(withFree.TrySelect(freeEnabled[0].Id, out var selected) && selected!.ModelId == "free-model");
+
     Assert(!runtime.TrySelect("local:no/existe", out _));
     Assert(runtime.Profiles.Any(profile => profile.Engine == "extractive"));
 });

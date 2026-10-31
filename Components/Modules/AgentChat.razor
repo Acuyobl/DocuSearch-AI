@@ -151,10 +151,10 @@ else
             throw new InvalidOperationException("El motor seleccionado ya no existe; pulsa «Actualizar motores» y vuelve a elegir.");
         await CheckActiveEngineCoreAsync();
     }, "Motor del asistente actualizado.");
-    private Task Send()
+    private async Task Send()
     {
-        if (State.Busy || string.IsNullOrWhiteSpace(query)) return Task.CompletedTask;
-        return State.RunAsync(async () =>
+        if (State.Busy || string.IsNullOrWhiteSpace(query)) return;
+        await State.RunAsync(async () =>
         {
             var text = query.Trim();
             messages.Add(new(true, text, []));
@@ -164,8 +164,13 @@ else
             var answer = await Agent.AskAsync(text);
             messages.Add(new(false, answer.Text, answer.Sources, answer.Provider));
             scrollPending = true;
+            // SendFromEnter se invoca desde JS: sin este render explícito la respuesta
+            // se añadía al estado pero el navegador seguía mostrando «Consultando…».
+            await InvokeAsync(StateHasChanged);
             await State.RefreshAsync();
         });
+        // Render final para reflejar Busy=false cuando el envío vino del puente JS.
+        await InvokeAsync(StateHasChanged);
     }
     /// <summary>Enter en el compositor (sin Mayús): el JS intercepta la tecla y envía.</summary>
     [JSInvokable]

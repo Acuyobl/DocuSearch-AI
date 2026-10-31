@@ -263,9 +263,12 @@ la aplicación consulta `GET /provider` del OpenCode local y construye el select
 
 - **Pago** — modelos con coste de proveedores **conectados** (p. ej. los dos de DeepSeek:
   `deepseek-flash` y `deepseek-v4-pro`). Se envían fragmentos autorizados al proveedor y
-  el coste lo marca su tarifa; no hay fallback automático entre proveedores.
-- **Gratis** — modelos con `cost.input = 0` y `cost.output = 0` de proveedores conectados.
-  Suelen ser los `*-free` del proveedor `opencode`; dependen de la cuota del proveedor.
+  el coste lo marca su tarifa; no hay fallback automático entre proveedores. Es el grupo
+  que se muestra por defecto.
+- **Gratis** — opcionales y **ocultos por defecto** (`Assistant:IncludeFreeModels=false`):
+  modelos con `cost.input = 0` y `cost.output = 0` de proveedores conectados. Suelen ser
+  los `*-free` del proveedor `opencode` y dependen de su cuota; si se agota dejan de
+  responder, por eso no se ofrecen salvo que se activen.
 - **Locales** — opcionales y **ocultos por defecto** (`Assistant:IncludeLocalModels=false`):
   proveedores `ollama`/`lmstudio`/`llamacpp` o con `baseURL` de loopback.
 - **Sin LLM** — modo extractivo por reglas, siempre disponible.
@@ -279,6 +282,7 @@ igual en otro equipo. Límites y preferencias:
 | `Assistant:MaxFreeModels` | `40` | Máximo de modelos gratis listados |
 | `Assistant:MaxPaidModels` | `10` | Máximo de modelos de pago por proveedor (`0` los oculta) |
 | `Assistant:MaxLocalModels` | `20` | Máximo de modelos locales listados |
+| `Assistant:IncludeFreeModels` | `false` | Muestra el grupo Gratis; actívalo cuando el proveedor tenga cuota |
 | `Assistant:IncludeLocalModels` | `false` | Muestra el grupo Locales y el perfil LangChain/Ollama |
 
 El **administrador general** cambia de motor en el selector **Motor** de la cabecera del

@@ -24,6 +24,9 @@ public sealed class AssistantOptions
     public string DefaultProfile { get; set; } = "";
     public int MaxFreeModels { get; set; } = 40;
     public int MaxLocalModels { get; set; } = 20;
+    /// <summary>Muestra los modelos gratis de proveedores conectados; desactivado por defecto
+    /// porque pueden agotar su cuota y dejar el asistente sin respuesta.</summary>
+    public bool IncludeFreeModels { get; set; }
     /// <summary>Muestra los modelos locales de OpenCode; desactivado por defecto.</summary>
     public bool IncludeLocalModels { get; set; }
     /// <summary>Máximo de modelos de pago listados por proveedor conectado (0 = ocultar).</summary>
@@ -200,7 +203,9 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
                 .Where(model => !string.Equals(model.Status, "disabled", StringComparison.OrdinalIgnoreCase));
             var models = isLocal
                 ? active.Take(settings.MaxLocalModels)
-                : active.Where(model => model.InputCost == 0 && model.OutputCost == 0).Take(settings.MaxFreeModels)
+                : (settings.IncludeFreeModels
+                        ? active.Where(model => model.InputCost == 0 && model.OutputCost == 0).Take(settings.MaxFreeModels)
+                        : Enumerable.Empty<OpenCodeModel>())
                     .Concat(active.Where(model => model.InputCost > 0 || model.OutputCost > 0).Take(settings.MaxPaidModels));
             foreach (var model in models)
             {
