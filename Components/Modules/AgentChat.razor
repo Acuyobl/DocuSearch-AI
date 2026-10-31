@@ -42,11 +42,7 @@ else
 {
     <div class="alert error" role="alert">El modelo «@Active.Label» está configurado pero su proveedor local no está conectado. Inicia Ollama/LM Studio y pulsa «Actualizar motores».</div>
 }
-@if (IsRemote)
-{
-    <div class="alert error" role="alert">Motor remoto seleccionado («@Active.Label»): los fragmentos autorizados se envían a «@Active.ProviderId/@Active.ModelId» a través de OpenCode. No consultes expedientes confidenciales ni secretos en este modo.</div>
-}
-else if (CanSelectProfile)
+@if (CanSelectProfile)
 {
     <small class="assistant-hint">Solo administración general puede cambiar el motor; el cambio afecta a todas las consultas y se resuelve en el servidor.</small>
 }
