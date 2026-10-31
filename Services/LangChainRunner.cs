@@ -7,10 +7,13 @@ namespace DocuSearch.Services;
 
 public static class LangChainRunner
 {
-    public static async Task<string> RunAsync(OllamaOptions options, object? request = null)
+    public static Task<string> RunAsync(OllamaOptions options, object? request = null) =>
+        RunAsync(options.PythonExecutable, "worker.py", options.TimeoutSeconds, request);
+
+    public static async Task<string> RunAsync(string pythonExecutable, string scriptFile, int timeoutSeconds, object? request = null)
     {
-        var executable = Environment.ExpandEnvironmentVariables(options.PythonExecutable);
-        var script = Path.Combine(AppContext.BaseDirectory, "LangChain", "worker.py");
+        var executable = Environment.ExpandEnvironmentVariables(pythonExecutable);
+        var script = Path.Combine(AppContext.BaseDirectory, "LangChain", scriptFile);
         if (!Path.IsPathFullyQualified(executable) || !File.Exists(executable) || !File.Exists(script))
             throw new InvalidOperationException("No se encontró Python de LangChain o su worker. Ejecuta LangChain\\setup.ps1 y publica nuevamente la aplicación.");
         var start = new ProcessStartInfo(executable)
@@ -34,7 +37,7 @@ public static class LangChainRunner
         start.Environment["LANGSMITH_TRACING"] = "false";
         start.Environment["LANGCHAIN_TRACING_V2"] = "false";
         using var process = new Process { StartInfo = start };
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(options.TimeoutSeconds));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
         var started = false;
         try
         {
@@ -66,7 +69,7 @@ public static class LangChainRunner
         }
         catch (OperationCanceledException ex)
         {
-            throw new InvalidOperationException($"LangChain superó el tiempo de espera de {options.TimeoutSeconds} segundos. No se utilizó ningún proveedor remoto.", ex);
+            throw new InvalidOperationException($"LangChain superó el tiempo de espera de {timeoutSeconds} segundos. No se utilizó ningún proveedor remoto.", ex);
         }
         finally
         {

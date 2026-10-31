@@ -528,6 +528,32 @@ if (args.Contains("--opencode"))
         Console.WriteLine($"INFO OpenCode real: {answer.Provider}; respuesta: {answer.Text}");
     });
 }
+if (args.Contains("--langchain-opencode"))
+{
+    var url = Environment.GetEnvironmentVariable("DOCUSEARCH_OPENCODE_URL")
+        ?? throw new InvalidOperationException("Configura DOCUSEARCH_OPENCODE_URL con el servidor OpenCode.");
+    var password = Environment.GetEnvironmentVariable("DOCUSEARCH_OPENCODE_PASSWORD") ?? "";
+    var provider = Environment.GetEnvironmentVariable("DOCUSEARCH_OPENCODE_PROVIDER") ?? "deepseek";
+    var model = Environment.GetEnvironmentVariable("DOCUSEARCH_OPENCODE_MODEL") ?? "deepseek-flash";
+    var python = Environment.GetEnvironmentVariable("DOCUSEARCH_PYTHON") ?? "python3";
+    using var http = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false });
+    var client = new OpenCodeClient(http, Options.Create(new OpenCodeOptions
+    {
+        Enabled = true, BaseUrl = url, Password = password, AllowNonLoopback = true,
+        ProviderId = provider, ModelId = model, TimeoutSeconds = 180,
+        UseLangChain = true, PythonExecutable = python
+    }));
+    await Check("LangChain + OpenCode real: genera con citas sin Ollama", async () =>
+    {
+        await client.CheckAsync();
+        var document = new DocumentItem { InternalCode = "TEST-2026-LANGCHAIN", Title = "Prueba LangChain" };
+        var answer = await client.GenerateAsync("¿Qué disponibilidad garantiza el contrato?",
+            [new(document, 1, "El contrato garantiza una disponibilidad SLA de 99.99%.", 100)]);
+        Assert(answer.Text.Length > 0 && answer.Provider.Contains("LangChain", StringComparison.Ordinal) &&
+            answer.Sources.Single().Document.Id == document.Id);
+        Console.WriteLine($"INFO LangChain + OpenCode real: {answer.Provider}; respuesta: {answer.Text}");
+    });
+}
 if (args.Contains("--ollama"))
 {
     await Check("Ollama real: modelo local genera respuesta con cita autorizada", async () =>
@@ -715,6 +741,15 @@ await Check("OpenCode: desactiva herramientas y omite agente vacío", async () =
     Assert(body is not null && body.Contains("\"tools\":{\"bash\":false,\"read\":false}", StringComparison.Ordinal));
     Assert(!body!.Contains("\"agent\":", StringComparison.Ordinal));
 });
+await Check("OpenCode: el modo LangChain se refleja en el motor", () => Sync(() =>
+{
+    var client = new OpenCodeClient(new HttpClient(), Options.Create(new OpenCodeOptions
+    {
+        Enabled = true, BaseUrl = "http://127.0.0.1:4097", Password = "secreto", Agent = "",
+        ProviderId = "opencode", ModelId = "free-model", UseLangChain = true, PythonExecutable = "python"
+    }));
+    Assert(client.UseLangChain && client.Engine.Contains("LangChain", StringComparison.Ordinal));
+}));
 await Check("Asistente: incluye LangChain/Ollama local en el catálogo", async () =>
 {
     HttpClient OllamaMock() => new(new TestHttpHandler((request, _) =>

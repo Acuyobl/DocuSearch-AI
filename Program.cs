@@ -243,7 +243,7 @@ app.MapGet("/enroll", (IOptions<AuthOptions> auth) =>
 });
 
 app.MapGet("/health", async (IDbContextFactory<AppDbContext> factory, ILogger<Program> logger,
-    AssistantRuntime runtime) =>
+    AssistantRuntime runtime, IOptions<OpenCodeOptions> openCodeOptions) =>
 {
     try
     {
@@ -252,7 +252,7 @@ app.MapGet("/health", async (IDbContextFactory<AppDbContext> factory, ILogger<Pr
         var active = runtime.Active;
         var engine = active.Engine.ToLowerInvariant() switch
         {
-            "opencode" => $"opencode:{active.ProviderId}/{active.ModelId}",
+            "opencode" => (openCodeOptions.Value.UseLangChain ? "langchain+opencode:" : "opencode:") + $"{active.ProviderId}/{active.ModelId}",
             "ollama" => "ollama-local",
             _ => "local-extractive"
         };

@@ -91,7 +91,7 @@ de foco.
 Se dispone de compilación .NET y suite ejecutable de comprobaciones sin base,
 incluidos PDF reales, límites exactos, permisos y respuestas del asistente con citas.
 La base `DocuSearch` fue creada e inicializada en la instancia confirmada.
-La suite dispone de 97 comprobaciones: 82 sin servicios (incluidos los vectores RFC 6238
+La suite dispone de 98 comprobaciones: 83 sin servicios (incluidos los vectores RFC 6238
 del algoritmo TOTP), tres de LangChain real y doce de integración en la base aislada `DocuSearch_tests`:
 inicialización idempotente, PDF persistente,
 metadatos, notas, reproceso, permisos, cuotas, asistente, importación, concurrencia y rollback;
@@ -99,7 +99,7 @@ se verifican el envío exclusivo de fuentes autorizadas y la revocación durante
 La observabilidad propia persiste metadatos en SQL Server, sin contenido ni identidad,
 con acceso de administración general/auditoría. No usa Langfuse ni Node.js.
 Se verificaron los nueve módulos, el agente con fuente por página, RBAC y exportación CSV
-en el navegador. La integración continua ejecuta `dotnet build` y las 82 comprobaciones
+en el navegador. La integración continua ejecuta `dotnet build` y las 83 comprobaciones
 sin servicios.
 
 Antes de uso en red faltan sustituir los secretos TOTP y roles de configuración por

@@ -23,6 +23,10 @@ public sealed class OpenCodeOptions
     public int TimeoutSeconds { get; set; } = 120;
     /// <summary>Permite un servidor OpenCode fuera de loopback (p. ej. host.docker.internal).</summary>
     public bool AllowNonLoopback { get; set; }
+    /// <summary>Orquesta la generación con LangChain (Python) usando OpenCode como proveedor de modelo.</summary>
+    public bool UseLangChain { get; set; }
+    /// <summary>Python del entorno LangChain (se usa solo cuando UseLangChain=true).</summary>
+    public string PythonExecutable { get; set; } = @"%LOCALAPPDATA%\DocuSearch\LangChain\.venv\Scripts\python.exe";
 }
 
 /// <summary>
@@ -42,8 +46,9 @@ public sealed class OpenCodeClient
     public bool Enabled => settings.Enabled;
     public string Agent => settings.Agent;
     public string Model => $"{settings.ProviderId}/{settings.ModelId}";
-    public string Engine => $"OpenCode · {Model}";
+    public string Engine => UseLangChain ? $"LangChain · OpenCode · {Model}" : $"OpenCode · {Model}";
     public bool IsRemote => !LocalProviders.Contains(settings.ProviderId, StringComparer.OrdinalIgnoreCase);
+    public bool UseLangChain => settings.UseLangChain;
 
     public OpenCodeClient(HttpClient http, IOptions<OpenCodeOptions> options)
     {
@@ -87,6 +92,7 @@ public sealed class OpenCodeClient
         var expectedAgent = string.IsNullOrWhiteSpace(agent) ? settings.Agent : agent;
         var health = await GetAsync<HealthResponse>("global/health");
         if (!health.Healthy) throw new InvalidOperationException("El servidor OpenCode no se declara saludable.");
+        if (settings.UseLangChain) await CheckLangChainAsync();
         if (string.IsNullOrWhiteSpace(expectedAgent)) return;
         var agents = await GetAsync<AgentInfo[]>("agent");
         if (agents.All(candidate => !string.Equals(candidate.Name, expectedAgent, StringComparison.OrdinalIgnoreCase)))
@@ -141,6 +147,7 @@ public sealed class OpenCodeClient
             text = TextAnalysis.Truncate(source.Snippet, 1000)
         }).ToArray();
         var payload = JsonSerializer.Serialize(new { question = query, sources = context }, Catalog.Json);
+        if (settings.UseLangChain) return await GenerateWithLangChainAsync(query, selected, provider, model, agentName);
 
         var session = await PostAsync<SessionInfo>("session", new { title = $"DocuSearch AI · {DateTimeOffset.UtcNow:u}" });
         if (session?.Id is not { Length: > 0 } sessionId)
@@ -189,6 +196,59 @@ public sealed class OpenCodeClient
         {
             await DeleteSessionAsync(sessionId);
         }
+    }
+
+    private async Task<AgentAnswer> GenerateWithLangChainAsync(string query, IReadOnlyList<SearchHit> selected,
+        string provider, string model, string agentName)
+    {
+        var sources = selected.Select((source, index) => new
+        {
+            id = index + 1,
+            code = source.Document.InternalCode,
+            title = source.Document.Title,
+            page = source.PageNumber,
+            text = TextAnalysis.Truncate(source.Snippet, 1000)
+        }).ToArray();
+        var request = new
+        {
+            base_url = settings.BaseUrl,
+            username = settings.Username,
+            password = settings.Password,
+            provider_id = provider,
+            model_id = model,
+            agent = agentName,
+            timeout = settings.TimeoutSeconds,
+            question = query,
+            sources,
+            system = AssistantPrompt.System
+        };
+        var raw = await LangChainRunner.RunAsync(settings.PythonExecutable, "opencode_worker.py", settings.TimeoutSeconds, request);
+        LangChainAnswer generated;
+        try
+        {
+            generated = JsonSerializer.Deserialize<LangChainAnswer>(raw, Catalog.Json)
+                ?? throw new InvalidOperationException("LangChain devolvió una respuesta vacía.");
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException("LangChain devolvió una respuesta sin el formato de citas requerido.", ex);
+        }
+        if (string.IsNullOrWhiteSpace(generated.Answer) || generated.Answer.Length > 10000 ||
+            generated.Citations is not { Length: > 0 } || generated.Citations.Any(id => id < 1 || id > selected.Count))
+            throw new InvalidOperationException("LangChain devolvió contenido vacío o citas fuera de las fuentes autorizadas. La respuesta se ha bloqueado.");
+        if (generated.InputTokens is < 0 || generated.OutputTokens is < 0)
+            throw new InvalidOperationException("LangChain devolvió contadores de tokens inválidos.");
+        return new(generated.Answer.Trim(), generated.Citations.Distinct().Select(id => selected[id - 1]).ToList(),
+            $"LangChain · OpenCode · {provider}/{model}", generated.InputTokens, generated.OutputTokens);
+    }
+
+    private async Task CheckLangChainAsync()
+    {
+        var raw = await LangChainRunner.RunAsync(settings.PythonExecutable, "opencode_worker.py", settings.TimeoutSeconds);
+        using var check = JsonDocument.Parse(raw);
+        if (check.RootElement.GetProperty("status").GetString() != "ready" ||
+            check.RootElement.GetProperty("framework").GetString() != "LangChain")
+            throw new InvalidOperationException("El worker de LangChain/OpenCode no confirmó su disponibilidad.");
     }
 
     private async Task<Dictionary<string, bool>> GetDisabledToolsAsync()
@@ -289,6 +349,9 @@ public sealed class OpenCodeClient
     private sealed record MessagePart(string? Type, string? Text);
     private sealed record MessageResponse(MessageInfo? Info, MessagePart[]? Parts);
     private sealed record GeneratedAnswer(string? Answer, int[]? Citations);
+    private sealed record LangChainAnswer(string? Answer, int[]? Citations,
+        [property: JsonPropertyName("input_tokens")] int? InputTokens,
+        [property: JsonPropertyName("output_tokens")] int? OutputTokens);
     private sealed record ProviderListResponse(ProviderResponse[]? All, string[]? Connected, Dictionary<string, string>? Default);
     private sealed record ProviderResponse(string? Id, string? Name, string? Source, ProviderOptions? Options, Dictionary<string, ModelResponse>? Models);
     private sealed record ProviderOptions([property: JsonPropertyName("baseURL")] string? BaseUrl);

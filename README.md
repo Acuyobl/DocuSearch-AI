@@ -248,6 +248,8 @@ Configuración en `appsettings.json` (o variables `OpenCode__*`):
 | `Agent` | *(vacío)* | Si está vacío se usa el agente por defecto de OpenCode; en cada consulta se envían **todas las herramientas desactivadas**. Si se indica un nombre, debe existir en `opencode.json` |
 | `ProviderId` / `ModelId` | `ollama` / `qwen3:4b` | Solo valores de reserva para llamadas sin perfil; el selector usa el catálogo descubierto |
 | `TimeoutSeconds` | `120` | 5–600 |
+| `UseLangChain` | `false` | Orquesta la generación con LangChain (Python) usando OpenCode como proveedor; no requiere Ollama |
+| `PythonExecutable` | *(ruta al Python de LangChain)* | Solo con `UseLangChain=true`; por defecto el venv de `LangChain\setup.ps1` |
 | `AllowNonLoopback` | `false` | Necesario para `host.docker.internal`; exige contraseña |
 
 ### Modelos gratis y locales: catálogo dinámico (funciona en cualquier equipo)
@@ -323,6 +325,30 @@ LangChain usa `ChatPromptTemplate`, `ChatOllama` y salida estructurada con esque
 Pydantic. No es un agente autónomo con herramientas: no añade por sí solo memoria,
 OCR ni embeddings. La recuperación y la autorización siguen en C#; LangChain
 organiza la preparación de mensajes y la generación estructurada local.
+
+#### LangChain sin Ollama (usando OpenCode)
+
+Con `OpenCode:UseLangChain=true` **no hace falta Ollama**: el worker
+`LangChain/opencode_worker.py` usa LangChain (`ChatPromptTemplate` + `Runnable` +
+`StrOutputParser`) para preparar el prompt y guardar el parsing, y llama al servidor
+OpenCode (`/session` + `/session/:id/message`) con el modelo **gratis o local** que el
+usuario haya elegido en el selector. Las herramientas se envían desactivadas y la
+validación de citas sigue en C#. La etiqueta del motor y el selector muestran
+«LangChain · OpenCode · proveedor/modelo».
+
+Configúralo con:
+
+```json
+"OpenCode": {
+  "UseLangChain": true,
+  "PythonExecutable": "%LOCALAPPDATA%\\DocuSearch\\LangChain\\.venv\\Scripts\\python.exe"
+}
+```
+
+En Docker hay que instalar `python3` y las dependencias de `LangChain/requirements.txt`
+en la imagen y apuntar `OpenCode:PythonExecutable` a ese Python (por ejemplo
+`/usr/bin/python3`). Verificado sin Ollama con OpenCode real y 13 pruebas Python del
+worker (`LangChain/test_opencode_worker.py`).
 
 Configuración en `appsettings.json`:
 
@@ -508,13 +534,13 @@ dotnet build
 dotnet run --project .\tests\DocuSearch.Checks.csproj
 ```
 
-82 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
+83 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
 HTML, PDF reales, límites exactos, esquema SQL Server, TOTP y Ollama/OpenCode con HTTP
 simulado: privacidad, contexto acotado, citas, errores y liberación del estado ocupado.
 Un fallo produce código de salida no cero.
 
 La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta
-la compilación y las 82 comprobaciones sin servicios.
+la compilación y las 83 comprobaciones sin servicios.
 
 Para añadir una generación real con el modelo local, usando únicamente una fuente sintética:
 
@@ -550,7 +576,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database
 
 La suite exige el sufijo `_tests` y restablece sus ejemplos. **No la apuntes a datos que
 quieras conservar.** La base se crea automáticamente si la identidad tiene permisos.
-La suite con `--database --langchain` ejecuta 97 comprobaciones: las 82 sin
+La suite con `--database --langchain` ejecuta 98 comprobaciones: las 83 sin
 servicios, tres de LangChain real y once de SQL Server. Incluye inicialización idempotente, cargas,
 original persistente, metadatos, notas, reproceso, permisos reales, cuotas, agente, importación,
 notas concurrentes, rollback de importaciones fallidas, contexto autorizado del consultor

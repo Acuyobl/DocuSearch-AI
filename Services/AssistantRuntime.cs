@@ -174,7 +174,7 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
 
     public string Describe(AssistantProfile profile) => profile.Engine.ToLowerInvariant() switch
     {
-        "opencode" => $"OpenCode · {profile.ProviderId}/{profile.ModelId}" + (IsRemote(profile) ? " · remoto" : " · local"),
+        "opencode" => (openCode.UseLangChain ? "LangChain · " : "") + $"OpenCode · {profile.ProviderId}/{profile.ModelId}" + (IsRemote(profile) ? " · remoto" : " · local"),
         "ollama" => "Ollama · LangChain local",
         _ => "Sin LLM · extractivo"
     };
@@ -200,9 +200,10 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
                 result.Add(new AssistantProfile
                 {
                     Id = $"{(isLocal ? "local" : "free")}:{provider.Id}/{model.Id}",
-                    Label = isLocal
+                    Label = (isLocal
                         ? $"Local · {provider.Name} · {model.Name ?? model.Id}" + (isConnected ? "" : " (sin conexión)")
-                        : $"Gratis · {provider.Name} · {model.Name ?? model.Id}",
+                        : $"Gratis · {provider.Name} · {model.Name ?? model.Id}")
+                        + (openCode.UseLangChain ? " · LangChain" : ""),
                     Engine = "opencode",
                     ProviderId = provider.Id,
                     ModelId = model.Id,
