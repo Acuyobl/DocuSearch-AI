@@ -290,6 +290,10 @@ La aplicación crea una sesión por consulta (`POST /session`), envía pregunta 
 fuentes enviadas y elimina la sesión al terminar. La contraseña se pasa por entorno
 (`OpenCode__Password`), nunca en el repositorio.
 
+En el compositor del chat, **Enter envía la pregunta** y **Mayús+Enter** inserta un salto
+de línea; el botón *Consultar* hace lo mismo. El compositor queda fijo al pie del panel
+para que siga accesible mientras crece la conversación.
+
 Conexión **LangChain/Ollama** (cuando OpenCode está desactivado): ASP.NET Core →
 Python / LangChain → Ollama → `qwen2.5-coder:7b`. Ollama debe estar activo y el modelo
 descargado; la aplicación no instala ni descarga modelos automáticamente.

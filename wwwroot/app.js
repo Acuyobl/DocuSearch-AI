@@ -32,6 +32,22 @@ window.docusearch = {
     },
     confirm(message) {
         return window.confirm(message);
+    },
+    bindChatComposer(element, dotNetRef) {
+        if (!element) return;
+        if (element._chatComposerHandler) element.removeEventListener("keydown", element._chatComposerHandler);
+        const handler = (event) => {
+            if (event.key !== "Enter" || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
+            event.preventDefault();
+            dotNetRef.invokeMethodAsync("SendFromEnter").catch(() => {});
+        };
+        element._chatComposerHandler = handler;
+        element.addEventListener("keydown", handler);
+    },
+    unbindChatComposer(element) {
+        if (!element) return;
+        if (element._chatComposerHandler) element.removeEventListener("keydown", element._chatComposerHandler);
+        delete element._chatComposerHandler;
     }
 };
 try {

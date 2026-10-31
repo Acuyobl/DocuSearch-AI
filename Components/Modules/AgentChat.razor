@@ -4,6 +4,7 @@
 @inject OllamaClient Ollama
 @inject OpenCodeClient OpenCode
 @inject AssistantRuntime Runtime
+@implements IAsyncDisposable
 <div class="assistant-page">
 <ModuleHeading Icon="agent" Title="Asistente IA documental" Description="@($"Acceso: hasta «{Permissions.ReadableLevels(State.Data!.Actor).Last()}» · {State.Data.Documents.Count} expediente(s) consultables · solo lectura")">
     <button disabled="@State.Busy" @onclick="RefreshDocuments"><AppIcon Name="refresh" />Actualizar documentos</button>
@@ -70,8 +71,8 @@ else if (CanSelectProfile)
     @if (State.Busy) { <p role="status">Consultando expedientes… La primera carga del modelo puede tardar unos minutos.</p> }
 </section>
 <form class="chat-composer" @onsubmit="Send" @onsubmit:preventDefault>
-    <label>Tu consulta<textarea @bind="query" @bind:event="oninput" maxlength="2000" rows="2" placeholder="Escribe tu pregunta sobre los expedientes…"></textarea></label>
-    <button class="primary" aria-label="Consultar" disabled="@(State.Busy || string.IsNullOrWhiteSpace(query))"><AppIcon Name="send" />Consultar</button>
+    <label>Tu consulta<textarea @ref="composer" @bind="query" @bind:event="oninput" maxlength="2000" rows="2" placeholder="Escribe tu pregunta… (Enter envía, Mayús+Enter salta de línea)"></textarea></label>
+    <button type="submit" class="primary" aria-label="Consultar" disabled="@(State.Busy || string.IsNullOrWhiteSpace(query))"><AppIcon Name="send" />Consultar</button>
 </form>
 <small class="assistant-disclaimer"><AppIcon Name="audit" />Solo se consultan fuentes autorizadas. @EngineDisclaimer</small>
 </div>
@@ -81,6 +82,8 @@ else if (CanSelectProfile)
     private string query = "";
     private string selectedProfile = "";
     private ElementReference conversation;
+    private ElementReference composer;
+    private DotNetObjectReference<AgentChat>? enterBridge;
     private bool scrollPending;
     private bool modelVerified;
     private readonly List<ChatMessage> messages = [];
@@ -154,23 +157,42 @@ else if (CanSelectProfile)
             throw new InvalidOperationException("El motor seleccionado ya no existe; pulsa «Actualizar motores» y vuelve a elegir.");
         await CheckActiveEngineCoreAsync();
     }, "Motor del asistente actualizado.");
-    private Task Send() => State.RunAsync(async () =>
+    private Task Send()
     {
-        var text = query.Trim();
-        messages.Add(new(true, text, []));
-        query = "";
-        scrollPending = true;
-        StateHasChanged();
-        var answer = await Agent.AskAsync(text);
-        messages.Add(new(false, answer.Text, answer.Sources, answer.Provider));
-        scrollPending = true;
-        await State.RefreshAsync();
-    });
+        if (State.Busy || string.IsNullOrWhiteSpace(query)) return Task.CompletedTask;
+        return State.RunAsync(async () =>
+        {
+            var text = query.Trim();
+            messages.Add(new(true, text, []));
+            query = "";
+            scrollPending = true;
+            StateHasChanged();
+            var answer = await Agent.AskAsync(text);
+            messages.Add(new(false, answer.Text, answer.Sources, answer.Provider));
+            scrollPending = true;
+            await State.RefreshAsync();
+        });
+    }
+    /// <summary>Enter en el compositor (sin Mayús): el JS intercepta la tecla y envía.</summary>
+    [JSInvokable]
+    public Task SendFromEnter() => Send();
     private void Clear() { messages.Clear(); Session.LastDocumentCode = null; scrollPending = true; }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            enterBridge = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("docusearch.bindChatComposer", composer, enterBridge);
+        }
         if (!scrollPending) return;
         scrollPending = false;
         await JS.InvokeVoidAsync("docusearch.scrollToEnd", conversation);
+    }
+    public async ValueTask DisposeAsync()
+    {
+        enterBridge?.Dispose();
+        try { await JS.InvokeVoidAsync("docusearch.unbindChatComposer", composer); }
+        catch (JSDisconnectedException) { }
+        catch (JSException) { }
     }
 }
