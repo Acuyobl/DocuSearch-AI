@@ -59,7 +59,9 @@ builder.Services.AddHttpClient<OllamaClient>().ConfigurePrimaryHttpMessageHandle
     ConnectTimeout = TimeSpan.FromSeconds(5)
 });
 builder.Services.Configure<OpenCodeOptions>(builder.Configuration.GetSection("OpenCode"));
+builder.Services.Configure<ResilienceOptions>(builder.Configuration.GetSection("Resilience"));
 builder.Services.Configure<AssistantOptions>(builder.Configuration.GetSection("Assistant"));
+builder.Services.AddSingleton<AgentResilience>();
 builder.Services.AddSingleton<AssistantRuntime>();
 builder.Services.AddHttpClient<OpenCodeClient>().ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
@@ -266,7 +268,7 @@ app.MapGet("/health", async (IDbContextFactory<AppDbContext> factory, ILogger<Pr
 });
 // Catálogo del selector de motores: lo lee el panel del asistente y sirve para
 // comprobar desde fuera que la lista gratis/local se descubrió en este OpenCode.
-app.MapGet("/assistant/engines", async (AssistantRuntime runtime) =>
+app.MapGet("/assistant/engines", async (AssistantRuntime runtime, AgentResilience resilience) =>
 {
     await runtime.EnsureLoadedAsync();
     return Results.Ok(new
@@ -274,6 +276,7 @@ app.MapGet("/assistant/engines", async (AssistantRuntime runtime) =>
         active = runtime.Active.Id,
         loadedAt = runtime.LoadedAt,
         error = runtime.LastError,
+        circuit = resilience.Describe("opencode.generate"),
         groups = runtime.Profiles.GroupBy(profile => profile.Group).Select(group => new
         {
             group = group.Key,

@@ -39,6 +39,7 @@ public sealed class OpenCodeClient
     private static readonly string[] LocalProviders = ["ollama", "lmstudio", "llamacpp"];
     private readonly HttpClient http;
     private readonly OpenCodeOptions settings;
+    private readonly AgentResilience resilience;
     private readonly object toolGate = new();
     private string[]? toolIds;
     private DateTimeOffset toolIdsExpires;
@@ -50,9 +51,11 @@ public sealed class OpenCodeClient
     public bool IsRemote => !LocalProviders.Contains(settings.ProviderId, StringComparer.OrdinalIgnoreCase);
     public bool UseLangChain => settings.UseLangChain;
 
-    public OpenCodeClient(HttpClient http, IOptions<OpenCodeOptions> options)
+    public OpenCodeClient(HttpClient http, IOptions<OpenCodeOptions> options, AgentResilience? resilience = null)
     {
         settings = options.Value;
+        this.resilience = resilience ?? new AgentResilience(Options.Create(new ResilienceOptions()),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AgentResilience>.Instance);
         if (!Uri.TryCreate(settings.BaseUrl, UriKind.Absolute, out var endpoint) ||
             endpoint.Scheme is not ("http" or "https") ||
             endpoint.AbsolutePath is not ("" or "/") ||
@@ -126,7 +129,12 @@ public sealed class OpenCodeClient
     public Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources) =>
         GenerateAsync(query, sources, settings.ProviderId, settings.ModelId, settings.Agent);
 
-    public async Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources, string? providerId, string? modelId, string? agent)
+    public Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources, string? providerId, string? modelId, string? agent) =>
+        resilience.ExecuteAsync("opencode.generate",
+            cancellationToken => GenerateOnceAsync(query, sources, providerId, modelId, agent, cancellationToken));
+
+    private async Task<AgentAnswer> GenerateOnceAsync(string query, IReadOnlyList<SearchHit> sources,
+        string? providerId, string? modelId, string? agent, CancellationToken cancellationToken)
     {
         if (!Enabled) throw new InvalidOperationException("La generación con OpenCode está desactivada.");
         var provider = string.IsNullOrWhiteSpace(providerId) ? settings.ProviderId : providerId;
@@ -147,14 +155,14 @@ public sealed class OpenCodeClient
             text = TextAnalysis.Truncate(source.Snippet, 1000)
         }).ToArray();
         var payload = JsonSerializer.Serialize(new { question = query, sources = context }, Catalog.Json);
-        if (settings.UseLangChain) return await GenerateWithLangChainAsync(query, selected, provider, model, agentName);
+        if (settings.UseLangChain) return await GenerateWithLangChainAsync(query, selected, provider, model, agentName, cancellationToken);
 
-        var session = await PostAsync<SessionInfo>("session", new { title = $"DocuSearch AI · {DateTimeOffset.UtcNow:u}" });
+        var session = await PostAsync<SessionInfo>("session", new { title = $"DocuSearch AI · {DateTimeOffset.UtcNow:u}" }, cancellationToken);
         if (session?.Id is not { Length: > 0 } sessionId)
             throw new InvalidOperationException("OpenCode no devolvió el identificador de sesión.");
         try
         {
-            var tools = await GetDisabledToolsAsync();
+            var tools = await GetDisabledToolsAsync(cancellationToken);
             var message = new Dictionary<string, object?>
             {
                 ["model"] = new { providerID = provider, modelID = model },
@@ -163,7 +171,7 @@ public sealed class OpenCodeClient
                 ["parts"] = new[] { new { type = "text", text = payload } }
             };
             if (!string.IsNullOrWhiteSpace(agentName)) message["agent"] = agentName;
-            var response = await PostAsync<MessageResponse>($"session/{Uri.EscapeDataString(sessionId)}/message", message);
+            var response = await PostAsync<MessageResponse>($"session/{Uri.EscapeDataString(sessionId)}/message", message, cancellationToken);
             var text = string.Concat((response?.Parts ?? [])
                 .Where(part => part.Type == "text" && !string.IsNullOrWhiteSpace(part.Text))
                 .Select(part => part.Text!));
@@ -194,12 +202,12 @@ public sealed class OpenCodeClient
         }
         finally
         {
-            await DeleteSessionAsync(sessionId);
+            await DeleteSessionAsync(sessionId, cancellationToken);
         }
     }
 
     private async Task<AgentAnswer> GenerateWithLangChainAsync(string query, IReadOnlyList<SearchHit> selected,
-        string provider, string model, string agentName)
+        string provider, string model, string agentName, CancellationToken cancellationToken)
     {
         var sources = selected.Select((source, index) => new
         {
@@ -251,16 +259,16 @@ public sealed class OpenCodeClient
             throw new InvalidOperationException("El worker de LangChain/OpenCode no confirmó su disponibilidad.");
     }
 
-    private async Task<Dictionary<string, bool>> GetDisabledToolsAsync()
+    private async Task<Dictionary<string, bool>> GetDisabledToolsAsync(CancellationToken cancellationToken = default)
     {
         string[]? ids;
         lock (toolGate)
             ids = toolIds is not null && DateTimeOffset.UtcNow < toolIdsExpires ? toolIds : null;
         if (ids is null)
         {
-            using var response = await http.GetAsync("experimental/tool/ids");
+            using var response = await http.GetAsync("experimental/tool/ids", cancellationToken);
             response.EnsureSuccessStatusCode();
-            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
             var root = document.RootElement;
             // OpenCode 1.19 devuelve {"value":[...],"Count":N}; versiones anteriores, un array.
             if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("value", out var wrapped)) root = wrapped;
@@ -287,11 +295,11 @@ public sealed class OpenCodeClient
         return start >= 0 && end > start ? text[start..(end + 1)] : null;
     }
 
-    private async Task DeleteSessionAsync(string sessionId)
+    private async Task DeleteSessionAsync(string sessionId, CancellationToken cancellationToken = default)
     {
         try
         {
-            using var response = await http.DeleteAsync($"session/{Uri.EscapeDataString(sessionId)}");
+            using var response = await http.DeleteAsync($"session/{Uri.EscapeDataString(sessionId)}", cancellationToken);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
@@ -299,23 +307,23 @@ public sealed class OpenCodeClient
         }
     }
 
-    private async Task<T> GetAsync<T>(string path)
+    private async Task<T> GetAsync<T>(string path, CancellationToken cancellationToken = default)
     {
         try
         {
-            using var response = await http.GetAsync(path);
+            using var response = await http.GetAsync(path, cancellationToken);
             if (!response.IsSuccessStatusCode)
-                throw new InvalidOperationException(DescribeHttpFailure(response.StatusCode));
-            return await response.Content.ReadFromJsonAsync<T>()
+                throw HttpFailure(response.StatusCode);
+            return await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken)
                 ?? throw new InvalidOperationException("OpenCode respondió sin datos.");
         }
         catch (HttpRequestException ex)
         {
-            throw new InvalidOperationException($"No se pudo conectar con el servidor OpenCode en {settings.BaseUrl}. Inicia «opencode serve» y revisa OpenCode:Password.", ex);
+            throw new TransientAgentException($"No se pudo conectar con el servidor OpenCode en {settings.BaseUrl}. Inicia «opencode serve» y revisa OpenCode:Password.", ex);
         }
-        catch (TaskCanceledException ex)
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new InvalidOperationException($"OpenCode superó el tiempo de espera de {settings.TimeoutSeconds} segundos.", ex);
+            throw new TransientAgentException($"OpenCode superó el tiempo de espera de {settings.TimeoutSeconds} segundos.", ex);
         }
         catch (JsonException ex)
         {
@@ -323,27 +331,35 @@ public sealed class OpenCodeClient
         }
     }
 
-    private async Task<T?> PostAsync<T>(string path, object payload)
+    private async Task<T?> PostAsync<T>(string path, object payload, CancellationToken cancellationToken = default)
     {
         try
         {
-            using var response = await http.PostAsJsonAsync(path, payload, Catalog.Json);
+            using var response = await http.PostAsJsonAsync(path, payload, Catalog.Json, cancellationToken);
             if (!response.IsSuccessStatusCode)
-                throw new InvalidOperationException(DescribeHttpFailure(response.StatusCode));
-            return await response.Content.ReadFromJsonAsync<T>(Catalog.Json);
+                throw HttpFailure(response.StatusCode);
+            return await response.Content.ReadFromJsonAsync<T>(Catalog.Json, cancellationToken);
         }
         catch (HttpRequestException ex)
         {
-            throw new InvalidOperationException($"No se pudo conectar con el servidor OpenCode en {settings.BaseUrl}. Inicia «opencode serve» y revisa OpenCode:Password.", ex);
+            throw new TransientAgentException($"No se pudo conectar con el servidor OpenCode en {settings.BaseUrl}. Inicia «opencode serve» y revisa OpenCode:Password.", ex);
         }
-        catch (TaskCanceledException ex)
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new InvalidOperationException($"OpenCode superó el tiempo de espera de {settings.TimeoutSeconds} segundos. El modelo remoto puede necesitar más margen.", ex);
+            throw new TransientAgentException($"OpenCode superó el tiempo de espera de {settings.TimeoutSeconds} segundos. El modelo remoto puede necesitar más margen.", ex);
         }
         catch (JsonException ex)
         {
             throw new InvalidOperationException("El servidor OpenCode no devolvió una respuesta JSON válida.", ex);
         }
+    }
+
+    private Exception HttpFailure(HttpStatusCode status)
+    {
+        var message = DescribeHttpFailure(status);
+        return status is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests || (int)status >= 500
+            ? new TransientAgentException(message)
+            : new InvalidOperationException(message);
     }
 
     private string DescribeHttpFailure(HttpStatusCode status) => status switch

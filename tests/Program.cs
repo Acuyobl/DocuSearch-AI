@@ -604,6 +604,56 @@ await Check("OpenCode: exige loopback o contraseña para servidores remotos", ()
     }));
     Assert(remote.Enabled && remote.IsRemote);
 }));
+await Check("Resiliencia: reintenta fallos transitorios con backoff", async () =>
+{
+    var attempts = 0;
+    var policy = new AgentResilience(Options.Create(new ResilienceOptions
+    {
+        MaxAttempts = 3, BaseDelayMs = 1, MaxDelayMs = 2, FailureThreshold = 5, BreakSeconds = 1, AttemptTimeoutSeconds = 5
+    }), Microsoft.Extensions.Logging.Abstractions.NullLogger<AgentResilience>.Instance);
+    var result = await policy.ExecuteAsync("test.retry", _ =>
+    {
+        attempts++;
+        if (attempts < 3) throw new TransientAgentException("fallo temporal");
+        return Task.FromResult(42);
+    });
+    Assert(result == 42 && attempts == 3);
+});
+await Check("Resiliencia: el circuito abre tras fallos consecutivos y corta llamadas", async () =>
+{
+    var attempts = 0;
+    var policy = new AgentResilience(Options.Create(new ResilienceOptions
+    {
+        MaxAttempts = 1, BaseDelayMs = 1, MaxDelayMs = 2, FailureThreshold = 2, BreakSeconds = 30, AttemptTimeoutSeconds = 5
+    }), Microsoft.Extensions.Logging.Abstractions.NullLogger<AgentResilience>.Instance);
+    for (var i = 0; i < 2; i++)
+        await ThrowsAsync<AgentUnavailableException>(() => policy.ExecuteAsync<int>("test.circuit", _ =>
+        {
+            attempts++;
+            throw new TransientAgentException("caída");
+        }));
+    var before = attempts;
+    await ThrowsAsync<CircuitOpenException>(() => policy.ExecuteAsync("test.circuit", _ =>
+    {
+        attempts++;
+        return Task.FromResult(1);
+    }));
+    Assert(attempts == before && policy.Describe("test.circuit").StartsWith("open", StringComparison.Ordinal));
+});
+await Check("Resiliencia: timeout por intento y parada tras agotar reintentos", async () =>
+{
+    var policy = new AgentResilience(Options.Create(new ResilienceOptions
+    {
+        MaxAttempts = 1, BaseDelayMs = 1, MaxDelayMs = 2, FailureThreshold = 5, BreakSeconds = 1, AttemptTimeoutSeconds = 1
+    }), Microsoft.Extensions.Logging.Abstractions.NullLogger<AgentResilience>.Instance);
+    var timer = System.Diagnostics.Stopwatch.StartNew();
+    await ThrowsAsync<AgentUnavailableException>(() => policy.ExecuteAsync("test.timeout", async token =>
+    {
+        await Task.Delay(TimeSpan.FromSeconds(5), token);
+        return 1;
+    }));
+    Assert(timer.Elapsed < TimeSpan.FromSeconds(4));
+});
 await Check("OpenCode: comprueba salud y agente configurado", async () =>
 {
     var calls = new List<string>();

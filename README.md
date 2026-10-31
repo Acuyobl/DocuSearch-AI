@@ -295,6 +295,35 @@ ejemplo, el proveedor `opencode` puede responder «Free usage exceeded» y dejar
 responder). En ese caso elige un modelo de pago o el modo extractivo; la interfaz no
 cambia de proveedor por su cuenta.
 
+### Resiliencia ante fallos del motor
+
+Las llamadas al modelo pasan por una política de resiliencia (`AgentResilience`):
+
+- **Reintentos con backoff exponencial + jitter**: hasta 3 intentos (400 ms → 5 s) solo
+  para fallos transitorios (timeout, conexión, HTTP 408/429/5xx). Un fallo determinista
+  (respuesta sin citas, validación) no se reintenta.
+- **Circuit breaker**: tras 5 consultas consecutivas fallidas se abre el circuito durante
+  60 s; las llamadas siguientes fallan rápido en lugar de seguir consumiendo cuota.
+- **Timeout por intento**: 75 s por intento, además del timeout propio de OpenCode y del
+  worker de LangChain.
+- **Fallback a revisión humana**: si se agotan los reintentos o el circuito está abierto,
+  el asistente devuelve la respuesta extractiva con las fuentes autorizadas, la etiqueta
+  «revisión humana» y la traza con `human_fallback`. No se cambia de proveedor ni se
+  inventa una respuesta.
+
+Configuración (`Resilience` en `appsettings.json`):
+
+| Clave | Valor | Efecto |
+|---|---|---|
+| `MaxAttempts` | `3` | Intentos totales por operación |
+| `BaseDelayMs` / `MaxDelayMs` | `400` / `5000` | Backoff y tope |
+| `FailureThreshold` | `5` | Fallos consecutivos para abrir el circuito |
+| `BreakSeconds` | `60` | Tiempo con el circuito abierto |
+| `AttemptTimeoutSeconds` | `75` | Timeout por intento (0 lo desactiva) |
+
+`GET /assistant/engines` incluye `circuit` con el estado (`closed`, `closed:N fallo(s)` u
+`open:Ns`).
+
 La aplicación crea una sesión por consulta (`POST /session`), envía pregunta + fuentes a
 `POST /session/:id/message`, valida que la respuesta sea JSON con citas dentro de las
 fuentes enviadas y elimina la sesión al terminar. La contraseña se pasa por entorno
@@ -542,13 +571,13 @@ dotnet build
 dotnet run --project .\tests\DocuSearch.Checks.csproj
 ```
 
-84 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
+87 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
 HTML, PDF reales, límites exactos, esquema SQL Server, TOTP y Ollama/OpenCode con HTTP
 simulado: privacidad, contexto acotado, citas, errores y liberación del estado ocupado.
 Un fallo produce código de salida no cero.
 
 La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta
-la compilación y las 84 comprobaciones sin servicios.
+la compilación y las 87 comprobaciones sin servicios.
 
 Para añadir una generación real con el modelo local, usando únicamente una fuente sintética:
 
@@ -584,7 +613,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database
 
 La suite exige el sufijo `_tests` y restablece sus ejemplos. **No la apuntes a datos que
 quieras conservar.** La base se crea automáticamente si la identidad tiene permisos.
-La suite con `--database --langchain` ejecuta 99 comprobaciones: las 84 sin
+La suite con `--database --langchain` ejecuta 102 comprobaciones: las 87 sin
 servicios, tres de LangChain real y once de SQL Server. Incluye inicialización idempotente, cargas,
 original persistente, metadatos, notas, reproceso, permisos reales, cuotas, agente, importación,
 notas concurrentes, rollback de importaciones fallidas, contexto autorizado del consultor

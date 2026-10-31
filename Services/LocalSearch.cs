@@ -93,15 +93,21 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
         {
-            // El motor puede fallar por cuota, timeout o caída del servidor. La recuperación
-            // extractiva ya está calculada y con fuentes autorizadas: se devuelve de forma
-            // explícita en lugar de romper el asistente.
-            trace.ErrorCode = AgentObservability.ErrorCode(ex);
-            logger?.LogWarning(ex, "El motor {Engine} no respondió; se devuelve la respuesta extractiva.", engineLabel);
+            // El motor puede fallar por cuota, timeout, reintentos agotados o circuito abierto.
+            // La recuperación extractiva ya está calculada: se devuelve y se marca la consulta
+            // para revisión humana en lugar de romper el asistente.
+            var escalated = ex is AgentUnavailableException;
+            trace.ErrorCode = escalated ? "human_fallback" : AgentObservability.ErrorCode(ex);
+            logger?.LogWarning(ex, "El motor {Engine} no respondió; se devuelve la respuesta extractiva{Review}.",
+                engineLabel, escalated ? " y se marca para revisión humana" : "");
             answer = new AgentAnswer(
-                extracted.Text + "\n\nNo se pudo usar el motor generativo seleccionado; se muestra la respuesta extractiva con las mismas fuentes.",
+                extracted.Text + (escalated
+                    ? "\n\nNo se pudo completar con el motor generativo tras varios intentos. Se muestra la respuesta extractiva con las fuentes autorizadas y la consulta queda marcada para revisión humana."
+                    : "\n\nNo se pudo usar el motor generativo seleccionado; se muestra la respuesta extractiva con las mismas fuentes."),
                 extracted.Sources,
-                $"{engineLabel} no disponible · respuesta extractiva");
+                escalated
+                    ? $"{engineLabel} no disponible · revisión humana · respuesta extractiva"
+                    : $"{engineLabel} no disponible · respuesta extractiva");
         }
         var current = await documents.LoadAsync();
         if (current.Actor.Id != snapshot.Actor.Id ||
