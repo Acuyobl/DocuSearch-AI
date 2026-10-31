@@ -33,7 +33,8 @@ public sealed class AssistantOptions
 /// está disponible, el asistente queda en modo extractivo. No hay modelos
 /// hardcodeados: la lista depende de la configuración de OpenCode de cada usuario.
 /// </summary>
-public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCodeClient openCode, ILogger<AssistantRuntime> logger)
+public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCodeClient openCode,
+    ILogger<AssistantRuntime> logger, OllamaClient? ollama = null)
 {
     private static readonly string[] LocalProviders = ["ollama", "lmstudio", "llamacpp"];
     private static readonly string[] PreferredFreeModels = ["deepseek-v4.1-flash-free", "nemotron-3.5-lightning-free"];
@@ -95,43 +96,68 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
         try
         {
             if (!force && !NeedsRefresh()) return;
-            if (!openCode.Enabled)
+            var built = new List<AssistantProfile>();
+            string? error = null;
+            if (openCode.Enabled)
             {
-                Apply([ExtractiveProfile()], "OpenCode está desactivado en la configuración; solo está disponible el modo extractivo.");
-                return;
-            }
-            try
-            {
-                var catalog = await openCode.FetchCatalogAsync();
-                var built = BuildProfiles(catalog);
-                var locals = built.Count(profile => profile.Group == "Locales");
-                var free = built.Count(profile => profile.Group == "Gratis");
-                Apply(built, null);
-                logger.LogInformation("Catálogo del asistente actualizado desde OpenCode: {Local} modelo(s) local(es), {Free} gratis.", locals, free);
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
-            {
-                logger.LogWarning(ex, "No se pudo consultar el catálogo de OpenCode; se conserva el último catálogo válido.");
-                var keepPrevious = Profiles.Any(profile => profile.Engine != "extractive");
-                if (keepPrevious)
+                try
                 {
-                    lock (state)
+                    built.AddRange(BuildProfiles(await openCode.FetchCatalogAsync()));
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+                {
+                    logger.LogWarning(ex, "No se pudo consultar el catálogo de OpenCode.");
+                    error = "No se pudo consultar OpenCode (" + ex.Message + ").";
+                    if (Profiles.Any(profile => profile.Engine != "extractive"))
                     {
-                        loadedAt = DateTimeOffset.UtcNow;
-                        lastError = "No se pudo actualizar el catálogo de OpenCode (" + ex.Message + "). Se mantiene el catálogo anterior; pulsa «Actualizar motores» para reintentar.";
+                        lock (state)
+                        {
+                            loadedAt = DateTimeOffset.UtcNow;
+                            lastError = error + " Se mantiene el catálogo anterior; pulsa «Actualizar motores» para reintentar.";
+                        }
+                        Changed?.Invoke();
+                        return;
                     }
-                    Changed?.Invoke();
-                }
-                else
-                {
-                    Apply([ExtractiveProfile()], "No se pudo consultar OpenCode (" + ex.Message + "). Solo está disponible el modo extractivo.");
                 }
             }
+            else if (ollama is not { Enabled: true })
+            {
+                error = "OpenCode y Ollama están desactivados; solo está disponible el modo extractivo.";
+            }
+
+            if (ollama is { Enabled: true })
+                built.Add(await BuildOllamaProfileAsync());
+
+            built.Add(ExtractiveProfile());
+            built = built
+                .OrderBy(profile => profile.Group == "Locales" ? 0 : profile.Group == "Gratis" ? 1 : 2)
+                .ThenBy(profile => profile.Label, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var hasEngine = built.Any(profile => profile.Engine != "extractive");
+            Apply(built, hasEngine ? null : error);
+            logger.LogInformation("Catálogo del asistente actualizado: {Local} local(es), {Free} gratis, LangChain disponible en la lista si está activo.",
+                built.Count(profile => profile.Group == "Locales"), built.Count(profile => profile.Group == "Gratis"));
         }
         finally
         {
             refreshGate.Release();
         }
+    }
+
+    private async Task<AssistantProfile> BuildOllamaProfileAsync()
+    {
+        var available = await ollama!.IsReachableAsync();
+        var label = ollama.UseLangChain ? $"LangChain · Ollama local · {ollama.Model}" : $"Ollama directo · {ollama.Model}";
+        return new AssistantProfile
+        {
+            Id = "ollama:local",
+            Label = label + (available ? "" : " (sin conexión)"),
+            Engine = "ollama",
+            ProviderId = "ollama",
+            ModelId = ollama.Model,
+            Group = "Locales",
+            Available = available
+        };
     }
 
     public bool TrySelect(string? id, out AssistantProfile? profile)
@@ -189,7 +215,6 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
             .OrderBy(profile => profile.Group == "Locales" ? 0 : 1)
             .ThenBy(profile => profile.Label, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        result.Add(ExtractiveProfile());
         return result;
     }
 

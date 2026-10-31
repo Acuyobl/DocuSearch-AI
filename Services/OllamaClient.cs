@@ -44,6 +44,21 @@ public sealed class OllamaClient
         http.MaxResponseContentBufferSize = 2 * 1024 * 1024;
     }
 
+    /// <summary>Comprobación ligera para el catálogo: ¿responde Ollama en su endpoint?</summary>
+    public async Task<bool> IsReachableAsync()
+    {
+        if (!Enabled) return false;
+        try
+        {
+            using var response = await http.GetAsync("api/tags");
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return false;
+        }
+    }
+
     public async Task CheckAsync()
     {
         if (!Enabled) return;

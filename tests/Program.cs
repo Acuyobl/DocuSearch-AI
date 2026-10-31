@@ -715,6 +715,35 @@ await Check("OpenCode: desactiva herramientas y omite agente vacío", async () =
     Assert(body is not null && body.Contains("\"tools\":{\"bash\":false,\"read\":false}", StringComparison.Ordinal));
     Assert(!body!.Contains("\"agent\":", StringComparison.Ordinal));
 });
+await Check("Asistente: incluye LangChain/Ollama local en el catálogo", async () =>
+{
+    HttpClient OllamaMock() => new(new TestHttpHandler((request, _) =>
+        Task.FromResult(request.RequestUri!.AbsolutePath.EndsWith("/api/tags", StringComparison.Ordinal)
+            ? JsonResponse("""{"models":[]}""")
+            : new HttpResponseMessage(HttpStatusCode.NotFound))));
+    using var ollamaHttp = OllamaMock();
+    var ollamaClient = new OllamaClient(ollamaHttp, Options.Create(new OllamaOptions
+    {
+        Enabled = true, UseLangChain = true, BaseUrl = "http://127.0.0.1:11434", Model = "qwen3:4b"
+    }));
+    var runtime = new AssistantRuntime(Options.Create(new AssistantOptions()), OpenCodeFor(OpenCodeCatalogMock(catalogJson)),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance, ollamaClient);
+    await runtime.RefreshAsync(force: true);
+    var langchain = runtime.Profiles.SingleOrDefault(profile => profile.Id == "ollama:local");
+    Assert(langchain is not null && langchain.Engine == "ollama" && langchain.Group == "Locales" &&
+        langchain.Available && langchain.Label.Contains("LangChain", StringComparison.Ordinal));
+
+    using var offlineOllamaHttp = OllamaMock();
+    var offlineOllama = new OllamaClient(offlineOllamaHttp, Options.Create(new OllamaOptions
+    {
+        Enabled = true, UseLangChain = true, BaseUrl = "http://127.0.0.1:11434", Model = "qwen3:4b"
+    }));
+    var withoutOpenCode = new AssistantRuntime(Options.Create(new AssistantOptions()), OpenCodeFor(new HttpClient(), enabled: false),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance, offlineOllama);
+    await withoutOpenCode.RefreshAsync(force: true);
+    Assert(withoutOpenCode.Profiles.Any(profile => profile.Engine == "ollama") &&
+        withoutOpenCode.Profiles.Any(profile => profile.Engine == "extractive"));
+});
 if (args.Contains("--database"))
 {
     var connection = Environment.GetEnvironmentVariable("DOCUSEARCH_TEST_CONNECTION")

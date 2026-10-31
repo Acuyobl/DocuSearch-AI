@@ -153,7 +153,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database --langchain
 
 **Nunca apuntes estas pruebas a `DocuSearch` ni a una base que quieras conservar.**
 La suite exige sufijo `_tests`, inicializa y restablece datos de prueba.
-Línea base verificada antes de crear estos documentos: 96 comprobaciones .NET con
+Línea base verificada antes de crear estos documentos: 97 comprobaciones .NET con
 SQL/LangChain y ocho pruebas Python correctas.
 
 ## 8. Resolución de problemas
