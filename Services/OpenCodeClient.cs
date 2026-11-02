@@ -158,25 +158,28 @@ public sealed class OpenCodeClient
             text = TextAnalysis.Truncate(source.Snippet, 1000)
         }).ToArray();
         var payload = JsonSerializer.Serialize(new { question = query, sources = context }, Catalog.Json);
-        // Los modelos gratis se generan por la vía directa de OpenCode: el worker
-        // LangChain puede agotar el cupo del proveedor en el mismo instante.
-        if (direct) return await GenerateFreeAsync(payload, selected, provider, model, agentName, cancellationToken);
-        if (settings.UseLangChain) return await GenerateWithLangChainAsync(query, selected, provider, model, agentName, cancellationToken);
+        // Los modelos gratis usan el endpoint síncrono de OpenCode; el flujo async
+        // entra en el limitador gratuito del proveedor de forma intermitente.
+        if (settings.UseLangChain && !direct) return await GenerateWithLangChainAsync(query, selected, provider, model, agentName, cancellationToken);
 
         var session = await PostAsync<SessionInfo>("session", new { title = $"DocuSearch AI · {DateTimeOffset.UtcNow:u}" }, cancellationToken);
         if (session?.Id is not { Length: > 0 } sessionId)
             throw new InvalidOperationException("OpenCode no devolvió el identificador de sesión.");
         try
         {
-            var tools = await GetDisabledToolsAsync(cancellationToken);
             var message = new Dictionary<string, object?>
             {
                 ["model"] = new { providerID = provider, modelID = model },
                 ["system"] = AssistantPrompt.System,
-                ["tools"] = tools,
                 ["parts"] = new[] { new { type = "text", text = payload } }
             };
-            if (!string.IsNullOrWhiteSpace(agentName)) message["agent"] = agentName;
+            // Los modelos gratis solo aceptan el cuerpo mínimo (sin agente ni mapa de
+            // herramientas); enviar esos campos activa el limitador free_tier_limit.
+            if (!direct)
+            {
+                message["tools"] = await GetDisabledToolsAsync(cancellationToken);
+                if (!string.IsNullOrWhiteSpace(agentName)) message["agent"] = agentName;
+            }
             var response = await PostAsync<MessageResponse>($"session/{Uri.EscapeDataString(sessionId)}/message", message, cancellationToken);
             var text = string.Concat((response?.Parts ?? [])
                 .Where(part => part.Type == "text" && !string.IsNullOrWhiteSpace(part.Text))
@@ -218,6 +221,9 @@ public sealed class OpenCodeClient
             await PostVoidAsync($"session/{Uri.EscapeDataString(sessionId)}/prompt_async", message, cancellationToken);
 
             var deadline = DateTimeOffset.UtcNow.AddSeconds(settings.TimeoutSeconds);
+            var quotaGraceUntil = DateTimeOffset.UtcNow.AddSeconds(8);
+            DateTimeOffset? quotaReset = null;
+            string? quotaMessage = null;
             while (DateTimeOffset.UtcNow < deadline)
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
@@ -225,12 +231,18 @@ public sealed class OpenCodeClient
                 if (statuses.TryGetValue(sessionId, out var status) && status.Type == "retry" &&
                     status.Action?.Reason == "free_tier_limit")
                 {
-                    var reset = status.Next is long next ? DateTimeOffset.FromUnixTimeMilliseconds(next) : (DateTimeOffset?)null;
-                    freeQuotaUntil = reset ?? DateTimeOffset.UtcNow.AddHours(1);
-                    freeQuotaMessage = reset is null
+                    quotaReset = status.Next is long next ? DateTimeOffset.FromUnixTimeMilliseconds(next) : (DateTimeOffset?)null;
+                    quotaMessage = quotaReset is null
                         ? "La cuota gratuita de OpenCode está agotada; el proveedor no indicó cuándo se restablece."
-                        : $"La cuota gratuita de OpenCode está agotada. Se restablece el {reset.Value:dd/MM/yyyy HH:mm} UTC.";
-                    throw new FreeQuotaExceededException(freeQuotaMessage, reset);
+                        : $"La cuota gratuita de OpenCode está agotada. Se restablece el {quotaReset.Value:dd/MM/yyyy HH:mm} UTC.";
+                    // El proveedor a veces reintenta y termina respondiendo; se da una
+                    // ventana corta antes de abortar para no penalizar un pico temporal.
+                    if (DateTimeOffset.UtcNow >= quotaGraceUntil)
+                    {
+                        freeQuotaUntil = quotaReset ?? DateTimeOffset.UtcNow.AddHours(1);
+                        freeQuotaMessage = quotaMessage;
+                        throw new FreeQuotaExceededException(quotaMessage, quotaReset);
+                    }
                 }
 
                 var messages = await GetAsync<List<MessageResponse>>($"session/{Uri.EscapeDataString(sessionId)}/message", cancellationToken);
@@ -240,6 +252,12 @@ public sealed class OpenCodeClient
                     .Select(part => part.Text!));
                 if (!string.IsNullOrWhiteSpace(text))
                     return ParseAnswer(text, selected, provider, model, assistant?.Info?.Tokens);
+            }
+            if (quotaMessage is not null)
+            {
+                freeQuotaUntil = quotaReset ?? DateTimeOffset.UtcNow.AddHours(1);
+                freeQuotaMessage = quotaMessage;
+                throw new FreeQuotaExceededException(quotaMessage, quotaReset);
             }
             throw new AgentUnavailableException($"OpenCode no terminó la consulta gratuita en {settings.TimeoutSeconds} segundos.");
         }

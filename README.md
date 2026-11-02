@@ -265,9 +265,11 @@ la aplicación consulta `GET /provider` del OpenCode local y construye el select
   `deepseek-flash` y `deepseek-v4-pro`). Se envían fragmentos autorizados al proveedor y
   el coste lo marca su tarifa; no hay fallback automático entre proveedores.
 - **Gratis** — **visibles por defecto**: modelos con `cost.input = 0` y `cost.output = 0`
-  de proveedores conectados. Suelen ser los `*-free` del proveedor `opencode`. Si el
-  proveedor responde «Free usage exceeded», la app lo detecta en ~1 s, muestra la fecha de
-  restablecimiento y devuelve la respuesta extractiva; no se queda esperando al timeout.
+  de proveedores conectados. Suelen ser los `*-free` del proveedor `opencode`. La app les
+  envía el **cuerpo mínimo** (modelo, sistema y fuentes) sin agente ni mapa de
+  herramientas: enviar esos campos activaba el limitador gratuito del proveedor y hacía
+  que el modelo no respondiera. Con este formato los gratis funcionan igual que en el
+  CLI/IDE de OpenCode.
 - **Locales** — opcionales y **ocultos por defecto** (`Assistant:IncludeLocalModels=false`):
   proveedores `ollama`/`lmstudio`/`llamacpp` o con `baseURL` de loopback.
 - **Sin LLM** — modo extractivo por reglas, siempre disponible.
@@ -289,11 +291,9 @@ asistente, sin editar archivos ni reiniciar; el cambio es inmediato y vive en me
 Un usuario normal ve el motor activo. La lista se puede inspeccionar sin abrir la
 interfaz con `GET /assistant/engines` (requiere sesión autenticada).
 
-**Aviso sobre los modelos gratis:** dependen de la cuota del proveedor en OpenCode (por
-ejemplo, el proveedor `opencode` puede responder «Free usage exceeded»). La app consulta
-el estado de la sesión con `prompt_async` y, si detecta la cuota agotada, muestra cuándo
-se restablece y devuelve la respuesta extractiva; no se queda esperando al timeout ni
-cambia de proveedor por su cuenta.
+**Aviso sobre los modelos gratis:** dependen de la cuota del proveedor en OpenCode. Si el
+proveedor agota esa cuota, el asistente devuelve la respuesta extractiva con las fuentes
+autorizadas; no se queda esperando indefinidamente ni cambia de proveedor por su cuenta.
 
 ### Resiliencia ante fallos del motor
 
@@ -571,13 +571,13 @@ dotnet build
 dotnet run --project .\tests\DocuSearch.Checks.csproj
 ```
 
-88 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
+87 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
 HTML, PDF reales, límites exactos, esquema SQL Server, TOTP y Ollama/OpenCode con HTTP
 simulado: privacidad, contexto acotado, citas, errores y liberación del estado ocupado.
 Un fallo produce código de salida no cero.
 
 La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta
-la compilación y las 88 comprobaciones sin servicios.
+la compilación y las 87 comprobaciones sin servicios.
 
 Para añadir una generación real con el modelo local, usando únicamente una fuente sintética:
 
@@ -613,7 +613,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database
 
 La suite exige el sufijo `_tests` y restablece sus ejemplos. **No la apuntes a datos que
 quieras conservar.** La base se crea automáticamente si la identidad tiene permisos.
-La suite con `--database --langchain` ejecuta 103 comprobaciones: las 88 sin
+La suite con `--database --langchain` ejecuta 102 comprobaciones: las 87 sin
 servicios, tres de LangChain real y once de SQL Server. Incluye inicialización idempotente, cargas,
 original persistente, metadatos, notas, reproceso, permisos reales, cuotas, agente, importación,
 notas concurrentes, rollback de importaciones fallidas, contexto autorizado del consultor
