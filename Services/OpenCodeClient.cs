@@ -229,7 +229,7 @@ public sealed class OpenCodeClient
                     freeQuotaUntil = reset ?? DateTimeOffset.UtcNow.AddHours(1);
                     freeQuotaMessage = reset is null
                         ? "La cuota gratuita de OpenCode está agotada; el proveedor no indicó cuándo se restablece."
-                        : $"La cuota gratuita de OpenCode está agotada. Se restablece el {reset.Value.ToLocalTime():dd/MM/yyyy HH:mm}.";
+                        : $"La cuota gratuita de OpenCode está agotada. Se restablece el {reset.Value:dd/MM/yyyy HH:mm} UTC.";
                     throw new FreeQuotaExceededException(freeQuotaMessage, reset);
                 }
 
