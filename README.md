@@ -263,12 +263,11 @@ la aplicación consulta `GET /provider` del OpenCode local y construye el select
 
 - **Pago** — modelos con coste de proveedores **conectados** (p. ej. los dos de DeepSeek:
   `deepseek-flash` y `deepseek-v4-pro`). Se envían fragmentos autorizados al proveedor y
-  el coste lo marca su tarifa; no hay fallback automático entre proveedores. Es el grupo
-  que se muestra por defecto.
-- **Gratis** — opcionales y **ocultos por defecto** (`Assistant:IncludeFreeModels=false`):
-  modelos con `cost.input = 0` y `cost.output = 0` de proveedores conectados. Suelen ser
-  los `*-free` del proveedor `opencode` y dependen de su cuota; si se agota dejan de
-  responder, por eso no se ofrecen salvo que se activen.
+  el coste lo marca su tarifa; no hay fallback automático entre proveedores.
+- **Gratis** — **visibles por defecto**: modelos con `cost.input = 0` y `cost.output = 0`
+  de proveedores conectados. Suelen ser los `*-free` del proveedor `opencode`. Si el
+  proveedor responde «Free usage exceeded», la app lo detecta en ~1 s, muestra la fecha de
+  restablecimiento y devuelve la respuesta extractiva; no se queda esperando al timeout.
 - **Locales** — opcionales y **ocultos por defecto** (`Assistant:IncludeLocalModels=false`):
   proveedores `ollama`/`lmstudio`/`llamacpp` o con `baseURL` de loopback.
 - **Sin LLM** — modo extractivo por reglas, siempre disponible.
@@ -278,11 +277,11 @@ igual en otro equipo. Límites y preferencias:
 
 | Clave | Valor | Efecto |
 |---|---|---|
-| `Assistant:DefaultProfile` | *(vacío)* | Id preferido (`paid:deepseek/deepseek-flash`, `free:opencode/…`, `extractive`). Si está vacío: primer modelo de pago preferido (DeepSeek Flash), luego gratis, luego locales si se muestran |
+| `Assistant:DefaultProfile` | `free:opencode/deepseek-v4.1-flash-free` | Id preferido (`free:opencode/…`, `paid:deepseek/deepseek-flash`, `extractive`). Si no existe: modelo de pago preferido, luego gratis, luego locales |
 | `Assistant:MaxFreeModels` | `40` | Máximo de modelos gratis listados |
 | `Assistant:MaxPaidModels` | `10` | Máximo de modelos de pago por proveedor (`0` los oculta) |
 | `Assistant:MaxLocalModels` | `20` | Máximo de modelos locales listados |
-| `Assistant:IncludeFreeModels` | `false` | Muestra el grupo Gratis; actívalo cuando el proveedor tenga cuota |
+| `Assistant:IncludeFreeModels` | `true` | Muestra el grupo Gratis |
 | `Assistant:IncludeLocalModels` | `false` | Muestra el grupo Locales y el perfil LangChain/Ollama |
 
 El **administrador general** cambia de motor en el selector **Motor** de la cabecera del
@@ -291,8 +290,9 @@ Un usuario normal ve el motor activo. La lista se puede inspeccionar sin abrir l
 interfaz con `GET /assistant/engines` (requiere sesión autenticada).
 
 **Aviso sobre los modelos gratis:** dependen de la cuota del proveedor en OpenCode (por
-ejemplo, el proveedor `opencode` puede responder «Free usage exceeded» y dejar de
-responder). En ese caso elige un modelo de pago o el modo extractivo; la interfaz no
+ejemplo, el proveedor `opencode` puede responder «Free usage exceeded»). La app consulta
+el estado de la sesión con `prompt_async` y, si detecta la cuota agotada, muestra cuándo
+se restablece y devuelve la respuesta extractiva; no se queda esperando al timeout ni
 cambia de proveedor por su cuenta.
 
 ### Resiliencia ante fallos del motor
@@ -571,13 +571,13 @@ dotnet build
 dotnet run --project .\tests\DocuSearch.Checks.csproj
 ```
 
-87 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
+88 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
 HTML, PDF reales, límites exactos, esquema SQL Server, TOTP y Ollama/OpenCode con HTTP
 simulado: privacidad, contexto acotado, citas, errores y liberación del estado ocupado.
 Un fallo produce código de salida no cero.
 
 La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta
-la compilación y las 87 comprobaciones sin servicios.
+la compilación y las 88 comprobaciones sin servicios.
 
 Para añadir una generación real con el modelo local, usando únicamente una fuente sintética:
 
@@ -613,7 +613,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database
 
 La suite exige el sufijo `_tests` y restablece sus ejemplos. **No la apuntes a datos que
 quieras conservar.** La base se crea automáticamente si la identidad tiene permisos.
-La suite con `--database --langchain` ejecuta 102 comprobaciones: las 87 sin
+La suite con `--database --langchain` ejecuta 103 comprobaciones: las 88 sin
 servicios, tres de LangChain real y once de SQL Server. Incluye inicialización idempotente, cargas,
 original persistente, metadatos, notas, reproceso, permisos reales, cuotas, agente, importación,
 notas concurrentes, rollback de importaciones fallidas, contexto autorizado del consultor

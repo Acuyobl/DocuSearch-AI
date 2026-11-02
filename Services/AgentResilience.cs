@@ -21,6 +21,12 @@ public sealed class ResilienceOptions
 /// <summary>Fallo recuperable de una API: se puede reintentar con backoff.</summary>
 public sealed class TransientAgentException(string message, Exception? inner = null) : InvalidOperationException(message, inner);
 
+/// <summary>El proveedor agotó su cuota gratuita; no tiene sentido reintentar hasta el reinicio.</summary>
+public sealed class FreeQuotaExceededException(string message, DateTimeOffset? resetsAt = null) : InvalidOperationException(message)
+{
+    public DateTimeOffset? ResetsAt { get; } = resetsAt;
+}
+
 /// <summary>El motor no respondió tras agotar reintentos o con el circuito abierto.</summary>
 public class AgentUnavailableException(string message, Exception? inner = null) : InvalidOperationException(message, inner);
 

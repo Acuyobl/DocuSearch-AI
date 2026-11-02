@@ -81,7 +81,8 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
                     throw new InvalidOperationException("El motor OpenCode está seleccionado en la interfaz, pero OpenCode:Enabled está desactivado en la configuración.");
                 trace.Engine = "opencode";
                 trace.Model = $"{profile?.ProviderId}/{profile?.ModelId} ({profile?.Agent})";
-                answer = await opencode!.GenerateAsync(query, extracted.Sources, profile?.ProviderId, profile?.ModelId, profile?.Agent);
+                answer = await opencode!.GenerateAsync(query, extracted.Sources, profile?.ProviderId, profile?.ModelId, profile?.Agent,
+                    direct: profile?.Group == "Gratis");
             }
             else
             {
@@ -96,18 +97,23 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
             // El motor puede fallar por cuota, timeout, reintentos agotados o circuito abierto.
             // La recuperación extractiva ya está calculada: se devuelve y se marca la consulta
             // para revisión humana en lugar de romper el asistente.
+            var quota = ex as FreeQuotaExceededException;
             var escalated = ex is AgentUnavailableException;
-            trace.ErrorCode = escalated ? "human_fallback" : AgentObservability.ErrorCode(ex);
+            trace.ErrorCode = quota is not null ? "free_quota" : escalated ? "human_fallback" : AgentObservability.ErrorCode(ex);
             logger?.LogWarning(ex, "El motor {Engine} no respondió; se devuelve la respuesta extractiva{Review}.",
                 engineLabel, escalated ? " y se marca para revisión humana" : "");
             answer = new AgentAnswer(
-                extracted.Text + (escalated
-                    ? "\n\nNo se pudo completar con el motor generativo tras varios intentos. Se muestra la respuesta extractiva con las fuentes autorizadas y la consulta queda marcada para revisión humana."
-                    : "\n\nNo se pudo usar el motor generativo seleccionado; se muestra la respuesta extractiva con las mismas fuentes."),
+                extracted.Text + (quota is not null
+                    ? "\n\n" + quota.Message + " Se muestra la respuesta extractiva con las fuentes autorizadas."
+                    : escalated
+                        ? "\n\nNo se pudo completar con el motor generativo tras varios intentos. Se muestra la respuesta extractiva con las fuentes autorizadas y la consulta queda marcada para revisión humana."
+                        : "\n\nNo se pudo usar el motor generativo seleccionado; se muestra la respuesta extractiva con las mismas fuentes."),
                 extracted.Sources,
-                escalated
-                    ? $"{engineLabel} no disponible · revisión humana · respuesta extractiva"
-                    : $"{engineLabel} no disponible · respuesta extractiva");
+                quota is not null
+                    ? $"{engineLabel} · cuota gratis agotada · respuesta extractiva"
+                    : escalated
+                        ? $"{engineLabel} no disponible · revisión humana · respuesta extractiva"
+                        : $"{engineLabel} no disponible · respuesta extractiva");
         }
         var current = await documents.LoadAsync();
         if (current.Actor.Id != snapshot.Actor.Id ||

@@ -731,6 +731,34 @@ await Check("OpenCode: usa el modelo del perfil seleccionado", async () =>
         body.Contains("\"modelID\":\"deepseek-flash\"", StringComparison.Ordinal));
     Assert(answer.Provider.Contains("deepseek/deepseek-flash", StringComparison.Ordinal));
 });
+await Check("OpenCode gratis: detecta cuota agotada sin esperar al timeout", async () =>
+{
+    using var http = new HttpClient(new TestHttpHandler((request, _) =>
+    {
+        var path = request.RequestUri!.AbsolutePath;
+        var body = path switch
+        {
+            "/global/health" => """{"healthy":true,"version":"1.19.5"}""",
+            "/agent" => """[{"name":"build"}]""",
+            "/experimental/tool/ids" => """["bash"]""",
+            "/session" => """{"id":"ses_test"}""",
+            "/session/ses_test/prompt_async" => "{}",
+            "/session/status" => """{"ses_test":{"type":"retry","action":{"reason":"free_tier_limit"},"next":1793664000000}}""",
+            _ => "{}"
+        };
+        return Task.FromResult(JsonResponse(body));
+    }));
+    var client = new OpenCodeClient(http, Options.Create(new OpenCodeOptions
+    {
+        Enabled = true, BaseUrl = "http://127.0.0.1:4097", Password = "secreto", Agent = "",
+        ProviderId = "opencode", ModelId = "free-model", TimeoutSeconds = 120
+    }));
+    var document = new DocumentItem { InternalCode = "CNT-2025-0892", Title = "Contrato" };
+    var timer = System.Diagnostics.Stopwatch.StartNew();
+    await ThrowsAsync<FreeQuotaExceededException>(() => client.GenerateAsync("q", [new(document, 1, "texto", 100)],
+        "opencode", "free-model", "", direct: true));
+    Assert(timer.Elapsed < TimeSpan.FromSeconds(5));
+});
 await Check("Asistente: catálogo dinámico separa gratis, pago y oculta locales", async () =>
 {
     var runtime = new AssistantRuntime(Options.Create(new AssistantOptions()), OpenCodeFor(OpenCodeCatalogMock(catalogJson)),
