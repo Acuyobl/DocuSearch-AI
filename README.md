@@ -8,6 +8,7 @@ LangChain sobre OpenCode; si ambos están desactivados responde en modo extracti
 ## Índice
 
 - [Especificaciones del agente](#especificaciones-del-agente)
+- [Detalle completo del agente](AGENTE-DETALLE.md)
 - [Conexión ya configurada](#conexión-ya-configurada)
 - [Arranque](#arranque)
 - [Módulos conservados](#módulos-conservados)
