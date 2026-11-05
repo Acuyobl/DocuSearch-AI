@@ -46,6 +46,21 @@ No se ofrece recompensa económica por los reportes.
 - Mantén actualizado el SDK de .NET dentro de la línea 10.0.x y revisa los
   avisos de dependencias (NuGet) de forma periódica.
 
+## Secretos TOTP
+
+- Los secretos TOTP **no se versionan**: `appsettings.json` solo declara correo, nombre,
+  rol y departamento en `Auth:Users`. Los secretos Base32 se cargan desde
+  `dotnet user-secrets` (`Auth:TotpSecrets:<correo>`) o desde variables de entorno
+  (`Auth__TotpSecrets__<correo>`) y nunca se confirman en el repositorio.
+- Esta demostración se publicó con tres secretos en `appsettings.json`: se consideraron
+  **comprometidos** y se rotaron. Los valores antiguos siguen visibles en el historial de Git,
+  por lo que no deben reutilizarse nunca.
+- Para rotar: genera un Base32 nuevo de 160 bits (32 caracteres), guárdalo con
+  `dotnet user-secrets set`, activa `Auth:EnrollmentEnabled=true` temporalmente, reinscribe el
+  teléfono desde `/enroll` y vuelve a desactivarlo.
+- La integración continua falla en cada push si `appsettings.json` vuelve a contener un
+  secreto `TotpSecret`.
+
 ## Motor OpenCode
 
 - El asistente puede conectarse a un servidor OpenCode local (`opencode serve`).

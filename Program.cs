@@ -232,14 +232,16 @@ app.MapGet("/enroll", (IOptions<AuthOptions> auth) =>
     var options = auth.Value;
     if (!options.EnrollmentEnabled) return Results.NotFound();
 
-    var users = new List<(AuthUserConfig User, string OtpAuthUri, string QrSvg)>();
-    foreach (var user in options.Users.Where(u => !string.IsNullOrWhiteSpace(u.TotpSecret)))
+    var users = new List<(AuthUserConfig User, string Secret, string OtpAuthUri, string QrSvg)>();
+    foreach (var user in options.Users)
     {
-        var uri = Totp.OtpAuthUri(options.Issuer, user.Email, user.TotpSecret);
+        var secret = options.ResolveTotpSecret(user);
+        if (string.IsNullOrWhiteSpace(secret)) continue;
+        var uri = Totp.OtpAuthUri(options.Issuer, user.Email, secret);
         using var generator = new QRCodeGenerator();
         using var data = generator.CreateQrCode(uri, QRCodeGenerator.ECCLevel.Q);
         var svg = new SvgQRCode(data).GetGraphic(6);
-        users.Add((user, uri, svg));
+        users.Add((user, secret, uri, svg));
     }
     return Results.Content(AuthPages.Enroll(options.Issuer, users), "text/html; charset=utf-8");
 });

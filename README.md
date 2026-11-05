@@ -504,12 +504,26 @@ Usuarios autorizados en `Auth:Users` de `appsettings.json`:
 | `carloshm7@gmail.com` | Gestor Documental | Tecnología & TI |
 | `hubertaf@gmail.com` | Auditor de Seguridad | Auditoría & Control |
 
-Cada entrada tiene su propio secreto `TotpSecret` en Base32 (32 caracteres). Para rotar
-un dispositivo, sustituye el secreto por otro valor Base32, guarda el archivo y vuelve a
-inscribir el teléfono desde `/enroll`; los códigos anteriores dejan de ser válidos. Los
-secretos y los roles viven en configuración: para producción hay que sustituir este
-esquema por ASP.NET Core Identity u OIDC con TOTP o passkeys, junto con TLS. Ya no es un
-selector de perfiles sin autenticación.
+Los secretos TOTP **no se versionan** en `appsettings.json`. Cada entrada de `Auth:Users` solo
+declara correo, nombre, rol y departamento; el secreto Base32 se guarda fuera del repositorio,
+en user-secrets o en una variable de entorno (`Auth__TotpSecrets__<correo>`):
+
+```powershell
+dotnet user-secrets set "Auth:TotpSecrets:acuyobl@gmail.com" "<BASE32_DE_32_CARACTERES>"
+dotnet user-secrets set "Auth:TotpSecrets:carloshm7@gmail.com" "<BASE32_DE_32_CARACTERES>"
+dotnet user-secrets set "Auth:TotpSecrets:hubertaf@gmail.com" "<BASE32_DE_32_CARACTERES>"
+dotnet user-secrets list
+```
+
+`Auth:EnrollmentEnabled` es `false` por defecto. Para inscribir o reinscribir un teléfono,
+actívalo temporalmente (`dotnet user-secrets set "Auth:EnrollmentEnabled" "true"`) y abre
+`/enroll`; cuando todos los dispositivos estén dados de alta, vuelve a desactivarlo. Para
+rotar un dispositivo, genera un secreto Base32 nuevo de 160 bits (32 caracteres), guárdalo
+con `dotnet user-secrets set`, activa el alta y vuelve a escanear el QR: los códigos
+anteriores dejan de ser válidos. La integración continua falla si `appsettings.json` vuelve a
+contener un secreto `TotpSecret`. Los roles siguen en configuración: para producción hay que
+sustituir este esquema por ASP.NET Core Identity u OIDC con TOTP o passkeys, junto con TLS.
+Ya no es un selector de perfiles sin autenticación.
 
 El middleware `Demo:LocalOnly` (por defecto `true`) rechaza las peticiones que no
 provengan de loopback y también las que traigan cabeceras de reenvío (`X-Forwarded-*`

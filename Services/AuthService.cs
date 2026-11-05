@@ -25,9 +25,40 @@ public sealed class AuthOptions
     /// <summary>Pasos de 30 s de tolerancia por reloj desajustado (−ventana…+ventana).</summary>
     public int TotpWindow { get; set; } = 1;
     /// <summary>Habilita /enroll para mostrar los QR de alta. Desactívalo tras inscribir los dispositivos.</summary>
-    public bool EnrollmentEnabled { get; set; } = true;
+    public bool EnrollmentEnabled { get; set; }
     public string Issuer { get; set; } = "DocuSearch AI";
     public List<AuthUserConfig> Users { get; set; } = [];
+
+    /// <summary>
+    /// Secretos TOTP Base32 indexados por correo. Es la vía recomendada frente a
+    /// <see cref="AuthUserConfig.TotpSecret"/>: se cargan desde user-secrets o variables de
+    /// entorno y nunca deben versionarse en appsettings.json.
+    /// </summary>
+    public Dictionary<string, string> TotpSecrets { get; set; } = [];
+
+    /// <summary>
+    /// Secreto efectivo de un usuario: el inline (solo desarrollo) o el del mapa externo.
+    /// Devuelve cadena vacía si no hay ninguno configurado.
+    /// </summary>
+    public string ResolveTotpSecret(AuthUserConfig user)
+    {
+        var inline = user.TotpSecret?.Trim();
+        if (!string.IsNullOrEmpty(inline)) return inline;
+
+        var email = user.Email?.Trim() ?? "";
+        if (email.Length == 0) return "";
+
+        if (TotpSecrets.TryGetValue(email, out var direct) && !string.IsNullOrWhiteSpace(direct))
+            return direct.Trim();
+
+        foreach (var entry in TotpSecrets)
+        {
+            if (string.Equals(entry.Key, email, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(entry.Value))
+                return entry.Value.Trim();
+        }
+        return "";
+    }
 }
 
 public sealed class AuthService(
@@ -45,13 +76,21 @@ public sealed class AuthService(
     public async Task<AppUser?> ValidateAsync(string email, string? code)
     {
         var config = options.Value.Users.FirstOrDefault(u => string.Equals(u.Email, email?.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (config is null || string.IsNullOrWhiteSpace(config.TotpSecret))
+        if (config is null)
         {
             logger.LogWarning("Intento de inicio de sesión con un correo no autorizado: {Email}.", email);
             return null;
         }
 
-        if (!Totp.TryVerify(config.TotpSecret, code, DateTimeOffset.UtcNow, options.Value.TotpWindow, out var step))
+        // El secreto no vive en el repositorio: se resuelve desde Auth:TotpSecrets.
+        var secret = options.Value.ResolveTotpSecret(config);
+        if (string.IsNullOrWhiteSpace(secret))
+        {
+            logger.LogWarning("El usuario {Email} no tiene secreto TOTP configurado (Auth:TotpSecrets).", config.Email);
+            return null;
+        }
+
+        if (!Totp.TryVerify(secret, code, DateTimeOffset.UtcNow, options.Value.TotpWindow, out var step))
         {
             logger.LogWarning("Código TOTP no válido para {Email}.", config.Email);
             return null;
@@ -194,7 +233,7 @@ public static class AuthPages
             """;
     }
 
-    public static string Enroll(string issuer, IReadOnlyList<(AuthUserConfig User, string OtpAuthUri, string QrSvg)> users)
+    public static string Enroll(string issuer, IReadOnlyList<(AuthUserConfig User, string Secret, string OtpAuthUri, string QrSvg)> users)
     {
         var cards = string.Join("\n", users.Select(entry => $$"""
             <section class="card">
@@ -202,7 +241,7 @@ public static class AuthPages
                 <p class="meta">{{WebUtility.HtmlEncode(entry.User.Name)}} · {{entry.User.Role}} · {{WebUtility.HtmlEncode(entry.User.Department)}}</p>
                 <div class="qr">{{entry.QrSvg}}</div>
                 <p>Escanea el código con Google Authenticator, Microsoft Authenticator, Authy o similar.</p>
-                <p class="secret">Clave manual: <code>{{Totp.FormatSecret(entry.User.TotpSecret)}}</code></p>
+                <p class="secret">Clave manual: <code>{{Totp.FormatSecret(entry.Secret)}}</code></p>
                 <p class="uri">{{WebUtility.HtmlEncode(entry.OtpAuthUri)}}</p>
             </section>
             """));
