@@ -1,4 +1,4 @@
-"""Generación con OpenCode orquestada por LangChain (sin Ollama).
+"""Generación con OpenCode 1 o 2 orquestada por LangChain (sin Ollama).
 
 LangChain se usa para la plantilla de mensajes, la cadena de Runnables y la
 salida estructurada. El modelo se invoca en el servidor OpenCode local
@@ -9,6 +9,7 @@ import ipaddress
 import json
 import os
 import sys
+import time
 from urllib.parse import urlsplit
 
 sys.stdout.reconfigure(encoding="utf-8")
@@ -87,52 +88,137 @@ def _is_ip(value: str) -> bool:
         return False
 
 
-def call_opencode(request: Request, prompt_value) -> tuple[str, dict]:
+def _message_parts(prompt_value, system: str) -> tuple[str, str]:
     messages = prompt_value.to_messages()
-    system = "\n\n".join(message.content for message in messages if message.type == "system") or request.system
+    system_text = "\n\n".join(
+        message.content for message in messages if message.type == "system"
+    ) or system
     human = "\n\n".join(message.content for message in messages if message.type == "human")
+    return system_text, human
+
+
+def _http_client(request: Request) -> httpx.Client:
     auth = (request.username, request.password) if request.password else None
-    with httpx.Client(
+    return httpx.Client(
         base_url=request.base_url,
         timeout=request.timeout,
         trust_env=False,
         follow_redirects=False,
         auth=auth,
-    ) as client:
-        tool_ids = client.get("/experimental/tool/ids")
-        tool_ids.raise_for_status()
-        tool_list = tool_ids.json()
-        if isinstance(tool_list, dict):
-            tool_list = tool_list.get("value", [])
-        if not isinstance(tool_list, list) or not all(isinstance(item, str) for item in tool_list):
-            raise ValueError("OpenCode returned an unexpected tool id list.")
-        session = client.post("/session", json={"title": "DocuSearch LangChain"})
-        session.raise_for_status()
-        session_id = session.json().get("id", "")
-        if not session_id:
-            raise ValueError("OpenCode did not return a session id.")
+    )
+
+
+def _is_open_code_2(client: httpx.Client) -> bool:
+    try:
+        response = client.get("/api/info")
+        if response.status_code != 200:
+            return False
+        data = response.json()
+        return isinstance(data, dict) and ("version" in data or "urls" in data)
+    except Exception:
+        # En OpenCode 1 esta ruta no existe (404/HTML) y se usa la API clásica.
+        return False
+
+
+def call_opencode(request: Request, prompt_value) -> tuple[str, dict]:
+    system, human = _message_parts(prompt_value, request.system)
+    with _http_client(request) as client:
+        if _is_open_code_2(client):
+            return _call_open_code_2(client, request, system, human)
+        return _call_open_code_1(client, request, system, human)
+
+
+def _call_open_code_1(
+    client: httpx.Client, request: Request, system: str, human: str
+) -> tuple[str, dict]:
+    tool_ids = client.get("/experimental/tool/ids")
+    tool_ids.raise_for_status()
+    tool_list = tool_ids.json()
+    if isinstance(tool_list, dict):
+        tool_list = tool_list.get("value", [])
+    if not isinstance(tool_list, list) or not all(isinstance(item, str) for item in tool_list):
+        raise ValueError("OpenCode returned an unexpected tool id list.")
+    session = client.post("/session", json={"title": "DocuSearch LangChain"})
+    session.raise_for_status()
+    session_id = session.json().get("id", "")
+    if not session_id:
+        raise ValueError("OpenCode did not return a session id.")
+    try:
+        payload = {
+            "model": {"providerID": request.provider_id, "modelID": request.model_id},
+            "system": system,
+            "tools": {tool: False for tool in tool_list},
+            "parts": [{"type": "text", "text": human}],
+        }
+        if request.agent:
+            payload["agent"] = request.agent
+        response = client.post(f"/session/{session_id}/message", json=payload)
+        response.raise_for_status()
+        data = response.json()
+        text = "".join(
+            part.get("text", "") for part in data.get("parts", []) if part.get("type") == "text"
+        )
+        tokens = (data.get("info") or {}).get("tokens") or {}
+        return text, tokens
+    finally:
         try:
-            payload = {
-                "model": {"providerID": request.provider_id, "modelID": request.model_id},
-                "system": system,
-                "tools": {tool: False for tool in tool_list},
-                "parts": [{"type": "text", "text": human}],
-            }
-            if request.agent:
-                payload["agent"] = request.agent
-            response = client.post(f"/session/{session_id}/message", json=payload)
-            response.raise_for_status()
-            data = response.json()
-            text = "".join(
-                part.get("text", "") for part in data.get("parts", []) if part.get("type") == "text"
+            client.delete(f"/session/{session_id}")
+        except httpx.HTTPError:
+            pass
+
+
+def _call_open_code_2(
+    client: httpx.Client, request: Request, system: str, human: str
+) -> tuple[str, dict]:
+    body: dict = {
+        "title": "DocuSearch LangChain",
+        "model": {"id": request.model_id, "providerID": request.provider_id},
+        "permissions": [{"action": "*", "resource": "*", "effect": "deny"}],
+    }
+    if request.agent:
+        body["agent"] = request.agent
+    session = client.post("/api/session", json=body)
+    session.raise_for_status()
+    session_data = (session.json().get("data") or {})
+    session_id = session_data.get("id", "")
+    if not session_id:
+        raise ValueError("OpenCode 2 did not return a session id.")
+    try:
+        prompt = client.post(
+            f"/api/session/{session_id}/prompt",
+            json={"text": system + "\n\n" + human},
+        )
+        prompt.raise_for_status()
+        deadline = time.monotonic() + request.timeout
+        while time.monotonic() < deadline:
+            time.sleep(0.5)
+            messages = client.get(
+                f"/api/session/{session_id}/message",
+                params={"order": "asc", "limit": 100},
             )
-            tokens = (data.get("info") or {}).get("tokens") or {}
-            return text, tokens
-        finally:
-            try:
-                client.delete(f"/session/{session_id}")
-            except httpx.HTTPError:
-                pass
+            messages.raise_for_status()
+            items = messages.json().get("data") or []
+            assistant = [item for item in items if item.get("type") == "assistant"]
+            if not assistant:
+                continue
+            last = assistant[-1]
+            error = last.get("error")
+            if isinstance(error, dict) and error.get("message"):
+                raise ValueError("OpenCode 2: " + str(error["message"]))
+            text = "".join(
+                part.get("text", "")
+                for part in (last.get("content") or [])
+                if part.get("type") == "text"
+            )
+            finished = bool(last.get("finish")) or bool((last.get("time") or {}).get("completed"))
+            if text and finished:
+                return text, last.get("tokens") or {}
+        raise ValueError("OpenCode 2 did not finish the request in time.")
+    finally:
+        try:
+            client.delete(f"/api/session/{session_id}")
+        except httpx.HTTPError:
+            pass
 
 
 def parse_answer(text: str) -> Answer:

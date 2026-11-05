@@ -3,7 +3,7 @@
 Control documental con **Blazor Interactive Server, ASP.NET Core 10 y SQL Server Express**.
 Se compila y ejecuta con .NET y NuGet; **no necesita Node.js ni npm para compilar**. El
 asistente puede usar un servidor **OpenCode** opcional (instalado aparte) o el modo
-LangChain/Ollama local; si ambos están desactivados responde en modo extractivo.
+LangChain sobre OpenCode; si ambos están desactivados responde en modo extractivo.
 
 ## Índice
 
@@ -92,7 +92,7 @@ Invoke-RestMethod http://localhost:5068/health
 ```
 
 La respuesta saludable indica `status: ready`, `database: SQL Server` y
-`assistant: opencode:<proveedor>/<modelo>` (OpenCode), `langchain-ollama-local`
+`assistant: opencode:<proveedor>/<modelo>` (OpenCode directo), `langchain+opencode:<proveedor>/<modelo>` (LangChain)
 (o `ollama-local` en modo directo), o `local-extractive` si desactivas las dos
 generaciones.
 Este campo identifica la configuración, no certifica la disponibilidad del modelo:
@@ -233,13 +233,26 @@ RBAC y la validación de citas siguen en C#; el modelo solo recibe fragmentos au
 En cada consulta se envían **todas las herramientas desactivadas**, de modo que el modelo
 no accede a archivos, shell ni internet.
 
-Probado con **OpenCode CLI 1.19.5**. Esa versión devuelve `/experimental/tool/ids` como
-`{value:[...],Count:N}`; el cliente acepta también el formato de array de versiones
-anteriores.
+Compatible con **OpenCode 1** (CLI 1.19.5) y **OpenCode 2** (CLI 2.2.5, incluida en
+OpenCode Desktop/IDE). El cliente detecta la versión del servidor: OpenCode 1 se consulta en
+`/global/health`, `/provider`, `/agent` y `/session`; OpenCode 2 en `/api/info`, `/api/provider`,
+`/api/model`, `/api/agent` y `/api/session`. En OpenCode 2 la generación crea una sesión con
+permisos denegados (sin herramientas), envía el prompt y espera el mensaje del asistente,
+manteniendo la validación de citas en C#.
+
+En OpenCode 1, `/experimental/tool/ids` devuelve `{value:[...],Count:N}`; el cliente acepta
+también el formato de array de versiones anteriores. En OpenCode 2 las herramientas se
+desactivan con un conjunto de permisos `deny` al crear la sesión.
 
 ```powershell
+# OpenCode 1 (CLI npm)
 $env:OPENCODE_SERVER_PASSWORD = "cambia-esta-clave"
 opencode serve --port 4097 --hostname 127.0.0.1
+
+# OpenCode 2 (CLI incluido en OpenCode Desktop/IDE)
+$cli = Get-ChildItem "$env:APPDATA\ai.opencode.desktop\cli" -Recurse -Filter opencode-cli.exe |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+& $cli.FullName serve --port 4097 --hostname 127.0.0.1
 ```
 
 Configuración en `appsettings.json` (o variables `OpenCode__*`):
@@ -252,7 +265,7 @@ Configuración en `appsettings.json` (o variables `OpenCode__*`):
 | `Agent` | *(vacío)* | Si está vacío se usa el agente por defecto de OpenCode; en cada consulta se envían **todas las herramientas desactivadas**. Si se indica un nombre, debe existir en `opencode.json` |
 | `ProviderId` / `ModelId` | `ollama` / `qwen3:4b` | Solo valores de reserva para llamadas sin perfil; el selector usa el catálogo descubierto |
 | `TimeoutSeconds` | `120` | 5–600 |
-| `UseLangChain` | `false` | Orquesta la generación con LangChain (Python) usando OpenCode como proveedor; no requiere Ollama |
+| `UseLangChain` | `false` (la demo Docker lo activa) | Orquesta la generación con LangChain (Python) usando OpenCode como proveedor; no requiere Ollama |
 | `PythonExecutable` | *(ruta al Python de LangChain)* | Solo con `UseLangChain=true`; por defecto el venv de `LangChain\setup.ps1` |
 | `AllowNonLoopback` | `false` | Necesario para `host.docker.internal`; exige contraseña |
 
@@ -368,7 +381,7 @@ organiza la preparación de mensajes y la generación estructurada local.
 Con `OpenCode:UseLangChain=true` **no hace falta Ollama**: el worker
 `LangChain/opencode_worker.py` usa LangChain (`ChatPromptTemplate` + `Runnable` +
 `StrOutputParser`) para preparar el prompt y guardar el parsing, y llama al servidor
-OpenCode (`/session` + `/session/:id/message`) con el modelo **gratis o local** que el
+OpenCode 1 (`/session` + `/session/:id/message`) u OpenCode 2 (`/api/session` + `/api/session/:id/prompt`) con el modelo **gratis o de pago** que el
 usuario haya elegido en el selector. Las herramientas se envían desactivadas y la
 validación de citas sigue en C#. La etiqueta del motor y el selector muestran
 «LangChain · OpenCode · proveedor/modelo».
@@ -384,8 +397,8 @@ Configúralo con:
 
 En Docker hay que instalar `python3` y las dependencias de `LangChain/requirements.txt`
 en la imagen y apuntar `OpenCode:PythonExecutable` a ese Python (por ejemplo
-`/usr/bin/python3`). Verificado sin Ollama con OpenCode real y 13 pruebas Python del
-worker (`LangChain/test_opencode_worker.py`).
+`/usr/bin/python3`). Verificado sin Ollama con OpenCode 2 real (prueba C#
+`--langchain-opencode`) y 6 pruebas Python del worker (`LangChain/test_opencode_worker.py`).
 
 Configuración en `appsettings.json`:
 

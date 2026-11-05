@@ -58,7 +58,7 @@ public static class LangChainRunner
             var result = await output;
             var details = await error;
             if (process.ExitCode != 0)
-                throw new InvalidOperationException($"LangChain no completó la consulta (código {process.ExitCode}). Comprueba Python, las dependencias y Ollama. {details.Trim()}");
+                throw new InvalidOperationException($"LangChain no completó la consulta (código {process.ExitCode}). Comprueba Python, las dependencias y el servidor OpenCode. {details.Trim()}");
             if (string.IsNullOrWhiteSpace(result))
                 throw new InvalidOperationException("LangChain terminó sin respuesta.");
             return result;
