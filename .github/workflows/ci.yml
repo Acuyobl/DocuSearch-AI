@@ -37,6 +37,17 @@ jobs:
       - name: Ejecutar checks
         run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug
 
+      # Verificación de higiene: los secretos TOTP viven en user-secrets, nunca en el repositorio.
+      - name: Verificar que no haya secretos TOTP versionados
+        shell: bash
+        run: |
+          set -e
+          if grep -nE '"TotpSecret"[[:space:]]*:[[:space:]]*"[A-Z2-7]{16,}"' appsettings.json; then
+            echo "::error::appsettings.json contiene secretos TOTP. Muévelos a dotnet user-secrets como Auth:TotpSecrets:<correo>."
+            exit 1
+          fi
+          echo "OK: sin secretos TOTP versionados."
+
       # Verificación de higiene: los artefactos de compilación nunca deben versionarse.
       - name: Verificar que no haya bin/ u obj/ versionados
         shell: bash
