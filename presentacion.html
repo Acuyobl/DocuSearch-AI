@@ -1671,7 +1671,7 @@ em{ background-size:200% 100%; animation:shiftGradient 7s ease-in-out infinite; 
           <div class="meta anim" style="--d:6">
             <span>[COMPLETAR: institución / evento]</span><span class="sep" aria-hidden="true"></span>
             <span>2026</span><span class="sep" aria-hidden="true"></span>
-            <span>11 diapositivas · 12 minutos</span>
+            <span>10 diapositivas · 11 minutos</span>
           </div>
         </div>
 
@@ -1997,55 +1997,7 @@ GET /health  →  <span class="n">200</span>
       </aside>
     </section>
 
-    <!-- ============ 7 · Agente: resiliencia y observabilidad ============ -->
-    <section class="slide slide-resiliencia" aria-label="Agente: resiliencia y observabilidad">
-      <div class="slide-inner">
-        <header class="head">
-          <p class="eyebrow anim" style="--d:0">El agente · confiabilidad y evidencia</p>
-          <h2 class="anim" style="--d:1">Cuando el modelo falla, el sistema no improvisa.</h2>
-          <p class="lede anim" style="--d:2">Reintentos medidos, circuito que se abre y un fallback explícito; todo queda trazado sin guardar el contenido de las consultas.</p>
-        </header>
-
-        <div class="grid-2" style="align-items:start;">
-          <div class="metric-grid">
-            <div class="card metric anim" style="--d:2"><b>3</b><span class="label">intentos con backoff</span><span>400 ms → 5 s con jitter; solo fallos transitorios.</span></div>
-            <div class="card metric anim" style="--d:2"><b>5 / 60 s</b><span class="label">circuit breaker</span><span>fallos consecutivos para abrir el circuito.</span></div>
-            <div class="card metric anim" style="--d:3"><b>75 s</b><span class="label">timeout por intento</span><span>sin esperas eternas por una respuesta.</span></div>
-            <div class="card metric anim" style="--d:3"><b>Humano</b><span class="label">fallback etiquetado</span><span>respuesta extractiva con fuentes, sin inventar.</span></div>
-          </div>
-          <div class="card anim" style="--d:4">
-            <p class="card-kicker">Observabilidad local del agente</p>
-            <ul class="obs-list">
-              <li>Duración, motor, modelo, estado y tokens reportados.</li>
-              <li>Categoría de error; nunca preguntas, respuestas ni usuarios.</li>
-              <li>Últimas 500 consultas, persistentes en SQL Server.</li>
-              <li>Acceso solo para administración general y auditoría.</li>
-            </ul>
-            <p class="fine" style="margin-top:10px">Sin Langfuse ni servicios externos: la aplicación no envía telemetría de documentos.</p>
-          </div>
-        </div>
-
-        <div class="card anim" style="--d:5; margin-top:12px">
-          <p class="card-kicker">Secuencia ante un fallo</p>
-          <div class="mini-flow">
-            <span class="mini-step"><b>1</b> Reintento con backoff</span>
-            <span class="mini-arrow" aria-hidden="true">→</span>
-            <span class="mini-step"><b>2</b> Circuito abierto 60 s</span>
-            <span class="mini-arrow" aria-hidden="true">→</span>
-            <span class="mini-step"><b>3</b> Fallback extractivo + «revisión humana»</span>
-          </div>
-        </div>
-
-        <p class="tech-note anim" style="--d:6; margin-top:auto"><b>Sin cambios de proveedor:</b> el asistente nunca cambia de modelo por su cuenta; si se agota la cuota gratuita se muestra el error del proveedor y se ofrece revisión humana. LangChain ejecuta su worker Python aislado (<b>-I</b>, stdin/stdout) y con el tracing desactivado.</p>
-      </div>
-      <aside class="notes">
-        <p>Explicar la resiliencia con las cuatro cifras: reintentos con backoff, circuit breaker, timeout por intento y fallback humano.</p>
-        <p>La observabilidad guarda metadatos (duración, modelo, tokens, error), nunca el contenido de la consulta ni la identidad.</p>
-        <p>LangChain no recibe herramientas: su worker se ejecuta aislado con entrada/salida por stdin/stdout y no envía telemetría externa.</p>
-      </aside>
-    </section>
-
-    <!-- ============ 8 · Seguridad y calidad ============ -->
+    <!-- ============ 7 · Seguridad y calidad ============ -->
     <section class="slide" aria-label="Seguridad y calidad">
       <div class="slide-inner">
         <header class="head">
@@ -2105,7 +2057,7 @@ GET /health  →  <span class="n">200</span>
       </aside>
     </section>
 
-    <!-- ============ 7 · Resultados y calidad ============ -->
+    <!-- ============ 8 · Resultados y calidad ============ -->
     <section class="slide slide-resultados" aria-label="Resultados y calidad">
       <div class="slide-inner">
         <header class="head">
@@ -2146,7 +2098,7 @@ GET /health  →  <span class="n">200</span>
       </aside>
     </section>
 
-    <!-- ============ 10 · Demo real ============ -->
+    <!-- ============ 9 · Demo real ============ -->
     <section class="slide slide-real" aria-label="Recorrido real por la aplicación">
       <div class="slide-inner">
         <header class="head">
@@ -2230,7 +2182,7 @@ GET /health  →  <span class="n">200</span>
       </aside>
     </section>
 
-    <!-- ============ 11 · Equipo y cierre ============ -->
+    <!-- ============ 10 · Equipo y cierre ============ -->
     <section class="slide slide-cierre" aria-label="Equipo y cierre">
       <div class="slide-inner">
         <header class="head">

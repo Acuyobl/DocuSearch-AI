@@ -50,7 +50,7 @@ La demo **funciona dentro de la presentación**, sin depender de la app:
    - Activa **Gráficos de fondo**
 3. Guarda el archivo.
 
-La exportación ya se verificó: **11 páginas, 960×540 pt (16:9), una diapositiva por página**.
+La exportación ya se verificó: **10 páginas, 960×540 pt (16:9), una diapositiva por página**.
 El archivo [`presentacion.pdf`](presentacion.pdf) es ese resultado.
 
 ## Móvil
@@ -73,7 +73,7 @@ interactiva y la navegación por gestos funcionan en pantallas pequeñas.
 - **Imágenes:** las capturas reales están **embebidas en el HTML** (copia fuente en `presentacion-assets/`).
   Para actualizarlas, vuelve a capturar la app y reemplaza los PNG con el mismo nombre.
 
-## Estructura (11 diapositivas)
+## Estructura (10 diapositivas)
 
 1. Portada: propuesta, stack, equipo y cifras reales.
 2. Problema y propuesta (antes/después).
@@ -81,19 +81,18 @@ interactiva y la navegación por gestos funcionan en pantallas pequeñas.
 4. Flujo principal del PDF a la respuesta citada (evidencia del endpoint `/health`).
 5. El agente: el modelo propone, el sistema verifica (contexto, citas, motores).
 6. El agente: motores y catálogo dinámico (OpenCode 2, LangChain activo y extractivo; «Actualizar motores»).
-7. El agente: resiliencia, fallback y observabilidad local.
-8. Seguridad y calidad: TOTP, RBAC, acceso local, SHA-256 y bitácora.
-9. Resultados: 87 pruebas base, 102 con SQL Server y OpenCode real, 10 módulos e integración continua; gráfico real.
-10. Demo real: 13 capturas de la app en ejecución, recorrido completo por los módulos, dos pasos del agente y reproducción automática de 67 s.
-11. Equipo y cierre: integrantes, aprendizajes, próximos pasos y Q&A.
+7. Seguridad y calidad: TOTP, RBAC, acceso local, SHA-256 y bitácora.
+8. Resultados: 87 pruebas base, 102 con SQL Server y OpenCode real, 10 módulos e integración continua; gráfico real.
+9. Demo real: 13 capturas de la app en ejecución, recorrido completo por los módulos, dos pasos del agente y reproducción automática de 67 s.
+10. Equipo y cierre: integrantes, aprendizajes, próximos pasos y Q&A.
 
-> El prompt maestro sugería 8 diapositivas; se amplió a 11 para incluir el detalle del agente,
+> El prompt maestro sugería 8 diapositivas; se amplió a 10 para incluir el detalle del agente,
 > el equipo y la demo interactiva solicitados.
 
 ## Datos que faltan y marcadores `[COMPLETAR]`
 
 - **Institución o evento:** aparece como `[COMPLETAR: institución / evento]` en la portada.
-- **Duración:** 12 minutos (estimación para 11 diapositivas; ajústala en la portada).
+- **Duración:** 11 minutos (estimación para 10 diapositivas; ajústala en la portada).
 - **Público:** mixto (técnico y de negocio).
 - **Capturas:** reales, tomadas de la app en ejecución el 05/11/2026; no son maquetas.
   La demo y la portada muestran datos de esa instalación (9 expedientes, 89 páginas, 3 usuarios).
@@ -102,15 +101,15 @@ interactiva y la navegación por gestos funcionan en pantallas pequeñas.
 
 ## Verificación realizada
 
-- 11 diapositivas exactas, sin desbordamiento a 1600×900, 1366×768 y 1920×1080.
+- 10 diapositivas exactas, sin desbordamiento a 1600×900, 1366×768 y 1920×1080.
 - Reveal.js 5, plugin de notas, Chart.js y Google Fonts desde CDN sin errores de JavaScript
   (Edge puede mostrar avisos de «Tracking Prevention» sobre almacenamiento de CDN; no afectan).
 - Navegación comprobada con teclado (espacio/flechas), clic y botones.
 - **Recorrido real comprobado:** **13 capturas** (todos los módulos, agente y administración),
   **13 imágenes cargadas**, sin desbordamiento ni errores JS, reproducción automática de **01:07**
   con barra de progreso y parada final; enlace real a `http://localhost:5068`.
-- Notas del ponente presentes en las 11 diapositivas.
-- PDF de 11 páginas, horizontal, con gráfico, demo y cierre renderizados.
+- Notas del ponente presentes en las 10 diapositivas.
+- PDF de 10 páginas, horizontal, con gráfico, demo y cierre renderizados.
 - **App comprobada:** 10 rutas autenticadas (dashboard, documentos, pipeline, buscador, asistente,
   reportes, auditoría, observabilidad, administración y arquitectura) y sesión TOTP real.
 - **Asistente probado en la interfaz:** pregunta enviada, respuesta generada y fuentes citadas

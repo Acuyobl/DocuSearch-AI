@@ -4,7 +4,7 @@
 
 > **En una frase:** DocuSearch AI convierte un repositorio de PDFs en un catálogo auditable y consultable. La IA es opcional, nunca decide permisos, y cada respuesta se respalda con documento y página.
 
-**Instancia de referencia:** `http://localhost:5068` · 05/11/2026 · 11 diapositivas.
+**Instancia de referencia:** `http://localhost:5068` · 05/11/2026 · 10 diapositivas.
 
 ---
 
@@ -75,7 +75,7 @@
 | Pruebas LangChain + OpenCode real | **88/88** |
 | Worker LangChain | **6/6** |
 | Demo de la presentación | **13 capturas reales · 67 s** |
-| PDF de la presentación | **11 páginas** |
+| PDF de la presentación | **10 páginas** |
 
 **Respuesta real capturada:**
 
@@ -105,4 +105,4 @@
 
 ---
 
-*Resumen basado en la presentación de 11 diapositivas y en la aplicación real en ejecución. El marcador `[COMPLETAR: institución / evento]` de la portada sigue pendiente de completar.*
+*Resumen basado en la presentación de 10 diapositivas y en la aplicación real en ejecución. El marcador `[COMPLETAR: institución / evento]` de la portada sigue pendiente de completar.*
