@@ -32,7 +32,11 @@ public static class LangChainRunner
         start.ArgumentList.Add(script);
         if (request is null) start.ArgumentList.Add("--check");
         start.Environment.Clear();
-        foreach (var key in new[] { "SystemRoot", "WINDIR", "TEMP", "TMP", "LOCALAPPDATA" })
+        foreach (var key in new[]
+        {
+            "SystemRoot", "WINDIR", "TEMP", "TMP", "LOCALAPPDATA",
+            "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_BASE_URL"
+        })
             if (Environment.GetEnvironmentVariable(key) is { } value) start.Environment[key] = value;
         start.Environment["LANGSMITH_TRACING"] = "false";
         start.Environment["LANGCHAIN_TRACING_V2"] = "false";

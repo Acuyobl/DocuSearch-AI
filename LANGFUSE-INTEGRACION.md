@@ -4,6 +4,16 @@
 **Versión revisada:** Langfuse v4 (self-host y Cloud) · Python SDK v5  
 **Estado de DocuSearch AI:** agente activo con **LangChain · OpenCode 2 · deepseek/deepseek-flash** y observabilidad propia en SQL Server.
 
+**Implementación en este repositorio:** integración **opcional** ya incluida. Se activa únicamente si existen las tres variables `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` y `LANGFUSE_BASE_URL`; sin ellas el worker no inicializa Langfuse ni envía nada.
+
+Archivos modificados:
+
+- `LangChain/opencode_worker.py`: observación `generation` con solo metadatos.
+- `LangChain/requirements.txt`: `langfuse>=5,<6`.
+- `Services/LangChainRunner.cs`: propaga `LANGFUSE_*` al proceso Python.
+- `obj/app-start.sh`: instala el SDK si hay claves configuradas.
+- `obj/_docker-run.ps1`: pasa las claves del host al contenedor.
+
 ---
 
 ## 1. Resumen ejecutivo
@@ -176,7 +186,7 @@ No guardar estas claves en el repositorio. Usar variables de entorno o Docker se
 
 `LangChainRunner` hace `start.Environment.Clear()` y solo conserva `SystemRoot`, `WINDIR`, `TEMP`, `TMP` y `LOCALAPPDATA`. Por eso, aunque definas `LANGFUSE_*` en el contenedor, **el worker no las recibe**.
 
-Hay que añadirlas explícitamente en `Services/LangChainRunner.cs`:
+En este repositorio ya se añadieron explícitamente en `Services/LangChainRunner.cs`:
 
 ```csharp
 foreach (var key in new[]
@@ -261,6 +271,21 @@ Langfuse debe ser **best-effort**:
 - Envolver la instrumentación en `try/except`.
 - Si Langfuse no responde, la generación debe continuar.
 - El `flush()` no debe bloquear indefinidamente.
+
+### 7.6 Activar Langfuse en DocuSearch AI
+
+En la misma PowerShell desde la que se lanza el contenedor:
+
+```powershell
+$env:LANGFUSE_PUBLIC_KEY="pk-lf-..."
+$env:LANGFUSE_SECRET_KEY="sk-lf-..."
+$env:LANGFUSE_BASE_URL="http://host.docker.internal:3000"
+& "C:\Users\Usuario\Documents\Programación\DocuSearch-AI\obj\_docker-run.ps1"
+```
+
+`_docker-run.ps1` pasa las claves al contenedor y `app-start.sh` instala el SDK si hace falta. No es necesario editar archivos ni poner las claves en Git.
+
+Para desactivarlo, elimina esas variables y vuelve a crear el contenedor. La app seguirá funcionando igual, sin enviar trazas a Langfuse.
 
 ---
 

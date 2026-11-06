@@ -27,6 +27,41 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+_langfuse_client = None
+_langfuse_checked = False
+
+
+def get_langfuse():
+    """Cliente Langfuse opcional. Solo se activa con las tres variables y nunca
+    debe hacer fallar la consulta si Langfuse no está disponible."""
+    global _langfuse_client, _langfuse_checked
+    if _langfuse_checked:
+        return _langfuse_client
+    _langfuse_checked = True
+    required = ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_BASE_URL")
+    if not all(os.getenv(key) for key in required):
+        return None
+    try:
+        from langfuse import get_client
+
+        _langfuse_client = get_client()
+        return _langfuse_client
+    except Exception as error:
+        print(
+            f"Langfuse desactivado ({type(error).__name__}); se continúa sin observabilidad externa.",
+            file=sys.stderr,
+        )
+        return None
+
+
+def flush_langfuse() -> None:
+    if _langfuse_client is None:
+        return
+    try:
+        _langfuse_client.flush()
+    except Exception:
+        pass
+
 
 class Source(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -232,11 +267,64 @@ def parse_answer(text: str) -> Answer:
 def build_chain(request: Request):
     usage = {"input": None, "output": None}
 
-    def invoke_model(prompt_value):
-        text, tokens = call_opencode(request, prompt_value)
+    def record_usage(tokens: dict) -> None:
         usage["input"] = tokens.get("input")
         usage["output"] = tokens.get("output")
+
+    def invoke_direct(prompt_value):
+        text, tokens = call_opencode(request, prompt_value)
+        record_usage(tokens)
         return text
+
+    def invoke_model(prompt_value):
+        client = get_langfuse()
+        if client is None:
+            return invoke_direct(prompt_value)
+
+        called = False
+        text = None
+        try:
+            with client.start_as_current_observation(
+                as_type="generation",
+                name="opencode-generation",
+                model=request.model_id,
+                input={
+                    "question_length": len(request.question),
+                    "source_count": len(request.sources),
+                    "provider": request.provider_id,
+                },
+            ) as generation:
+                called = True
+                text, tokens = call_opencode(request, prompt_value)
+                record_usage(tokens)
+                try:
+                    generation.update(
+                        output={"answer_length": len(text)},
+                        metadata={
+                            "engine": "opencode",
+                            "langchain": True,
+                            "provider": request.provider_id,
+                            "model": request.model_id,
+                            "source_count": len(request.sources),
+                            "input_tokens": tokens.get("input"),
+                            "output_tokens": tokens.get("output"),
+                        },
+                    )
+                except Exception:
+                    pass
+            return text
+        except Exception:
+            # Si el fallo fue de Langfuse antes de invocar al modelo, se continúa
+            # sin observabilidad. Si el modelo ya falló, se propaga el error real.
+            if called and text is None:
+                raise
+            if text is not None:
+                return text
+            print(
+                "Langfuse no disponible; se continúa con la consulta sin observabilidad externa.",
+                file=sys.stderr,
+            )
+            return invoke_direct(prompt_value)
 
     def finish(text: str) -> dict:
         answer = parse_answer(text)
@@ -278,3 +366,5 @@ if __name__ == "__main__":
     except (ValueError, httpx.HTTPError, ConnectionError, TimeoutError) as error:
         print(f"LangChain/OpenCode failed ({type(error).__name__}); no fallback was used.", file=sys.stderr)
         sys.exit(1)
+    finally:
+        flush_langfuse()
