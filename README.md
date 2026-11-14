@@ -230,6 +230,32 @@ Configuración en `appsettings.json` (o variables `Embeddings__*`):
 
 La demo Docker ya arranca con `Embeddings__BaseUrl=http://host.docker.internal:11434`.
 Si el servidor no responde, la búsqueda y el asistente siguen funcionando en modo léxico.
+
+**Pinecone opcional.** Además del índice local, se puede sincronizar el mismo vector de
+página con Pinecone y consultarlo con filtros de `documentId` para respetar el RBAC. Pinecone
+recibe **solo id, vector y metadatos** (código, página, modelo, departamento y
+confidencialidad), nunca el texto ni el PDF. La API key se pasa por entorno
+(`Pinecone__ApiKey`) y no se versiona. El índice debe existir previamente con dimensión
+**1024** y métrica **cosine** (por ejemplo, `docusearch-rag`). Si Pinecone no responde,
+la búsqueda sigue con SQL Server y el índice léxico.
+
+```powershell
+# Sincronizar todos los vectores locales a Pinecone (requiere Pinecone__ApiKey)
+dotnet run -- --sync-pinecone
+
+# La reindexación local también sincroniza Pinecone si está habilitado
+dotnet run -- --reindex-embeddings
+```
+
+| Clave | Valor por defecto | Uso |
+|---|---|---|
+| `Pinecone:Enabled` | `false` | Activa el índice externo opcional |
+| `Pinecone:ApiKey` | vacío | Se recomienda `Pinecone__ApiKey` por entorno; no versionar |
+| `Pinecone:IndexName` | `docusearch-rag` | Índice existente, 1024 dims, cosine |
+| `Pinecone:Namespace` | `docusearch` | Separación lógica de vectores |
+| `Pinecone:TopK` | `12` | Candidatos por consulta |
+| `Pinecone:MinScore` | `0.35` | Similitud mínima para aceptar un candidato |
+| `Pinecone:TimeoutSeconds` | `30` | Límite de red con Pinecone |
 - Los cinco ejemplos conservan sus páginas de referencia y notas, pero no incluyen PDF
   original. Sus hashes históricos no prueban un archivo que no se proporcionó; la
   interfaz los identifica como **Sin original**.

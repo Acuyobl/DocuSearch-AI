@@ -5,7 +5,7 @@
 **Embeddings:** `bge-m3` local en Ollama (`127.0.0.1:11434`), **89 páginas indexadas**, 1024 dimensiones.
 **Motor generativo:** `local-extractive` (OpenCode no está escuchando en `:4097`); la **recuperación híbrida sí funciona** sin OpenCode.
 
-> **Qué es el RAG de esta app.** Búsqueda **híbrida**: relevancia léxica + similitud coseno de embeddings locales por página, con RBAC y citas verificadas. No hay base vectorial externa ni se envían documentos a un proveedor de embeddings: `bge-m3` corre en el Ollama local y los vectores se guardan en SQL Server (`PageEmbeddings`). El modelo generativo, cuando está activo, recibe hasta 6 fragmentos de 1 000 caracteres.
+> **Qué es el RAG de esta app.** Búsqueda **híbrida**: relevancia léxica + similitud coseno de embeddings locales por página, con RBAC y citas verificadas. Por defecto los vectores viven en SQL Server (`PageEmbeddings`) y `bge-m3` corre en Ollama local; **Pinecone es opcional** y solo recibe vectores y metadatos, nunca el texto. El modelo generativo, cuando está activo, recibe hasta 6 fragmentos de 1 000 caracteres.
 
 ---
 
@@ -91,10 +91,22 @@ La indexación también se ejecuta al **cargar, editar o reprocesar** un expedie
 ### 2.3 Consulta de diagnóstico
 
 ```powershell
-docker exec ds-app bash -lc "cd /work && dotnet run --no-build --project DocuSearch.csproj -- --search 'compromiso de disponibilidad del proveedor'"
+docker exec ds-app bash -lc "cd /work && dotnet run --no-build --project DocuSearch.csproj -- --search 'apoyo social depresión embarazadas violencia'"
 ```
 
-Ejemplo esperado (verificado): devuelve `CNT-2026-EEAEE0BD49F8 p.1` con puntuación híbrida y el aviso `Vector: bge-m3 (búsqueda híbrida)`.
+Ejemplo esperado (verificado): devuelve `CNT-2026-89D4E4BF8F53` con puntuación híbrida y el aviso `Vector: bge-m3 (búsqueda híbrida)`.
+
+### 2.4 Pinecone opcional
+
+Con `Pinecone:Enabled=true` y `Pinecone__ApiKey`, los mismos vectores se sincronizan
+al índice externo. Solo se envían vectores y metadatos, nunca texto.
+
+```powershell
+docker exec ds-app bash -lc "cd /work && dotnet run --no-build --project DocuSearch.csproj -- --sync-pinecone"
+```
+
+Debe informar cuántos vectores sincronizó. Después, `--search` muestra
+`Pinecone: consultado.` Si Pinecone falla, la búsqueda local sigue funcionando.
 
 ---
 
@@ -194,7 +206,7 @@ Si Ollama/embeddings no está disponible, la consulta sigue funcionando en modo 
 
 ### 5.4 Qué no incluye
 
-- Base vectorial externa (Qdrant, pgvector, etc.): los vectores viven en SQL Server.
+- Base vectorial externa obligatoria: no hay; Pinecone es opcional y SQL Server sigue siendo el índice local.
 - OCR de escaneos: se marcan «Requiere OCR».
 - Embeddings de proveedores remotos: `bge-m3` corre local.
 

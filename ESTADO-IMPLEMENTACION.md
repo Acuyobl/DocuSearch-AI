@@ -16,7 +16,7 @@
 | Cabeceras y proxy | HSTS, CSP configurable, CORP, X-Permitted, `no-store` en autenticación, `X-Request-Id`; forwarded headers opcionales con proxies declarados. | `Program.cs`, `appsettings.json` |
 | Salud | `/health`, `/health/live`, `/health/ready` (falla con migraciones pendientes). | `Program.cs` |
 | Observabilidad | Logs JSON opcionales, correlación por petición, trazas del agente sin contenido, purga de trazas antiguas por administración. | `Program.cs`, `Services/AgentObservability.cs`, `Observability.razor` |
-| RAG híbrido | Embeddings locales `bge-m3` (1024 dims) por página en `PageEmbeddings`, índice al cargar/editar/reprocesar, backfill con `--reindex-embeddings`, búsqueda léxica + coseno y fallback léxico si el modelo no está. | `Services/EmbeddingClient.cs`, `Services/EmbeddingIndexer.cs`, `Services/LocalSearch.cs`, migración `PageEmbeddings` |
+| RAG híbrido | Embeddings locales `bge-m3` (1024 dims) por página en `PageEmbeddings`, índice al cargar/editar/reprocesar, backfill con `--reindex-embeddings`, búsqueda léxica + coseno y fallback léxico si el modelo no está. Pinecone opcional como índice externo (vectores + metadatos, sin texto). | `Services/EmbeddingClient.cs`, `Services/EmbeddingIndexer.cs`, `Services/Pinecone*.cs`, `Services/LocalSearch.cs`, migración `PageEmbeddings` |
 | Demo | Reset oculto/bloqueado y seed desactivable; plantilla de producción sin secretos. | `Services/DemoPolicy.cs`, `DocumentService.cs`, `appsettings.Production.example.json` |
 
 ### 1.2 Agentes y multiagente

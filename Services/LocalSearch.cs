@@ -6,7 +6,7 @@ namespace DocuSearch.Services;
 public static class LocalSearch
 {
     public static List<SearchHit> Search(IEnumerable<DocumentItem> documents, string query, bool exact = false, int minimum = 10,
-        float[]? queryVector = null)
+        float[]? queryVector = null, IReadOnlyDictionary<(string DocumentId, int PageNumber), double>? externalScores = null)
     {
         var normalized = TextAnalysis.Normalize(query.Trim());
         var terms = TextAnalysis.Terms(query);
@@ -54,6 +54,11 @@ public static class LocalSearch
                 // Sin coincidencia léxica, una similitud débil no alcanza para mostrar la página.
                 if (candidate.Matched == 0 && cosine < 0.45f) score = 0;
             }
+            // Pinecone puede aportar páginas que el índice local no priorizó; nunca
+            // reemplaza la autorización, que se aplica antes de consultar.
+            if (!exact && externalScores is not null &&
+                externalScores.TryGetValue((candidate.Document.Id, candidate.Page.PageNumber), out var external))
+                score = Math.Max(score, (int)Math.Round(external * 100));
 
             var content = TextAnalysis.Normalize(candidate.Page.ExtractedText);
             var position = terms.Select(t => content.IndexOf(t, StringComparison.Ordinal)).Where(i => i >= 0).DefaultIfEmpty(0).Min();
@@ -94,7 +99,7 @@ public static class LocalSearch
 
 public sealed class LocalAgent(DocumentService documents, LocalSession session, OllamaClient ollama,
     AgentObservability observability, OpenCodeClient? opencode = null, AssistantRuntime? assistant = null,
-    ILogger<LocalAgent>? logger = null, EmbeddingClient? embeddings = null)
+    ILogger<LocalAgent>? logger = null, EmbeddingClient? embeddings = null, PineconeRetriever? pinecone = null)
 {
     private bool UseOpenCode => opencode is { Enabled: true };
 
@@ -130,7 +135,10 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
         float[]? queryVector = null;
         if (embeddings is { Enabled: true })
             queryVector = await embeddings.TryEmbedAsync(query);
-        var extracted = AnswerFromSources(query, snapshot.Documents, session, queryVector);
+        IReadOnlyDictionary<(string DocumentId, int PageNumber), double>? externalScores = null;
+        if (queryVector is not null && pinecone is { Enabled: true })
+            externalScores = await pinecone.SearchAsync(queryVector, snapshot.Documents.Select(document => document.Id).ToArray());
+        var extracted = AnswerFromSources(query, snapshot.Documents, session, queryVector, externalScores);
         if (assistant is not null) await assistant.EnsureLoadedAsync();
         var profile = assistant?.Active;
         var engine = profile?.Engine?.ToLowerInvariant()
@@ -216,7 +224,8 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
             @"\b(lista|listado|listar|cuantos|cuales|disponibles|pagina|extrae|entidades|montos|fechas|leyes|personas|firmantes|organizaciones|autor|departamento|clasificacion|version|ficha|metadatos)\b") ||
         Regex.IsMatch(query.Trim(), @"^[A-Z]{2,4}-[A-Z0-9]+(?:-[A-Z0-9]+){0,3}$", RegexOptions.IgnoreCase);
 
-    public static AgentAnswer AnswerFromSources(string query, IReadOnlyList<DocumentItem> readableDocuments, LocalSession session, float[]? queryVector = null)
+    public static AgentAnswer AnswerFromSources(string query, IReadOnlyList<DocumentItem> readableDocuments, LocalSession session,
+        float[]? queryVector = null, IReadOnlyDictionary<(string DocumentId, int PageNumber), double>? externalScores = null)
     {
         ValidateQuery(query);
         var normalized = TextAnalysis.Normalize(query);
@@ -252,7 +261,7 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
             if (Regex.IsMatch(normalized, @"\b(resume|resumen|sintetiza|sintesis)\b"))
                 return Summary(document);
             var question = Regex.Replace(query, Regex.Escape(code), "", RegexOptions.IgnoreCase);
-            var matches = LocalSearch.Search([document], question, minimum: 20, queryVector: queryVector).Take(3).ToList();
+            var matches = LocalSearch.Search([document], question, minimum: 20, queryVector: queryVector, externalScores: externalScores).Take(3).ToList();
             var metadata = $"{document.InternalCode} — {document.Title}\nAutor: {document.Author}\nDepartamento: {document.Department}\n" +
                 $"Clasificación: {document.Confidentiality}\nVersión: {document.Version}\n\n{document.ExecutiveSummary}";
             return new(metadata + (matches.Count > 0 ? "\n\n" + string.Join("\n\n", matches.Select(h =>
@@ -272,7 +281,7 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
                 rows.Select(d => new SearchHit(d, d.Pages.FirstOrDefault()?.PageNumber ?? 1, d.ExecutiveSummary, 100)).ToList());
         }
         var quoted = Regex.Match(query, "[\"“]([^\"”]{2,})[\"”]");
-        var hits = LocalSearch.Search(readableDocuments, quoted.Success ? quoted.Groups[1].Value : query, quoted.Success, 20, queryVector).Take(5).ToList();
+        var hits = LocalSearch.Search(readableDocuments, quoted.Success ? quoted.Groups[1].Value : query, quoted.Success, 20, queryVector, externalScores).Take(5).ToList();
         if (hits.Count == 0) return new("No hay fuentes suficientes para responder. Indica un código o términos más específicos. No se ha consultado ningún servicio externo.", []);
         session.LastDocumentCode = hits[0].Document.InternalCode;
         if (Regex.IsMatch(normalized, @"\b(resume|resumen|sintetiza)\b")) return Summary(hits[0].Document);

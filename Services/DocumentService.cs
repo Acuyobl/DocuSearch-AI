@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace DocuSearch.Services;
 
 public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, LocalSession session, PdfProcessor processor,
-    EmbeddingIndexer? indexer = null, ILogger<DocumentService>? logger = null)
+    EmbeddingIndexer? indexer = null, ILogger<DocumentService>? logger = null, PineconeSyncService? pinecone = null)
 {
     private async Task<AppUser> ActorAsync(AppDbContext db)
     {
@@ -172,7 +172,22 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
         await tx.CommitAsync();
         progress?.Report(new(PipelineStage.Indexing, "Indexando páginas para búsqueda semántica local"));
         await TryIndexAsync(document.Id);
+        await TrySyncPineconeAsync(document.Id);
         progress?.Report(new(PipelineStage.Completed, "Documento cargado e indexado"));
+    }
+
+    private async Task TrySyncPineconeAsync(string documentId)
+    {
+        if (pinecone is null || !pinecone.Enabled) return;
+        try
+        {
+            await pinecone.SyncDocumentAsync(documentId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger?.LogWarning("Pinecone no pudo sincronizar el expediente {DocumentId} ({Error}); el índice local sigue disponible.",
+                documentId, ex.GetType().Name);
+        }
     }
 
     private async Task TryIndexAsync(string documentId)
@@ -217,6 +232,7 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
             ValidateDocument(document);
         });
         await TryIndexAsync(edited.Id);
+        await TrySyncPineconeAsync(edited.Id);
     }
 
     public Task DeleteAsync(string id) => MutateDocumentAsync(id, "DELETE", async (db, actor, document) =>
@@ -249,6 +265,7 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
             return Task.CompletedTask;
         });
         await TryIndexAsync(id);
+        await TrySyncPineconeAsync(id);
     }
 
     public async Task AddNoteAsync(string id, string text, int page)

@@ -1,6 +1,7 @@
 @inject WorkspaceState State
 @inject DocumentService Service
 @inject EmbeddingClient Embeddings
+@inject PineconeRetriever Pinecone
 <div class="module-page smart-search">
 <div class="segmented-control search-modes" role="group" aria-label="Herramientas del buscador">
     <button type="button" aria-pressed="@(!showAssistant)" aria-controls="document-search" class="@(!showAssistant ? "active" : "")" @onclick="() => SelectAssistant(false)"><AppIcon Name="search" />Buscar documentos</button>
@@ -64,6 +65,7 @@
     private int limit = 20;
     private long elapsed;
     private float[]? queryVector;
+    private IReadOnlyDictionary<(string DocumentId, int PageNumber), double>? externalScores;
     private List<SearchHit> results = [];
     private readonly List<string> history = [];
     protected override void OnInitialized() => Refilter();
@@ -81,13 +83,21 @@
     private async Task SetMode(bool value)
     {
         exact = value;
-        queryVector = exact || string.IsNullOrWhiteSpace(query) ? null : await Embeddings.TryEmbedAsync(query);
+        await RefreshQuerySignals();
         Refilter();
+    }
+    private async Task RefreshQuerySignals()
+    {
+        queryVector = exact || string.IsNullOrWhiteSpace(query) ? null : await Embeddings.TryEmbedAsync(query);
+        externalScores = queryVector is null || !Pinecone.Enabled
+            ? null
+            : await Pinecone.SearchAsync(queryVector, State.Data!.Documents.Select(document => document.Id).ToList());
     }
     private void Refilter()
     {
         var timer = System.Diagnostics.Stopwatch.StartNew();
-        results = LocalSearch.Search(filter.Apply(State.Data!.Documents), query, exact, Math.Clamp(minimum, 1, 100), queryVector);
+        results = LocalSearch.Search(filter.Apply(State.Data!.Documents), query, exact, Math.Clamp(minimum, 1, 100),
+            queryVector, externalScores);
         elapsed = timer.ElapsedMilliseconds;
         limit = 20;
     }
@@ -95,7 +105,7 @@
     {
         if (query.Length > 2000) throw new ValidationException("La consulta admite hasta 2000 caracteres.");
         await State.RefreshAsync();
-        queryVector = exact || string.IsNullOrWhiteSpace(query) ? null : await Embeddings.TryEmbedAsync(query);
+        await RefreshQuerySignals();
         await Service.LogQueryAsync("SEARCH", $"{(exact ? "Exacta" : "Híbrida")}: {query}");
         if (!string.IsNullOrWhiteSpace(query))
         {

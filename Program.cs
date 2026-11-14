@@ -105,6 +105,14 @@ builder.Services.AddHttpClient<EmbeddingClient>(client =>
     ConnectTimeout = TimeSpan.FromSeconds(5)
 });
 builder.Services.AddScoped<EmbeddingIndexer>();
+builder.Services.Configure<PineconeOptions>(builder.Configuration.GetSection("Pinecone"));
+builder.Services.AddHttpClient<PineconeClient>(client =>
+{
+    client.BaseAddress = new Uri("https://api.pinecone.io/");
+    client.Timeout = TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("Pinecone:TimeoutSeconds", 30)));
+});
+builder.Services.AddScoped<PineconeSyncService>();
+builder.Services.AddScoped<PineconeRetriever>();
 builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection("Ollama"));
 builder.Services.AddHttpClient<OllamaClient>().ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
@@ -156,10 +164,39 @@ if (args.Contains("--reindex-embeddings", StringComparer.Ordinal))
         var indexer = scope.ServiceProvider.GetRequiredService<EmbeddingIndexer>();
         var updated = await indexer.ReindexAllAsync();
         Console.WriteLine($"Índice semántico actualizado: {updated} páginas.");
+        var pinecone = scope.ServiceProvider.GetService<PineconeSyncService>();
+        if (pinecone is { Enabled: true })
+        {
+            var synced = await pinecone.SyncAllAsync();
+            Console.WriteLine($"Pinecone: {synced} vectores sincronizados.");
+        }
     }
-    catch (Exception ex) when (ex is DbException or InvalidOperationException)
+    catch (Exception ex) when (ex is DbException or InvalidOperationException or HttpRequestException)
     {
         app.Logger.LogError(ex, "No se pudo reindexar la búsqueda semántica. Revisa Embeddings:BaseUrl y el modelo configurado.");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
+if (args.Contains("--sync-pinecone", StringComparer.Ordinal))
+{
+    try
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var pinecone = scope.ServiceProvider.GetRequiredService<PineconeSyncService>();
+        if (!pinecone.Enabled)
+        {
+            Console.WriteLine("Pinecone está desactivado o falta Pinecone:ApiKey.");
+            Environment.ExitCode = 1;
+            return;
+        }
+        var synced = await pinecone.SyncAllAsync();
+        Console.WriteLine($"Pinecone: {synced} vectores sincronizados.");
+    }
+    catch (Exception ex) when (ex is DbException or InvalidOperationException or HttpRequestException)
+    {
+        app.Logger.LogError(ex, "No se pudo sincronizar Pinecone. Revisa Pinecone:ApiKey, IndexName y conectividad.");
         Environment.ExitCode = 1;
     }
     return;
@@ -192,9 +229,15 @@ if (args.Contains("--search", StringComparer.Ordinal))
         var documents = await scope.ServiceProvider.GetRequiredService<DocumentService>().LoadAsync();
         var embeddings = scope.ServiceProvider.GetRequiredService<EmbeddingClient>();
         var queryVector = await embeddings.TryEmbedAsync(query);
-        var hits = LocalSearch.Search(documents.Documents, query, minimum: 20, queryVector: queryVector).Take(5).ToList();
+        var pinecone = scope.ServiceProvider.GetRequiredService<PineconeRetriever>();
+        var externalScores = queryVector is null || !pinecone.Enabled
+            ? null
+            : await pinecone.SearchAsync(queryVector, documents.Documents.Select(document => document.Id).ToArray());
+        var hits = LocalSearch.Search(documents.Documents, query, minimum: 20, queryVector: queryVector,
+            externalScores: externalScores).Take(5).ToList();
         Console.WriteLine($"Consulta: {query}");
         Console.WriteLine(queryVector is null ? "Vector: no disponible (recuperación léxica)." : "Vector: bge-m3 (búsqueda híbrida).");
+        Console.WriteLine(pinecone.Enabled ? "Pinecone: consultado." : "Pinecone: desactivado.");
         Console.WriteLine($"Resultados: {hits.Count}");
         foreach (var hit in hits)
             Console.WriteLine($"{hit.Score,3} · {hit.Document.InternalCode} p.{hit.PageNumber} · {TextAnalysis.Truncate(hit.Snippet, 160)}");
