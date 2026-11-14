@@ -72,8 +72,7 @@ public sealed class CatalogSuggester(
         {
             var query = BuildQuery(document, snapshot.Departments);
             AgentAnswer answer = engine == "opencode"
-                ? await opencode!.GenerateAsync(query, sources, profile?.ProviderId, profile?.ModelId, profile?.Agent,
-                    direct: profile?.Group == "Gratis")
+                ? await opencode!.GenerateAsync(query, sources, profile?.ProviderId, profile?.ModelId, profile?.Agent)
                 : await ollama.GenerateAsync(query, sources);
 
             // AG-02: la propuesta también pasa por el verificador antes de llegar al formulario.

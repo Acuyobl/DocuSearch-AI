@@ -147,8 +147,7 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
                     throw new InvalidOperationException("El motor OpenCode está seleccionado en la interfaz, pero OpenCode:Enabled está desactivado en la configuración.");
                 trace.Engine = "opencode";
                 trace.Model = $"{profile?.ProviderId}/{profile?.ModelId} ({profile?.Agent})";
-                answer = await opencode!.GenerateAsync(query, extracted.Sources, profile?.ProviderId, profile?.ModelId, profile?.Agent,
-                    direct: profile?.Group == "Gratis");
+                answer = await opencode!.GenerateAsync(query, extracted.Sources, profile?.ProviderId, profile?.ModelId, profile?.Agent);
                 generated = true;
             }
             else

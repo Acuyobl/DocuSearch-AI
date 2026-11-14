@@ -39,10 +39,12 @@ class FakeResponse:
 
 class FakeClient:
     instances: list["FakeClient"] = []
+    info_status = 200
 
     def __init__(self, **kwargs: object) -> None:
         self.kwargs = kwargs
-        self.payloads: list[dict] = []
+        self.session_payload: dict | None = None
+        self.prompt_payload: dict | None = None
         self.deleted = False
         FakeClient.instances.append(self)
 
@@ -52,34 +54,40 @@ class FakeClient:
     def __exit__(self, *args: object) -> None:
         return None
 
-    def get(self, path: str) -> FakeResponse:
-        if path == "/experimental/tool/ids":
-            return FakeResponse(["bash", "read"])
-        raise AssertionError(path)
-
-    def post(self, path: str, json: object = None) -> FakeResponse:
-        if path == "/session":
-            return FakeResponse({"id": "ses_test"})
-        if path == "/session/ses_test/message":
-            self.payloads.append(json)  # type: ignore[arg-type]
+    def get(self, path: str, params: object = None) -> FakeResponse:
+        if path == "/api/info":
+            return FakeResponse({"version": "2.2.5"}, self.info_status)
+        if path == "/api/session/ses_test/message":
             return FakeResponse(
                 {
-                    "info": {"tokens": {"input": 3, "output": 5}},
-                    "parts": [{"type": "text", "text": '{"answer":"SLA 99.99%","citations":[1]}'}],
+                    "data": [
+                        {
+                            "type": "assistant",
+                            "content": [{"type": "text", "text": '{"answer":"SLA 99.99%","citations":[1]}'}],
+                            "tokens": {"input": 3, "output": 5},
+                            "finish": "stop",
+                        }
+                    ]
                 }
             )
         raise AssertionError(path)
 
+    def post(self, path: str, json: object = None) -> FakeResponse:
+        if path == "/api/session":
+            self.session_payload = json  # type: ignore[assignment]
+            return FakeResponse({"data": {"id": "ses_test"}})
+        if path == "/api/session/ses_test/prompt":
+            self.prompt_payload = json  # type: ignore[assignment]
+            return FakeResponse({"data": {}})
+        raise AssertionError(path)
+
     def delete(self, path: str) -> FakeResponse:
-        self.deleted = path == "/session/ses_test"
+        self.deleted = path == "/api/session/ses_test"
         return FakeResponse({})
 
 
-class WrappedFakeClient(FakeClient):
-    def get(self, path: str) -> FakeResponse:
-        if path == "/experimental/tool/ids":
-            return FakeResponse({"value": ["bash", "read"], "Count": 2})
-        return super().get(path)
+class NotOpenCode2Client(FakeClient):
+    info_status = 404
 
 
 class OpenCodeWorkerTests(unittest.TestCase):
@@ -104,7 +112,7 @@ class OpenCodeWorkerTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             request(model_id="cloud-model")
 
-    def test_chain_disables_tools_and_parses_answer(self) -> None:
+    def test_chain_creates_denied_session_and_parses_answer(self) -> None:
         with patch.object(opencode_worker.httpx, "Client", FakeClient):
             result = opencode_worker.build_chain(request()).invoke(
                 {"context": '{"question":"What SLA?","sources":[{"id":1,"text":"SLA 99.99%."}]}'}
@@ -115,24 +123,27 @@ class OpenCodeWorkerTests(unittest.TestCase):
         self.assertEqual(result["output_tokens"], 5)
         client = FakeClient.instances[-1]
         self.assertTrue(client.deleted)
-        payload = client.payloads[-1]
-        self.assertEqual(payload["tools"], {"bash": False, "read": False})
-        self.assertEqual(payload["model"], {"providerID": "opencode", "modelID": "free-model"})
-        self.assertEqual(payload["system"], "Use only the provided sources.")
-        self.assertIn("SLA 99.99%", payload["parts"][0]["text"])
+        self.assertEqual(
+            client.session_payload["permissions"],
+            [{"action": "*", "resource": "*", "effect": "deny"}],
+        )
+        self.assertEqual(
+            client.session_payload["model"],
+            {"providerID": "opencode", "id": "free-model"},
+        )
+        self.assertIn("SLA 99.99%", client.prompt_payload["text"])
+        self.assertIn("Use only the provided sources.", client.prompt_payload["text"])
+
+    def test_chain_rejects_non_open_code_2_server(self) -> None:
+        with patch.object(opencode_worker.httpx, "Client", NotOpenCode2Client):
+            with self.assertRaises(ValueError):
+                opencode_worker.build_chain(request()).invoke(
+                    {"context": '{"question":"What SLA?","sources":[{"id":1,"text":"SLA 99.99%."}]}'}
+                )
 
     def test_parse_answer_rejects_plain_text(self) -> None:
         with self.assertRaises(ValueError):
             opencode_worker.parse_answer("no json here")
-
-    def test_chain_accepts_wrapped_tool_ids(self) -> None:
-        with patch.object(opencode_worker.httpx, "Client", WrappedFakeClient):
-            result = opencode_worker.build_chain(request()).invoke(
-                {"context": '{"question":"What SLA?","sources":[{"id":1,"text":"SLA 99.99%."}]}'}
-            )
-        self.assertEqual(result["answer"], "SLA 99.99%")
-        payload = WrappedFakeClient.instances[-1].payloads[-1]
-        self.assertEqual(payload["tools"], {"bash": False, "read": False})
 
 
 if __name__ == "__main__":

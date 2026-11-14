@@ -77,7 +77,7 @@ Resumen de los cambios de esta rama:
    comprobaciones). Se retiraron artefactos (`package-lock.json` e
    `IA de generacion .txt`) y los prompts pasaron a UTF-8.
 8. **Asistente con OpenCode:** motor seleccionable por configuración que usa el servidor
-   local de OpenCode (`POST /session` y `POST /session/:id/message`) con un agente sin
+   local de OpenCode (`POST /api/session` y `POST /api/session/:id/prompt`) con un agente sin
    herramientas (`zodiac-asistente`), validación de citas y borrado de la sesión. Mantiene
    LangChain/Ollama y el modo extractivo como alternativas; los modelos local (`ollama/qwen3:4b`)
    y remoto (`deepseek/deepseek-flash`) se eligen por configuración y la interfaz avisa

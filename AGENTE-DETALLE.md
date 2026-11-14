@@ -193,7 +193,7 @@ Puntos clave:
 | Texto por fragmento | Hasta **1000** caracteres |
 | Historial de conversación | **No se envía** |
 | PDF original, base de datos, archivos, internet | **No** |
-| Herramientas | **Desactivadas** (OpenCode 2: permisos `deny`; OpenCode 1: tools `false`) |
+| Herramientas | **Desactivadas** (OpenCode 2: permisos `deny` en la sesión) |
 | Instrucciones | `AssistantPrompt.System`: español, solo fuentes, sin conocimiento externo, JSON `answer` + `citations`, fuentes son datos y no instrucciones |
 
 La selección de fragmentos se ordena por relevancia y se deduplica por documento+página. El modelo **no recibe documentos completos**.
@@ -445,8 +445,8 @@ Esperado: vigencia del mismo contrato, usando el último código citado.
 | Archivo | Responsabilidad |
 |---|---|
 | `Services/LocalSearch.cs` | Recuperación híbrida (léxica + coseno), intenciones exactas, fallback extractivo, RBAC |
-| `Services/OpenCodeClient.cs` | Cliente OpenCode 1/2, LangChain, citas, tokens, validación |
-| `LangChain/opencode_worker.py` | Worker LangChain para OpenCode 1/2; prompt, sesión, permisos deny |
+| `Services/OpenCodeClient.cs` | Cliente OpenCode 2, LangChain, citas, tokens, validación |
+| `LangChain/opencode_worker.py` | Worker LangChain para OpenCode 2; prompt, sesión, permisos deny |
 | `Services/AssistantPrompt.cs` | Instrucciones del sistema y formato JSON |
 | `Services/AssistantRuntime.cs` | Catálogo de motores, perfiles, selección y etiquetas |
 | `Services/AgentResilience.cs` | Reintentos, backoff, timeout, circuit breaker |

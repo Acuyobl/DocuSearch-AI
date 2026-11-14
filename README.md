@@ -272,27 +272,21 @@ RBAC y la validación de citas siguen en C#; el modelo solo recibe fragmentos au
 En cada consulta se envían **todas las herramientas desactivadas**, de modo que el modelo
 no accede a archivos, shell ni internet.
 
-Compatible con **OpenCode 1** (CLI 1.19.5) y **OpenCode 2** (CLI 2.2.5, incluida en
-OpenCode Desktop/IDE). El cliente detecta la versión del servidor: OpenCode 1 se consulta en
-`/global/health`, `/provider`, `/agent` y `/session`; OpenCode 2 en `/api/info`, `/api/provider`,
-`/api/model`, `/api/agent` y `/api/session`. En OpenCode 2 la generación crea una sesión con
-permisos denegados (sin herramientas), envía el prompt y espera el mensaje del asistente,
-manteniendo la validación de citas en C#.
-
-En OpenCode 1, `/experimental/tool/ids` devuelve `{value:[...],Count:N}`; el cliente acepta
-también el formato de array de versiones anteriores. En OpenCode 2 las herramientas se
-desactivan con un conjunto de permisos `deny` al crear la sesión.
+Compatible **solo con OpenCode 2** (CLI 2.2.5+, incluida en OpenCode Desktop/IDE).
+El cliente usa `/api/info`, `/api/provider`, `/api/model`, `/api/agent` y `/api/session`.
+En cada generación crea una sesión con **permisos denegados** (sin herramientas), envía el
+prompt y espera el mensaje del asistente; las citas se validan en C#.
 
 ```powershell
-# OpenCode 1 (CLI npm)
-$env:OPENCODE_SERVER_PASSWORD = "cambia-esta-clave"
-opencode serve --port 4097 --hostname 127.0.0.1
-
 # OpenCode 2 (CLI incluido en OpenCode Desktop/IDE)
+$env:OPENCODE_SERVER_PASSWORD = "cambia-esta-clave"
 $cli = Get-ChildItem "$env:APPDATA\ai.opencode.desktop\cli" -Recurse -Filter opencode-cli.exe |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
 & $cli.FullName serve --port 4097 --hostname 127.0.0.1
 ```
+
+> OpenCode 1 **ya no es compatible**. Si el servidor responde la API clásica de OpenCode 1,
+> el asistente muestra un error explícito en lugar de intentar el protocolo antiguo.
 
 Configuración en `appsettings.json` (o variables `OpenCode__*`):
 
@@ -311,17 +305,16 @@ Configuración en `appsettings.json` (o variables `OpenCode__*`):
 ### Modelos gratis y locales: catálogo dinámico (funciona en cualquier equipo)
 
 No hay modelos escritos a mano. Al abrir el asistente (y al pulsar **Actualizar motores**)
-la aplicación consulta `GET /provider` del OpenCode local y construye el selector con:
+la aplicación consulta `GET /api/provider` y `GET /api/model` de OpenCode 2 y construye el
+selector con:
 
-- **Pago** — modelos con coste de proveedores **conectados** (p. ej. los dos de DeepSeek:
+- **Pago** — modelos con coste de proveedores conectados (p. ej. los dos de DeepSeek:
   `deepseek-flash` y `deepseek-v4-pro`). Se envían fragmentos autorizados al proveedor y
   el coste lo marca su tarifa; no hay fallback automático entre proveedores.
 - **Gratis** — **visibles por defecto**: modelos con `cost.input = 0` y `cost.output = 0`
-  de proveedores conectados. Suelen ser los `*-free` del proveedor `opencode`. La app les
-  envía el **cuerpo mínimo** (modelo, sistema y fuentes) sin agente ni mapa de
-  herramientas: enviar esos campos activaba el limitador gratuito del proveedor y hacía
-  que el modelo no respondiera. Con este formato los gratis funcionan igual que en el
-  CLI/IDE de OpenCode.
+  de proveedores conectados. Suelen ser los `*-free` del proveedor `opencode`. En OpenCode 2
+  la sesión se crea con permisos `deny` para que el modelo no use herramientas; la cuota
+  gratuita puede agotarse y se informa el error.
 - **Locales** — opcionales y **ocultos por defecto** (`Assistant:IncludeLocalModels=false`):
   proveedores `ollama`/`lmstudio`/`llamacpp` o con `baseURL` de loopback.
 - **Sin LLM** — modo extractivo por reglas, siempre disponible.
@@ -376,8 +369,8 @@ Configuración (`Resilience` en `appsettings.json`):
 `GET /assistant/engines` incluye `circuit` con el estado (`closed`, `closed:N fallo(s)` u
 `open:Ns`).
 
-La aplicación crea una sesión por consulta (`POST /session`), envía pregunta + fuentes a
-`POST /session/:id/message`, valida que la respuesta sea JSON con citas dentro de las
+La aplicación crea una sesión por consulta (`POST /api/session`), envía pregunta + fuentes a
+`POST /api/session/:id/prompt`, consulta el mensaje del asistente, valida que la respuesta sea JSON con citas dentro de las
 fuentes enviadas y elimina la sesión al terminar. La contraseña se pasa por entorno
 (`OpenCode__Password`), nunca en el repositorio.
 
@@ -421,8 +414,8 @@ híbrida y la autorización siguen en C#.
 Con `OpenCode:UseLangChain=true` **no hace falta Ollama**: el worker
 `LangChain/opencode_worker.py` usa LangChain (`ChatPromptTemplate` + `Runnable` +
 `StrOutputParser`) para preparar el prompt y guardar el parsing, y llama al servidor
-OpenCode 1 (`/session` + `/session/:id/message`) u OpenCode 2 (`/api/session` + `/api/session/:id/prompt`) con el modelo **gratis o de pago** que el
-usuario haya elegido en el selector. Las herramientas se envían desactivadas y la
+OpenCode 2 (`/api/session` + `/api/session/:id/prompt`) con el modelo **gratis o de pago** que el
+usuario haya elegido en el selector. Las herramientas se desactivan con permisos `deny` y la
 validación de citas sigue en C#. La etiqueta del motor y el selector muestran
 «LangChain · OpenCode · proveedor/modelo».
 

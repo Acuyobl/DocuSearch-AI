@@ -40,14 +40,6 @@ public sealed class OpenCodeClient
     private readonly HttpClient http;
     private readonly OpenCodeOptions settings;
     private readonly AgentResilience resilience;
-    private readonly object toolGate = new();
-    private string[]? toolIds;
-    private DateTimeOffset toolIdsExpires;
-    private DateTimeOffset freeQuotaUntil;
-    private string? freeQuotaMessage;
-    private ServerKind? serverKind;
-
-    private enum ServerKind { V1, V2 }
 
     public bool Enabled => settings.Enabled;
     public string Agent => settings.Agent;
@@ -93,27 +85,12 @@ public sealed class OpenCodeClient
         }
     }
 
-    /// <summary>Comprueba que el servidor responde y, si se indicó un agente, que existe.</summary>
+    /// <summary>Comprueba que el servidor OpenCode 2 responde y, si se indicó un agente, que existe.</summary>
     public async Task CheckAsync(string? agent = null)
     {
         if (!Enabled) return;
         var expectedAgent = string.IsNullOrWhiteSpace(agent) ? settings.Agent : agent;
-        var kind = await DetectServerKindAsync(CancellationToken.None);
-        if (kind == ServerKind.V1)
-        {
-            var health = await GetAsync<HealthResponse>("global/health");
-            if (!health.Healthy) throw new InvalidOperationException("El servidor OpenCode no se declara saludable.");
-            if (settings.UseLangChain) await CheckLangChainAsync();
-            if (string.IsNullOrWhiteSpace(expectedAgent)) return;
-            var agents = await GetAsync<AgentInfo[]>("agent");
-            if (agents.All(candidate => !string.Equals(candidate.Name, expectedAgent, StringComparison.OrdinalIgnoreCase)))
-                throw new InvalidOperationException($"El servidor OpenCode no tiene el agente «{expectedAgent}». Revísalo en opencode.json.");
-            return;
-        }
-
-        var info = await GetAsync<V2ServerInfo>("api/info", CancellationToken.None);
-        if (string.IsNullOrWhiteSpace(info.Version))
-            throw new InvalidOperationException("El servidor OpenCode 2 no devolvió su versión.");
+        await EnsureV2Async(CancellationToken.None);
         if (settings.UseLangChain) await CheckLangChainAsync();
         if (string.IsNullOrWhiteSpace(expectedAgent)) return;
         var v2Agents = await GetAsync<V2AgentList>("api/agent", CancellationToken.None);
@@ -121,145 +98,85 @@ public sealed class OpenCodeClient
             throw new InvalidOperationException($"El servidor OpenCode 2 no tiene el agente «{expectedAgent}». Revísalo en opencode.json.");
     }
 
-    /// <summary>Detecta si el servidor habla la API de OpenCode 1 (/global/health) o de OpenCode 2 (/api/info).</summary>
-    private async Task<ServerKind> DetectServerKindAsync(CancellationToken cancellationToken)
+    /// <summary>Valida que el servidor habla la API de OpenCode 2 (/api/info).</summary>
+    private async Task EnsureV2Async(CancellationToken cancellationToken)
     {
-        if (serverKind is { } cached) return cached;
-        try
-        {
-            using var health = await http.GetAsync("global/health", cancellationToken);
-            if (health.StatusCode == HttpStatusCode.Unauthorized)
-                throw new InvalidOperationException(DescribeHttpFailure(health.StatusCode));
-            if (health.IsSuccessStatusCode)
-            {
-                var text = await health.Content.ReadAsStringAsync(cancellationToken);
-                try
-                {
-                    using var document = JsonDocument.Parse(text);
-                    if (document.RootElement.ValueKind == JsonValueKind.Object &&
-                        document.RootElement.TryGetProperty("healthy", out _))
-                    {
-                        serverKind = ServerKind.V1;
-                        return ServerKind.V1;
-                    }
-                }
-                catch (JsonException) { }
-            }
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new TransientAgentException($"No se pudo conectar con el servidor OpenCode en {settings.BaseUrl}. Inicia «opencode serve» (OpenCode 1) o el servidor de OpenCode 2 y revisa OpenCode:Password.", ex);
-        }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new TransientAgentException($"OpenCode superó el tiempo de espera de {settings.TimeoutSeconds} segundos.", ex);
-        }
-
         try
         {
             using var info = await http.GetAsync("api/info", cancellationToken);
             if (info.StatusCode == HttpStatusCode.Unauthorized)
                 throw new InvalidOperationException(DescribeHttpFailure(info.StatusCode));
-            if (info.IsSuccessStatusCode)
+            if (!info.IsSuccessStatusCode)
+                throw new InvalidOperationException("El servidor no respondió como OpenCode 2. Inicia la versión 2 de OpenCode y revisa OpenCode:BaseUrl.");
+            var text = await info.Content.ReadAsStringAsync(cancellationToken);
+            try
             {
-                var text = await info.Content.ReadAsStringAsync(cancellationToken);
-                try
-                {
-                    using var document = JsonDocument.Parse(text);
-                    if (document.RootElement.ValueKind == JsonValueKind.Object &&
-                        (document.RootElement.TryGetProperty("version", out _) || document.RootElement.TryGetProperty("urls", out _)))
-                    {
-                        serverKind = ServerKind.V2;
-                        return ServerKind.V2;
-                    }
-                }
-                catch (JsonException) { }
+                using var document = JsonDocument.Parse(text);
+                if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                    (document.RootElement.TryGetProperty("version", out _) || document.RootElement.TryGetProperty("urls", out _)))
+                    return;
             }
+            catch (JsonException) { }
+            throw new InvalidOperationException("El servidor respondió pero no es compatible con OpenCode 2. Revisa la versión del CLI/servidor OpenCode y OpenCode:BaseUrl.");
         }
         catch (HttpRequestException ex)
         {
-            throw new TransientAgentException($"No se pudo conectar con el servidor OpenCode en {settings.BaseUrl}. Inicia «opencode serve» (OpenCode 1) o el servidor de OpenCode 2 y revisa OpenCode:Password.", ex);
+            throw new TransientAgentException($"No se pudo conectar con el servidor OpenCode 2 en {settings.BaseUrl}. Inicia «opencode serve» y revisa OpenCode:Password.", ex);
         }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new TransientAgentException($"OpenCode superó el tiempo de espera de {settings.TimeoutSeconds} segundos.", ex);
+            throw new TransientAgentException($"OpenCode 2 superó el tiempo de espera de {settings.TimeoutSeconds} segundos.", ex);
         }
-
-        throw new InvalidOperationException(
-            "El servidor respondió pero no es compatible con OpenCode 1 ni con OpenCode 2. Revisa la versión del CLI/servidor OpenCode y OpenCode:BaseUrl.");
     }
 
-    /// <summary>Catálogo de proveedores/modelos del OpenCode local (para el selector de motores).</summary>
+    /// <summary>Catálogo de proveedores/modelos de OpenCode 2 (para el selector de motores).</summary>
     public async Task<OpenCodeCatalog> FetchCatalogAsync()
     {
         if (!Enabled) throw new InvalidOperationException("OpenCode está desactivado en la configuración.");
-        var kind = await DetectServerKindAsync(CancellationToken.None);
-        if (kind == ServerKind.V2)
-        {
-            var providers = await GetAsync<V2ProviderList>("api/provider", CancellationToken.None);
-            var models = await GetAsync<V2ModelList>("api/model", CancellationToken.None);
-            var providerInfos = providers.Data ?? [];
-            var modelInfos = models.Data ?? [];
-            var connected = providerInfos
-                .Where(provider => !string.IsNullOrWhiteSpace(provider.Id))
-                .Select(provider => provider.Id!)
-                .ToArray();
-            var result = providerInfos
-                .Where(provider => !string.IsNullOrWhiteSpace(provider.Id))
-                .Select(provider => new OpenCodeProvider(
-                    provider.Id!,
-                    string.IsNullOrWhiteSpace(provider.Name) ? provider.Id! : provider.Name!,
-                    provider.Settings?.BaseUrl,
-                    modelInfos
-                        .Where(model => string.Equals(model.ProviderID, provider.Id, StringComparison.OrdinalIgnoreCase) && model.Enabled != false)
-                        .Select(model =>
-                        {
-                            var cost = model.Cost?.FirstOrDefault();
-                            return new OpenCodeModel(
-                                model.ModelID ?? model.Id ?? "",
-                                string.IsNullOrWhiteSpace(model.Name) ? (model.ModelID ?? model.Id ?? "") : model.Name!,
-                                cost?.Input ?? 0,
-                                cost?.Output ?? 0,
-                                model.Status);
-                        })
-                        .Where(model => !string.IsNullOrWhiteSpace(model.Id))
-                        .ToList()))
-                .ToList();
-            if (result.Count == 0)
-                throw new InvalidOperationException("OpenCode 2 no devolvió proveedores activos.");
-            return new OpenCodeCatalog(result, connected);
-        }
-
-        var response = await GetAsync<ProviderListResponse>("provider");
-        var providersV1 = (response.All ?? [])
+        await EnsureV2Async(CancellationToken.None);
+        var providers = await GetAsync<V2ProviderList>("api/provider", CancellationToken.None);
+        var models = await GetAsync<V2ModelList>("api/model", CancellationToken.None);
+        var providerInfos = providers.Data ?? [];
+        var modelInfos = models.Data ?? [];
+        var connected = providerInfos
+            .Where(provider => !string.IsNullOrWhiteSpace(provider.Id))
+            .Select(provider => provider.Id!)
+            .ToArray();
+        var result = providerInfos
             .Where(provider => !string.IsNullOrWhiteSpace(provider.Id))
             .Select(provider => new OpenCodeProvider(
                 provider.Id!,
                 string.IsNullOrWhiteSpace(provider.Name) ? provider.Id! : provider.Name!,
-                provider.Options?.BaseUrl,
-                (provider.Models ?? []).Values
+                provider.Settings?.BaseUrl,
+                modelInfos
+                    .Where(model => string.Equals(model.ProviderID, provider.Id, StringComparison.OrdinalIgnoreCase) && model.Enabled != false)
+                    .Select(model =>
+                    {
+                        var cost = model.Cost?.FirstOrDefault();
+                        return new OpenCodeModel(
+                            model.ModelID ?? model.Id ?? "",
+                            string.IsNullOrWhiteSpace(model.Name) ? (model.ModelID ?? model.Id ?? "") : model.Name!,
+                            cost?.Input ?? 0,
+                            cost?.Output ?? 0,
+                            model.Status);
+                    })
                     .Where(model => !string.IsNullOrWhiteSpace(model.Id))
-                    .Select(model => new OpenCodeModel(
-                        model.Id!,
-                        string.IsNullOrWhiteSpace(model.Name) ? model.Id! : model.Name!,
-                        model.Cost?.Input ?? 0,
-                        model.Cost?.Output ?? 0,
-                        model.Status))
                     .ToList()))
             .ToList();
-        return new OpenCodeCatalog(providersV1, response.Connected ?? []);
+        if (result.Count == 0)
+            throw new InvalidOperationException("OpenCode 2 no devolvió proveedores activos.");
+        return new OpenCodeCatalog(result, connected);
     }
 
     public Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources) =>
         GenerateAsync(query, sources, settings.ProviderId, settings.ModelId, settings.Agent);
 
-    public Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources, string? providerId, string? modelId, string? agent,
-        bool direct = false) =>
+    public Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources, string? providerId, string? modelId, string? agent) =>
         resilience.ExecuteAsync("opencode.generate",
-            cancellationToken => GenerateOnceAsync(query, sources, providerId, modelId, agent, direct, cancellationToken));
+            cancellationToken => GenerateOnceAsync(query, sources, providerId, modelId, agent, cancellationToken));
 
     private async Task<AgentAnswer> GenerateOnceAsync(string query, IReadOnlyList<SearchHit> sources,
-        string? providerId, string? modelId, string? agent, bool direct, CancellationToken cancellationToken)
+        string? providerId, string? modelId, string? agent, CancellationToken cancellationToken)
     {
         if (!Enabled) throw new InvalidOperationException("La generación con OpenCode está desactivada.");
         var provider = string.IsNullOrWhiteSpace(providerId) ? settings.ProviderId : providerId;
@@ -274,124 +191,7 @@ public sealed class OpenCodeClient
         if (settings.UseLangChain)
             return await GenerateWithLangChainAsync(query, selected, provider, model, agentName, cancellationToken);
 
-        var kind = await DetectServerKindAsync(cancellationToken);
-        if (kind == ServerKind.V2)
-            return await GenerateV2Async(query, selected, provider, model, agentName, cancellationToken);
-
-        var context = selected.Select((source, index) => new
-        {
-            id = index + 1,
-            code = source.Document.InternalCode,
-            title = source.Document.Title,
-            page = source.PageNumber,
-            text = TextAnalysis.Truncate(source.Snippet, 1000)
-        }).ToArray();
-        var payload = JsonSerializer.Serialize(new { question = query, sources = context }, Catalog.Json);
-        // Los modelos gratis usan el endpoint síncrono de OpenCode; el flujo async
-        // entra en el limitador gratuito del proveedor de forma intermitente.
-        var session = await PostAsync<SessionInfo>("session", new { title = $"DocuSearch AI · {DateTimeOffset.UtcNow:u}" }, cancellationToken);
-        if (session?.Id is not { Length: > 0 } sessionId)
-            throw new InvalidOperationException("OpenCode no devolvió el identificador de sesión.");
-        try
-        {
-            var message = new Dictionary<string, object?>
-            {
-                ["model"] = new { providerID = provider, modelID = model },
-                ["system"] = AssistantPrompt.System,
-                ["parts"] = new[] { new { type = "text", text = payload } }
-            };
-            // Los modelos gratis solo aceptan el cuerpo mínimo (sin agente ni mapa de
-            // herramientas); enviar esos campos activa el limitador free_tier_limit.
-            if (!direct)
-            {
-                message["tools"] = await GetDisabledToolsAsync(cancellationToken);
-                if (!string.IsNullOrWhiteSpace(agentName)) message["agent"] = agentName;
-            }
-            var response = await PostAsync<MessageResponse>($"session/{Uri.EscapeDataString(sessionId)}/message", message, cancellationToken);
-            var text = string.Concat((response?.Parts ?? [])
-                .Where(part => part.Type == "text" && !string.IsNullOrWhiteSpace(part.Text))
-                .Select(part => part.Text!));
-            return ParseAnswer(text, selected, provider, model, response?.Info?.Tokens);
-        }
-        finally
-        {
-            await DeleteSessionAsync(sessionId, cancellationToken);
-        }
-    }
-
-    /// <summary>
-    /// Los modelos gratis usan prompt_async + sondeo de /session/status: si el proveedor
-    /// responde free_tier_limit se falla en ~1 s con el reinicio de cuota en vez de esperar
-    /// al timeout del endpoint síncrono.
-    /// </summary>
-    private async Task<AgentAnswer> GenerateFreeAsync(string payload, IReadOnlyList<SearchHit> selected,
-        string provider, string model, string agentName, CancellationToken cancellationToken)
-    {
-        var now = DateTimeOffset.UtcNow;
-        if (now < freeQuotaUntil)
-            throw new FreeQuotaExceededException(freeQuotaMessage ?? "La cuota gratuita de OpenCode está agotada.", freeQuotaUntil);
-
-        var session = await PostAsync<SessionInfo>("session", new { title = $"DocuSearch AI · {now:u}" }, cancellationToken);
-        if (session?.Id is not { Length: > 0 } sessionId)
-            throw new InvalidOperationException("OpenCode no devolvió el identificador de sesión.");
-        try
-        {
-            var tools = await GetDisabledToolsAsync(cancellationToken);
-            var message = new Dictionary<string, object?>
-            {
-                ["model"] = new { providerID = provider, modelID = model },
-                ["system"] = AssistantPrompt.System,
-                ["tools"] = tools,
-                ["parts"] = new[] { new { type = "text", text = payload } }
-            };
-            if (!string.IsNullOrWhiteSpace(agentName)) message["agent"] = agentName;
-            await PostVoidAsync($"session/{Uri.EscapeDataString(sessionId)}/prompt_async", message, cancellationToken);
-
-            var deadline = DateTimeOffset.UtcNow.AddSeconds(settings.TimeoutSeconds);
-            var quotaGraceUntil = DateTimeOffset.UtcNow.AddSeconds(8);
-            DateTimeOffset? quotaReset = null;
-            string? quotaMessage = null;
-            while (DateTimeOffset.UtcNow < deadline)
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
-                var statuses = await GetAsync<Dictionary<string, SessionStatus>>("session/status", cancellationToken);
-                if (statuses.TryGetValue(sessionId, out var status) && status.Type == "retry" &&
-                    status.Action?.Reason == "free_tier_limit")
-                {
-                    quotaReset = status.Next is long next ? DateTimeOffset.FromUnixTimeMilliseconds(next) : (DateTimeOffset?)null;
-                    quotaMessage = quotaReset is null
-                        ? "La cuota gratuita de OpenCode está agotada; el proveedor no indicó cuándo se restablece."
-                        : $"La cuota gratuita de OpenCode está agotada. Se restablece el {quotaReset.Value:dd/MM/yyyy HH:mm} UTC.";
-                    // El proveedor a veces reintenta y termina respondiendo; se da una
-                    // ventana corta antes de abortar para no penalizar un pico temporal.
-                    if (DateTimeOffset.UtcNow >= quotaGraceUntil)
-                    {
-                        freeQuotaUntil = quotaReset ?? DateTimeOffset.UtcNow.AddHours(1);
-                        freeQuotaMessage = quotaMessage;
-                        throw new FreeQuotaExceededException(quotaMessage, quotaReset);
-                    }
-                }
-
-                var messages = await GetAsync<List<MessageResponse>>($"session/{Uri.EscapeDataString(sessionId)}/message", cancellationToken);
-                var assistant = messages.LastOrDefault(item => item.Info?.Role == "assistant");
-                var text = string.Concat((assistant?.Parts ?? [])
-                    .Where(part => part.Type == "text" && !string.IsNullOrWhiteSpace(part.Text))
-                    .Select(part => part.Text!));
-                if (!string.IsNullOrWhiteSpace(text))
-                    return ParseAnswer(text, selected, provider, model, assistant?.Info?.Tokens);
-            }
-            if (quotaMessage is not null)
-            {
-                freeQuotaUntil = quotaReset ?? DateTimeOffset.UtcNow.AddHours(1);
-                freeQuotaMessage = quotaMessage;
-                throw new FreeQuotaExceededException(quotaMessage, quotaReset);
-            }
-            throw new AgentUnavailableException($"OpenCode no terminó la consulta gratuita en {settings.TimeoutSeconds} segundos.");
-        }
-        finally
-        {
-            await DeleteSessionAsync(sessionId, cancellationToken);
-        }
+        return await GenerateV2Async(query, selected, provider, model, agentName, cancellationToken);
     }
 
     private AgentAnswer ParseAnswer(string text, IReadOnlyList<SearchHit> selected, string provider, string model, TokenUsage? tokens)
@@ -539,35 +339,6 @@ public sealed class OpenCodeClient
             throw new InvalidOperationException("El worker de LangChain/OpenCode no confirmó su disponibilidad. Comprueba Python, las dependencias y el servidor OpenCode.");
     }
 
-    private async Task<Dictionary<string, bool>> GetDisabledToolsAsync(CancellationToken cancellationToken = default)
-    {
-        string[]? ids;
-        lock (toolGate)
-            ids = toolIds is not null && DateTimeOffset.UtcNow < toolIdsExpires ? toolIds : null;
-        if (ids is null)
-        {
-            using var response = await http.GetAsync("experimental/tool/ids", cancellationToken);
-            response.EnsureSuccessStatusCode();
-            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-            var root = document.RootElement;
-            // OpenCode 1.19 devuelve {"value":[...],"Count":N}; versiones anteriores, un array.
-            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("value", out var wrapped)) root = wrapped;
-            if (root.ValueKind != JsonValueKind.Array)
-                throw new InvalidOperationException("OpenCode devolvió una lista de herramientas con un formato desconocido.");
-            ids = root.EnumerateArray()
-                .Where(item => item.ValueKind == JsonValueKind.String)
-                .Select(item => item.GetString()!)
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .ToArray();
-            lock (toolGate)
-            {
-                toolIds = ids;
-                toolIdsExpires = DateTimeOffset.UtcNow.AddMinutes(5);
-            }
-        }
-        return ids.ToDictionary(id => id, _ => false);
-    }
-
     private static string? ExtractJsonObject(string text)
     {
         var start = text.IndexOf('{');
@@ -579,10 +350,7 @@ public sealed class OpenCodeClient
     {
         try
         {
-            var path = serverKind == ServerKind.V2
-                ? $"api/session/{Uri.EscapeDataString(sessionId)}"
-                : $"session/{Uri.EscapeDataString(sessionId)}";
-            using var response = await http.DeleteAsync(path, cancellationToken);
+            using var response = await http.DeleteAsync($"api/session/{Uri.EscapeDataString(sessionId)}", cancellationToken);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
@@ -637,12 +405,6 @@ public sealed class OpenCodeClient
         }
     }
 
-    private async Task PostVoidAsync(string path, object payload, CancellationToken cancellationToken)
-    {
-        using var response = await http.PostAsJsonAsync(path, payload, Catalog.Json, cancellationToken);
-        if (!response.IsSuccessStatusCode) throw HttpFailure(response.StatusCode);
-    }
-
     private Exception HttpFailure(HttpStatusCode status)
     {
         var message = DescribeHttpFailure(status);
@@ -658,24 +420,11 @@ public sealed class OpenCodeClient
         _ => $"OpenCode respondió HTTP {(int)status}. Revisa el servidor y su configuración."
     };
 
-    private sealed record HealthResponse(bool Healthy, string? Version);
-    private sealed record AgentInfo(string Name);
-    private sealed record SessionInfo(string Id);
     private sealed record TokenUsage(long? Input, long? Output);
-    private sealed record MessageInfo([property: JsonPropertyName("role")] string? Role, [property: JsonPropertyName("modelID")] string? ModelId, [property: JsonPropertyName("providerID")] string? ProviderId, TokenUsage? Tokens);
-    private sealed record MessagePart(string? Type, string? Text);
-    private sealed record MessageResponse(MessageInfo? Info, MessagePart[]? Parts);
-    private sealed record SessionStatus(string? Type, SessionAction? Action, long? Next);
-    private sealed record SessionAction(string? Reason, string? Title, string? Message);
     private sealed record GeneratedAnswer(string? Answer, int[]? Citations);
     private sealed record LangChainAnswer(string? Answer, int[]? Citations,
         [property: JsonPropertyName("input_tokens")] int? InputTokens,
         [property: JsonPropertyName("output_tokens")] int? OutputTokens);
-    private sealed record ProviderListResponse(ProviderResponse[]? All, string[]? Connected, Dictionary<string, string>? Default);
-    private sealed record ProviderResponse(string? Id, string? Name, string? Source, ProviderOptions? Options, Dictionary<string, ModelResponse>? Models);
-    private sealed record ProviderOptions([property: JsonPropertyName("baseURL")] string? BaseUrl);
-    private sealed record ModelResponse(string? Id, string? Name, ModelCost? Cost, string? Status);
-    private sealed record ModelCost(decimal? Input, decimal? Output);
 
     // --- OpenCode 2 (/api/...) -------------------------------------------------
     private sealed record V2ServerInfo(string? Version);

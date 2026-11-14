@@ -1,8 +1,8 @@
-"""Generación con OpenCode 1 o 2 orquestada por LangChain (sin Ollama).
+"""Generación con OpenCode 2 orquestada por LangChain (sin Ollama).
 
 LangChain se usa para la plantilla de mensajes, la cadena de Runnables y la
-salida estructurada. El modelo se invoca en el servidor OpenCode local
-(que a su vez usa sus proveedores gratis o locales).
+salida estructurada. El modelo se invoca en el servidor OpenCode 2 local
+(que a su vez usa sus proveedores gratis, de pago o locales).
 """
 
 import ipaddress
@@ -143,68 +143,18 @@ def _http_client(request: Request) -> httpx.Client:
     )
 
 
-def _is_open_code_2(client: httpx.Client) -> bool:
-    try:
-        response = client.get("/api/info")
-        if response.status_code != 200:
-            return False
-        data = response.json()
-        return isinstance(data, dict) and ("version" in data or "urls" in data)
-    except Exception:
-        # En OpenCode 1 esta ruta no existe (404/HTML) y se usa la API clásica.
-        return False
-
-
 def call_opencode(request: Request, prompt_value) -> tuple[str, dict]:
     system, human = _message_parts(prompt_value, request.system)
     with _http_client(request) as client:
-        if _is_open_code_2(client):
-            return _call_open_code_2(client, request, system, human)
-        return _call_open_code_1(client, request, system, human)
-
-
-def _call_open_code_1(
-    client: httpx.Client, request: Request, system: str, human: str
-) -> tuple[str, dict]:
-    tool_ids = client.get("/experimental/tool/ids")
-    tool_ids.raise_for_status()
-    tool_list = tool_ids.json()
-    if isinstance(tool_list, dict):
-        tool_list = tool_list.get("value", [])
-    if not isinstance(tool_list, list) or not all(isinstance(item, str) for item in tool_list):
-        raise ValueError("OpenCode returned an unexpected tool id list.")
-    session = client.post("/session", json={"title": "DocuSearch LangChain"})
-    session.raise_for_status()
-    session_id = session.json().get("id", "")
-    if not session_id:
-        raise ValueError("OpenCode did not return a session id.")
-    try:
-        payload = {
-            "model": {"providerID": request.provider_id, "modelID": request.model_id},
-            "system": system,
-            "tools": {tool: False for tool in tool_list},
-            "parts": [{"type": "text", "text": human}],
-        }
-        if request.agent:
-            payload["agent"] = request.agent
-        response = client.post(f"/session/{session_id}/message", json=payload)
-        response.raise_for_status()
-        data = response.json()
-        text = "".join(
-            part.get("text", "") for part in data.get("parts", []) if part.get("type") == "text"
-        )
-        tokens = (data.get("info") or {}).get("tokens") or {}
-        return text, tokens
-    finally:
-        try:
-            client.delete(f"/session/{session_id}")
-        except httpx.HTTPError:
-            pass
+        return _call_open_code_2(client, request, system, human)
 
 
 def _call_open_code_2(
     client: httpx.Client, request: Request, system: str, human: str
 ) -> tuple[str, dict]:
+    info = client.get("/api/info")
+    if info.status_code != 200:
+        raise ValueError("OpenCode 2 no está disponible en /api/info.")
     body: dict = {
         "title": "DocuSearch LangChain",
         "model": {"id": request.model_id, "providerID": request.provider_id},

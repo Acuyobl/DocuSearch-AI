@@ -80,49 +80,51 @@ OpenCodeClient OpenCodeFor(HttpClient http, bool enabled = true, string password
         Enabled = enabled, BaseUrl = "http://127.0.0.1:4097", Password = password,
         Agent = agent, ProviderId = provider, ModelId = model
     }));
-HttpClient OpenCodeMock(string answerText, Action<HttpRequestMessage>? capture = null, string toolIds = """["bash","read"]""") =>
+HttpClient OpenCodeMock(string answerText, Action<HttpRequestMessage>? capture = null) =>
     new(new TestHttpHandler((request, _) =>
     {
         capture?.Invoke(request);
         if (request.Method == HttpMethod.Delete) return Task.FromResult(JsonResponse("true"));
         var path = request.RequestUri!.AbsolutePath;
-        var body = path switch
+        var body = (request.Method.Method, path) switch
         {
-            "/global/health" => """{"healthy":true,"version":"1.18.32"}""",
-            "/agent" => """[{"name":"build"},{"name":"zodiac-asistente"}]""",
-            "/experimental/tool/ids" => toolIds,
-            "/session" => """{"id":"ses_test"}""",
-            "/session/ses_test/message" => "{\"info\":{\"tokens\":{\"input\":10,\"output\":5}},\"parts\":[{\"type\":\"text\",\"text\":" + JsonSerializer.Serialize(answerText) + "}]}",
+            (_, "/api/info") => """{"version":"2.2.5"}""",
+            (_, "/api/agent") => """{"data":[{"id":"build"},{"id":"zodiac-asistente"}]}""",
+            ("POST", "/api/session") => """{"data":{"id":"ses_test"}}""",
+            ("POST", "/api/session/ses_test/prompt") => """{"data":{}}""",
+            (_, "/api/session/ses_test/message") =>
+                "{\"data\":[{\"type\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":" + JsonSerializer.Serialize(answerText) +
+                "}],\"tokens\":{\"input\":10,\"output\":5},\"finish\":\"stop\"}]}",
             _ => "{}"
         };
         return Task.FromResult(JsonResponse(body));
     }));
-HttpClient OpenCodeCatalogMock(string providerJson) =>
+HttpClient OpenCodeCatalogMock(string providerJson, string modelJson) =>
     new(new TestHttpHandler((request, _) =>
     {
         var path = request.RequestUri!.AbsolutePath;
         var body = path switch
         {
-            "/global/health" => """{"healthy":true,"version":"1.18.32"}""",
-            "/agent" => """[{"name":"build"}]""",
-            "/provider" => providerJson,
-            "/experimental/tool/ids" => """["bash","read"]""",
+            "/api/info" => """{"version":"2.2.5"}""",
+            "/api/agent" => """{"data":[{"id":"build"}]}""",
+            "/api/provider" => providerJson,
+            "/api/model" => modelJson,
             _ => "{}"
         };
         return Task.FromResult(JsonResponse(body));
     }));
-const string catalogJson = """
-    {"all":[
-      {"id":"opencode","name":"OpenCode","options":{"baseURL":""},"models":{
-        "free-model":{"id":"free-model","name":"Free Model","cost":{"input":0,"output":0},"status":"active"},
-        "paid-model":{"id":"paid-model","name":"Paid Model","cost":{"input":1,"output":2},"status":"active"}}},
-      {"id":"ollama","name":"Ollama (local)","options":{"baseURL":"http://127.0.0.1:11434/v1"},"models":{
-        "qwen3:4b":{"id":"qwen3:4b","name":"Qwen3 4B","cost":{"input":0,"output":0},"status":"active"}}},
-      {"id":"lmstudio","name":"LM Studio","options":{"baseURL":"http://localhost:1234/v1"},"models":{
-        "local-model":{"id":"local-model","name":"Local Model","cost":{"input":0,"output":0},"status":"active"}}},
-      {"id":"deepseek","name":"DeepSeek","options":{"baseURL":""},"models":{
-        "deepseek-flash":{"id":"deepseek-flash","name":"DeepSeek Flash","cost":{"input":1,"output":2},"status":"active"}}}
-    ],"connected":["opencode","ollama"],"default":{}}
+const string catalogProvidersJson = """
+    {"data":[
+      {"id":"opencode","name":"OpenCode","settings":{"baseURL":""}},
+      {"id":"ollama","name":"Ollama (local)","settings":{"baseURL":"http://127.0.0.1:11434/v1"}}
+    ]}
+    """;
+const string catalogModelsJson = """
+    {"data":[
+      {"id":"free-model","modelID":"free-model","providerID":"opencode","name":"Free Model","cost":[{"input":0,"output":0}],"status":"active","enabled":true},
+      {"id":"paid-model","modelID":"paid-model","providerID":"opencode","name":"Paid Model","cost":[{"input":1,"output":2}],"status":"active","enabled":true},
+      {"id":"qwen3:4b","modelID":"qwen3:4b","providerID":"ollama","name":"Qwen3 4B","cost":[{"input":0,"output":0}],"status":"active","enabled":true}
+    ]}
     """;
 const string localModelJson = """{"details":{"format":"gguf"},"capabilities":["completion"]}""";
 string ChatJson(string content, bool done = true, string reason = "stop") =>
@@ -660,32 +662,32 @@ await Check("OpenCode: comprueba salud y agente configurado", async () =>
     var calls = new List<string>();
     using var http = OpenCodeMock("{\"answer\":\"ok\",\"citations\":[1]}", request => calls.Add($"{request.Method.Method} {request.RequestUri!.AbsolutePath}"));
     await OpenCodeFor(http).CheckAsync();
-    Assert(calls.Contains("GET /global/health") && calls.Contains("GET /agent"));
+    Assert(calls.Contains("GET /api/info") && calls.Contains("GET /api/agent"));
 });
 await Check("OpenCode: genera respuesta con citas, tokens y autenticación", async () =>
 {
-    string? messageBody = null, auth = null;
+    string? sessionBody = null, promptBody = null, auth = null;
     var calls = new List<string>();
     using var http = OpenCodeMock("{\"answer\":\"ok\",\"citations\":[1]}", request =>
     {
         calls.Add($"{request.Method.Method} {request.RequestUri!.AbsolutePath}");
-        if (request.RequestUri.AbsolutePath.EndsWith("/message", StringComparison.Ordinal))
-        {
-            messageBody = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
-            auth = request.Headers.Authorization?.ToString();
-        }
+        var body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+        if (request.RequestUri.AbsolutePath == "/api/session") sessionBody = body;
+        if (request.RequestUri.AbsolutePath.EndsWith("/prompt", StringComparison.Ordinal)) promptBody = body;
+        auth = request.Headers.Authorization?.ToString() ?? auth;
     });
     var document = new DocumentItem { InternalCode = "CNT-2025-0892", Title = "Contrato" };
     var answer = await OpenCodeFor(http).GenerateAsync("¿Qué SLA garantiza el contrato?", [new(document, 4, "SLA 99.99%", 100)]);
     Assert(answer.Text == "ok" && answer.Sources.Single().PageNumber == 4);
     Assert(answer.Provider.Contains("OpenCode", StringComparison.Ordinal) && answer.InputTokens == 10 && answer.OutputTokens == 5);
-    Assert(messageBody is not null && messageBody.Contains("\"agent\":\"zodiac-asistente\"", StringComparison.Ordinal) &&
-        messageBody.Contains("\"providerID\":\"ollama\"", StringComparison.Ordinal) &&
-        messageBody.Contains("\"modelID\":\"qwen3:4b\"", StringComparison.Ordinal));
-    Assert(messageBody!.Contains("SLA", StringComparison.Ordinal) &&
-        messageBody.Contains("CNT-2025-0892", StringComparison.Ordinal));
+    Assert(sessionBody is not null && sessionBody.Contains("\"agent\":\"zodiac-asistente\"", StringComparison.Ordinal) &&
+        sessionBody.Contains("\"providerID\":\"ollama\"", StringComparison.Ordinal) &&
+        sessionBody.Contains("\"id\":\"qwen3:4b\"", StringComparison.Ordinal) &&
+        sessionBody.Contains("\"effect\":\"deny\"", StringComparison.Ordinal));
+    Assert(promptBody is not null && promptBody.Contains("SLA", StringComparison.Ordinal) &&
+        promptBody.Contains("CNT-2025-0892", StringComparison.Ordinal));
     Assert(auth is not null && auth.StartsWith("Basic ", StringComparison.Ordinal));
-    Assert(calls.Contains("DELETE /session/ses_test"));
+    Assert(calls.Contains("DELETE /api/session/ses_test"));
 });
 await Check("OpenCode: bloquea citas fuera de las fuentes autorizadas", async () =>
 {
@@ -722,19 +724,19 @@ await Check("OpenCode: usa el modelo del perfil seleccionado", async () =>
     string? body = null;
     using var http = OpenCodeMock("{\"answer\":\"ok\",\"citations\":[1]}", request =>
     {
-        if (request.RequestUri!.AbsolutePath.EndsWith("/message", StringComparison.Ordinal))
+        if (request.RequestUri!.AbsolutePath == "/api/session")
             body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
     });
     var document = new DocumentItem { InternalCode = "CNT-2025-0892", Title = "Contrato" };
     var answer = await OpenCodeFor(http).GenerateAsync("q", [new(document, 1, "texto", 100)],
         "deepseek", "deepseek-flash", "zodiac-asistente");
     Assert(body is not null && body.Contains("\"providerID\":\"deepseek\"", StringComparison.Ordinal) &&
-        body.Contains("\"modelID\":\"deepseek-flash\"", StringComparison.Ordinal));
+        body.Contains("\"id\":\"deepseek-flash\"", StringComparison.Ordinal));
     Assert(answer.Provider.Contains("deepseek/deepseek-flash", StringComparison.Ordinal));
 });
 await Check("Asistente: catálogo dinámico separa gratis, pago y oculta locales", async () =>
 {
-    var runtime = new AssistantRuntime(Options.Create(new AssistantOptions()), OpenCodeFor(OpenCodeCatalogMock(catalogJson)),
+    var runtime = new AssistantRuntime(Options.Create(new AssistantOptions()), OpenCodeFor(OpenCodeCatalogMock(catalogProvidersJson, catalogModelsJson)),
         Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
     await runtime.RefreshAsync(force: true);
     var locals = runtime.Profiles.Where(profile => profile.Group == "Locales").ToList();
@@ -746,7 +748,7 @@ await Check("Asistente: catálogo dinámico separa gratis, pago y oculta locales
     Assert(!runtime.Profiles.Any(profile => profile.ModelId == "free-model"));
 
     var withFree = new AssistantRuntime(Options.Create(new AssistantOptions { IncludeFreeModels = true }),
-        OpenCodeFor(OpenCodeCatalogMock(catalogJson)),
+        OpenCodeFor(OpenCodeCatalogMock(catalogProvidersJson, catalogModelsJson)),
         Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
     await withFree.RefreshAsync(force: true);
     var freeEnabled = withFree.Profiles.Where(profile => profile.Group == "Gratis").ToList();
@@ -772,8 +774,9 @@ await Check("Asistente: conserva el catálogo anterior si OpenCode falla despué
         var path = request.RequestUri!.AbsolutePath;
         return Task.FromResult(JsonResponse(path switch
         {
-            "/global/health" => """{"healthy":true,"version":"1.18.32"}""",
-            "/provider" => catalogJson,
+            "/api/info" => """{"version":"2.2.5"}""",
+            "/api/provider" => catalogProvidersJson,
+            "/api/model" => catalogModelsJson,
             _ => "{}"
         }));
     }));
@@ -791,25 +794,19 @@ await Check("OpenCode: desactiva herramientas y omite agente vacío", async () =
     string? body = null;
     using var http = OpenCodeMock("{\"answer\":\"ok\",\"citations\":[1]}", request =>
     {
-        if (request.RequestUri!.AbsolutePath.EndsWith("/message", StringComparison.Ordinal))
+        if (request.RequestUri!.AbsolutePath == "/api/session")
             body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
     });
     var document = new DocumentItem { InternalCode = "CNT-2025-0892", Title = "Contrato" };
     await OpenCodeFor(http, agent: "").GenerateAsync("q", [new(document, 1, "texto", 100)]);
-    Assert(body is not null && body.Contains("\"tools\":{\"bash\":false,\"read\":false}", StringComparison.Ordinal));
+    Assert(body is not null && body.Contains("\"permissions\":[{\"action\":\"*\",\"resource\":\"*\",\"effect\":\"deny\"}]", StringComparison.Ordinal));
     Assert(!body!.Contains("\"agent\":", StringComparison.Ordinal));
 });
-await Check("OpenCode 1.19: acepta herramientas envueltas en value", async () =>
+await Check("OpenCode 2: rechaza un servidor incompatible", async () =>
 {
-    string? body = null;
-    using var http = OpenCodeMock("{\"answer\":\"ok\",\"citations\":[1]}", request =>
-    {
-        if (request.RequestUri!.AbsolutePath.EndsWith("/message", StringComparison.Ordinal))
-            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
-    }, """{"value":["bash","read"],"Count":2}""");
-    var document = new DocumentItem { InternalCode = "CNT-2025-0892", Title = "Contrato" };
-    await OpenCodeFor(http, agent: "").GenerateAsync("q", [new(document, 1, "texto", 100)]);
-    Assert(body is not null && body.Contains("\"tools\":{\"bash\":false,\"read\":false}", StringComparison.Ordinal));
+    using var http = new HttpClient(new TestHttpHandler((_, _) =>
+        Task.FromResult(JsonResponse("""{"healthy":true}"""))));
+    await ThrowsAsync<InvalidOperationException>(() => OpenCodeFor(http).CheckAsync());
 });
 await Check("OpenCode: el modo LangChain se refleja en el motor", () => Sync(() =>
 {
@@ -831,7 +828,7 @@ await Check("Asistente: incluye LangChain/Ollama local en el catálogo", async (
     {
         Enabled = true, UseLangChain = true, BaseUrl = "http://127.0.0.1:11434", Model = "qwen3:4b"
     }));
-    var runtime = new AssistantRuntime(Options.Create(new AssistantOptions { IncludeLocalModels = true }), OpenCodeFor(OpenCodeCatalogMock(catalogJson)),
+    var runtime = new AssistantRuntime(Options.Create(new AssistantOptions { IncludeLocalModels = true }), OpenCodeFor(OpenCodeCatalogMock(catalogProvidersJson, catalogModelsJson)),
         Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance, ollamaClient);
     await runtime.RefreshAsync(force: true);
     var langchain = runtime.Profiles.SingleOrDefault(profile => profile.Id == "ollama:local");
@@ -1229,15 +1226,15 @@ if (args.Contains("--database"))
         using var http = new HttpClient(new TestHttpHandler((request, _) =>
         {
             var path = request.RequestUri!.AbsolutePath;
-            if (path.EndsWith("/message", StringComparison.Ordinal))
+            if (path.EndsWith("/prompt", StringComparison.Ordinal))
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
             return Task.FromResult(JsonResponse(path switch
             {
-                "/global/health" => """{"healthy":true,"version":"1.18.32"}""",
-                "/provider" => catalogJson,
-                "/agent" => """[{"name":"zodiac-asistente"}]""",
-                "/experimental/tool/ids" => """["bash","read"]""",
-                "/session" => """{"id":"ses_fallback"}""",
+                "/api/info" => """{"version":"2.2.5"}""",
+                "/api/provider" => catalogProvidersJson,
+                "/api/model" => catalogModelsJson,
+                "/api/agent" => """{"data":[{"id":"zodiac-asistente"}]}""",
+                "/api/session" => """{"data":{"id":"ses_fallback"}}""",
                 _ => "{}"
             }));
         }));
