@@ -19,7 +19,8 @@ public sealed class RagQueryService(
     OllamaClient ollama,
     ILogger<RagQueryService> logger)
 {
-    public async Task<RagQueryResponse> QueryAsync(string question, CancellationToken cancellationToken = default)
+    public async Task<RagQueryResponse> QueryAsync(string question, bool generate = true,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(question) || question.Length > 2000)
             throw new InvalidOperationException("La consulta debe tener entre 1 y 2000 caracteres.");
@@ -57,25 +58,28 @@ public sealed class RagQueryService(
             $"{TextAnalysis.Truncate(hit.Chunk.Text, 700)}\n[{hit.Chunk.InternalCode}, p. {hit.Chunk.PageNumber}]"));
         var answer = new AgentAnswer(extractive + "\n\nRespuesta extractiva con citas verificables.", sourceHits);
         var generated = false;
-        await assistant.EnsureLoadedAsync();
-        var profile = assistant.Active;
-        var engine = profile.Engine.ToLowerInvariant();
-        try
+        if (generate)
         {
-            if (engine == "opencode" && opencode is not null)
+            await assistant.EnsureLoadedAsync();
+            var profile = assistant.Active;
+            var engine = profile.Engine.ToLowerInvariant();
+            try
             {
-                answer = await opencode.GenerateAsync(question, sourceHits, profile.ProviderId, profile.ModelId, profile.Agent);
-                generated = true;
+                if (engine == "opencode" && opencode is not null)
+                {
+                    answer = await opencode.GenerateAsync(question, sourceHits, profile.ProviderId, profile.ModelId, profile.Agent);
+                    generated = true;
+                }
+                else if (ollama.Enabled)
+                {
+                    answer = await ollama.GenerateAsync(question, sourceHits);
+                    generated = true;
+                }
             }
-            else if (ollama.Enabled)
+            catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
             {
-                answer = await ollama.GenerateAsync(question, sourceHits);
-                generated = true;
+                logger.LogWarning("RAG: el motor falló ({Error}); se devuelve extractivo.", ex.GetType().Name);
             }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
-        {
-            logger.LogWarning("RAG: el motor falló ({Error}); se devuelve extractivo.", ex.GetType().Name);
         }
 
         if (generated)

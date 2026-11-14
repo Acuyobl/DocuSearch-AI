@@ -124,6 +124,7 @@ builder.Services.AddScoped<IRagReranker, SemanticRagReranker>();
 builder.Services.AddScoped<IRagRetriever, HybridRagRetriever>();
 builder.Services.AddScoped<RagIngestionService>();
 builder.Services.AddScoped<RagQueryService>();
+builder.Services.AddScoped<RagEvaluationService>();
 builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection("Ollama"));
 builder.Services.AddHttpClient<OllamaClient>().ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
@@ -226,6 +227,40 @@ if (args.Contains("--rag-reindex", StringComparer.Ordinal))
     catch (Exception ex) when (ex is DbException or InvalidOperationException or HttpRequestException)
     {
         app.Logger.LogError(ex, "No se pudo reindexar el pipeline RAG por fragmentos.");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
+if (args.Contains("--rag-eval", StringComparer.Ordinal))
+{
+    try
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+        var user = await db.Users.AsNoTracking()
+            .Where(candidate => candidate.Status == "Activo" && candidate.Role == "admin_general")
+            .FirstOrDefaultAsync()
+            ?? throw new InvalidOperationException("No hay administrador activo para evaluar RAG.");
+        var session = scope.ServiceProvider.GetRequiredService<LocalSession>();
+        session.SignIn(new ClaimsPrincipal(new ClaimsIdentity(AuthService.BuildClaims(user), "cli")));
+        var evaluation = scope.ServiceProvider.GetRequiredService<RagEvaluationService>();
+        var path = Path.Combine(AppContext.BaseDirectory, "eval", "rag_questions.json");
+        if (!File.Exists(path)) path = Path.Combine(Directory.GetCurrentDirectory(), "eval", "rag_questions.json");
+        var report = await evaluation.RunAsync(path, args.Contains("--generate", StringComparer.Ordinal));
+        Console.WriteLine($"RAG eval: {report.Cases} casos");
+        Console.WriteLine($"Context Recall: {report.ContextRecall:F3}");
+        Console.WriteLine($"Context Precision: {report.ContextPrecision:F3}");
+        Console.WriteLine($"Faithfulness (proxy): {report.Faithfulness:F3}");
+        Console.WriteLine($"Answer Relevancy (proxy): {report.AnswerRelevancy:F3}");
+        Console.WriteLine($"Casos sin la fuente esperada: {report.FailedCases.Count}");
+        if (report.ContextRecall < 0.8 || report.Faithfulness < 0.9)
+            Console.WriteLine("Umbrales del prompt no alcanzados (0.80 / 0.90).");
+    }
+    catch (Exception ex) when (ex is DbException or InvalidOperationException or IOException)
+    {
+        app.Logger.LogError(ex, "No se pudo ejecutar la evaluación RAG.");
         Environment.ExitCode = 1;
     }
     return;
