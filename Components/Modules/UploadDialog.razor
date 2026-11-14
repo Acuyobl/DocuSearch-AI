@@ -38,6 +38,24 @@
                 @if (entry.Error is not null) { <p class="error-text">@entry.Error</p> }
             </div><progress value="@FormatProgress(entry.Progress)" max="100" aria-label="@entry.File.Name"></progress></div>
         }
+        @if (activeEntry is not null)
+        {
+            <section class="panel ingest-progress" aria-live="polite" aria-label="Progreso del pipeline de ingesta">
+                <div class="section-heading"><strong><AppIcon Name="pipeline" />Progreso del pipeline</strong><span class="code">@activeEntry.File.Name</span></div>
+                <ol class="ingest-steps">
+                    @foreach (var step in activeEntry.Steps)
+                    {
+                        <li class="ingest-step @step.Status">
+                            <span class="ingest-marker" aria-hidden="true">@(step.Status == "done" ? "✓" : step.Number)</span>
+                            <div>
+                                <strong>@step.Label</strong>
+                                @if (!string.IsNullOrWhiteSpace(step.Detail)) { <small>@step.Detail</small> }
+                            </div>
+                        </li>
+                    }
+                </ol>
+            </section>
+        }
         <div class="alert info">Los PDF escaneados se almacenan, pero sus páginas sin texto quedan marcadas como «Requiere OCR». El asistente no inventa su contenido.</div>
         @if (State.Error is not null) { <div class="alert error" role="alert">@State.Error</div> }
         @if (queue.Count > 0 && queue.All(q => q.Status == "Guardado en SQL Server"))
@@ -54,6 +72,7 @@
     private static string FormatProgress(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
     private DocumentItem metadata = new();
     private bool single = true;
+    private QueueEntry? activeEntry;
     private void SetMode(bool value)
     {
         if (single == value) return;
@@ -68,6 +87,57 @@
         public string Status { get; set; } = "Pendiente";
         public double Progress { get; set; }
         public string? Error { get; set; }
+        public List<IngestStep> Steps { get; } =
+        [
+            new("Leer archivo", 1),
+            new("Validar PDF", 2),
+            new("Extraer texto", 3),
+            new("Resumen y entidades", 4),
+            new("Guardar en SQL Server", 5),
+            new("Indexar búsqueda semántica", 6)
+        ];
+
+        public void Apply(PipelineProgress progress)
+        {
+            if (progress.Stage == PipelineStage.Completed)
+            {
+                foreach (var step in Steps) step.Status = "done";
+                Steps[^1].Detail = progress.Detail;
+                return;
+            }
+
+            var index = progress.Stage switch
+            {
+                PipelineStage.Reading => 0,
+                PipelineStage.Validating => 1,
+                PipelineStage.Extracting => 2,
+                PipelineStage.Summarizing => 3,
+                PipelineStage.Persisting => 4,
+                PipelineStage.Indexing => 5,
+                _ => -1
+            };
+            if (index < 0) return;
+            for (var previous = 0; previous < index; previous++)
+                if (Steps[previous].Status is "pending" or "active") Steps[previous].Status = "done";
+            Steps[index].Status = "active";
+            Steps[index].Detail = progress.Detail;
+        }
+
+        public void Fail()
+        {
+            var current = Steps.FirstOrDefault(step => step.Status == "active")
+                ?? Steps.FirstOrDefault(step => step.Status == "pending");
+            if (current is null) return;
+            current.Status = "error";
+            current.Detail = "No se pudo completar este paso.";
+        }
+    }
+    private sealed class IngestStep(string label, int number)
+    {
+        public int Number { get; } = number;
+        public string Label { get; } = label;
+        public string Status { get; set; } = "pending";
+        public string? Detail { get; set; }
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -90,31 +160,48 @@
     {
         foreach (var entry in queue.Where(q => q.Status == "Pendiente").ToList())
         {
+            activeEntry = entry;
             await State.RunAsync(async () =>
             {
-                if (!entry.File.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-                    throw new ValidationException("Solo se admiten archivos con extensión PDF.");
-                entry.Status = "Leyendo archivo";
-                using var memory = new MemoryStream();
-                await using var input = entry.File.OpenReadStream(PdfProcessor.MaxFileBytes);
-                var buffer = new byte[64 * 1024];
-                int count;
-                while ((count = await input.ReadAsync(buffer)) > 0)
+                try
                 {
-                    await memory.WriteAsync(buffer.AsMemory(0, count));
-                    entry.Progress = 70d * memory.Length / Math.Max(1, entry.File.Size);
-                    StateHasChanged();
+                    if (!entry.File.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                        throw new ValidationException("Solo se admiten archivos con extensión PDF.");
+                    entry.Apply(new(PipelineStage.Reading, "Leyendo archivo desde el navegador"));
+                    entry.Status = "Leyendo archivo";
+                    using var memory = new MemoryStream();
+                    await using var input = entry.File.OpenReadStream(PdfProcessor.MaxFileBytes);
+                    var buffer = new byte[64 * 1024];
+                    int count;
+                    while ((count = await input.ReadAsync(buffer)) > 0)
+                    {
+                        await memory.WriteAsync(buffer.AsMemory(0, count));
+                        entry.Progress = 70d * memory.Length / Math.Max(1, entry.File.Size);
+                        StateHasChanged();
+                    }
+                    entry.Apply(new(PipelineStage.Reading, "Archivo leído; iniciando análisis"));
+                    entry.Status = "Analizando y guardando";
+                    var progress = new Progress<PipelineProgress>(update =>
+                    {
+                        entry.Apply(update);
+                        _ = InvokeAsync(StateHasChanged);
+                    });
+                    await Service.UploadAsync(new DocumentItem
+                    {
+                        Title = queue.Count == 1 ? metadata.Title : Path.GetFileNameWithoutExtension(entry.File.Name),
+                        Author = metadata.Author, Department = metadata.Department, Category = metadata.Category,
+                        Version = metadata.Version, Confidentiality = metadata.Confidentiality
+                    }, memory.ToArray(), progress);
+                    entry.Status = "Guardado en SQL Server";
+                    entry.Progress = 100;
+                    await State.RefreshAsync();
                 }
-                entry.Status = "Analizando y guardando";
-                await Service.UploadAsync(new DocumentItem
+                catch
                 {
-                    Title = queue.Count == 1 ? metadata.Title : Path.GetFileNameWithoutExtension(entry.File.Name),
-                    Author = metadata.Author, Department = metadata.Department, Category = metadata.Category,
-                    Version = metadata.Version, Confidentiality = metadata.Confidentiality
-                }, memory.ToArray());
-                entry.Status = "Guardado en SQL Server";
-                entry.Progress = 100;
-                await State.RefreshAsync();
+                    entry.Fail();
+                    entry.Status = "Error";
+                    throw;
+                }
             }, $"Documento «{entry.File.Name}» cargado y guardado correctamente en SQL Server.");
             if (State.Error is not null) { entry.Status = "Error"; entry.Error = State.Error; }
         }

@@ -52,8 +52,9 @@ public sealed class PdfProcessor
     public const long MaxFileBytes = 25 * 1024 * 1024;
     public const int MaxPages = 500;
 
-    public void Process(DocumentItem document, byte[] bytes)
+    public void Process(DocumentItem document, byte[] bytes, IProgress<PipelineProgress>? progress = null)
     {
+        progress?.Report(new(PipelineStage.Validating, "Comprobando cabecera, tamaño y límite de páginas"));
         if (bytes.Length is 0 || bytes.LongLength > MaxFileBytes)
             throw new InvalidDataException("El PDF debe tener entre 1 byte y 25 MB.");
         if (bytes.Length < 5 || Encoding.ASCII.GetString(bytes, 0, 5) != "%PDF-")
@@ -63,6 +64,7 @@ public sealed class PdfProcessor
             throw new InvalidDataException($"El límite es de {MaxPages} páginas por expediente.");
         var pages = new List<DocumentPage>();
         var totalChars = 0;
+        progress?.Report(new(PipelineStage.Extracting, $"Extrayendo texto de {pdf.NumberOfPages} páginas", 0, pdf.NumberOfPages));
         foreach (var page in pdf.GetPages())
         {
             var text = ContentOrderTextExtractor.GetText(page);
@@ -72,6 +74,8 @@ public sealed class PdfProcessor
             if (text.Length > 250000)
                 throw new InvalidDataException($"La página {page.Number} supera el límite de texto admitido.");
             pages.Add(TextAnalysis.AnalyzePage(page.Number, text));
+            progress?.Report(new(PipelineStage.Extracting, $"Extrayendo texto · página {page.Number} de {pdf.NumberOfPages}",
+                page.Number, pdf.NumberOfPages));
         }
         document.Pages = pages;
         document.PageCount = pdf.NumberOfPages;
@@ -80,6 +84,7 @@ public sealed class PdfProcessor
         document.HasOriginal = true;
         var allText = string.Join("\n", pages.Select(p => p.ExtractedText));
         document.OcrStatus = pages.Any(p => string.IsNullOrWhiteSpace(p.ExtractedText)) ? "Requiere OCR" : "Completado";
+        progress?.Report(new(PipelineStage.Summarizing, "Generando resumen, palabras clave y entidades"));
         document.ExecutiveSummary = string.IsNullOrWhiteSpace(allText)
             ? "PDF sin capa de texto. Se requiere un motor OCR de imágenes; no se ha simulado su extracción."
             : TextAnalysis.Summary(allText);

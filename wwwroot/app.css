@@ -484,6 +484,24 @@ td .text-button { max-width: 340px; }
 .upload-modal .alert, .metadata-modal .alert { font-size: 11px; margin-bottom: 0; margin-top: 16px; }
 .upload-complete { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; background: #10b9810d; padding: 24px; }
 .upload-complete > .app-icon { width: 40px; height: 40px; }
+.ingest-progress { margin-top: 18px; padding: 16px; border: 1px solid var(--line); background: var(--surface); }
+.ingest-progress .section-heading { margin-bottom: 12px; }
+.ingest-progress .section-heading .code { font-size: 10px; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingest-steps { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
+.ingest-step { display: flex; align-items: flex-start; gap: 11px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--app); opacity: .62; transition: opacity .2s ease, border-color .2s ease, background .2s ease; }
+.ingest-step > div { min-width: 0; }
+.ingest-step strong { display: block; font-size: 11px; font-weight: 650; }
+.ingest-step small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.ingest-marker { width: 22px; height: 22px; flex: 0 0 22px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); font-size: 10px; font-weight: 700; background: var(--elevated); }
+.ingest-step.active { opacity: 1; border-color: color-mix(in srgb, var(--brand), transparent 55%); background: color-mix(in srgb, var(--brand), transparent 94%); }
+.ingest-step.active .ingest-marker { color: var(--brand); border-color: color-mix(in srgb, var(--brand), transparent 35%); background: color-mix(in srgb, var(--brand), transparent 88%); animation: ingest-pulse 1.4s ease-in-out infinite; }
+.ingest-step.done { opacity: 1; }
+.ingest-step.done .ingest-marker { color: #10b981; border-color: #10b98166; background: #10b98114; }
+.ingest-step.done strong { color: var(--app-fg); }
+.ingest-step.error { opacity: 1; border-color: #dc262666; background: #dc26260d; }
+.ingest-step.error .ingest-marker { color: #dc2626; border-color: #dc262666; background: #dc262614; }
+.ingest-step.error strong, .ingest-step.error small { color: #dc2626; }
+@keyframes ingest-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand), transparent 65%); } 50% { box-shadow: 0 0 0 4px transparent; } }
 .modal-backdrop.viewer-backdrop { padding: 0; overflow: hidden; }
 .modal.viewer { width: 100%; max-width: none; height: 100dvh; border: 0; border-radius: 0; padding: 0; margin: 0; display: flex; flex-direction: column; }
 .viewer-header { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 12px 24px; border-bottom: 1px solid var(--line); }

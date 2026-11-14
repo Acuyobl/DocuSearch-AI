@@ -143,8 +143,9 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
         throw new InvalidDataException("La integridad del PDF no coincide con el SHA-256 registrado. La entrega se ha cancelado y el incidente se ha auditado.");
     }
 
-    public async Task UploadAsync(DocumentItem metadata, byte[] bytes)
+    public async Task UploadAsync(DocumentItem metadata, byte[] bytes, IProgress<PipelineProgress>? progress = null)
     {
+        progress?.Report(new(PipelineStage.Validating, "Validando permisos y archivo PDF"));
         await using var db = await factory.CreateDbContextAsync();
         var actor = await ActorAsync(db);
         await RequireAsync(db, actor, Permissions.CanAssign(actor, metadata.Department, metadata.Confidentiality), "UPLOAD");
@@ -154,7 +155,8 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
             Category = metadata.Category, Version = metadata.Version.Trim(), Confidentiality = metadata.Confidentiality,
             Tags = metadata.Tags
         };
-        await Task.Run(() => processor.Process(document, bytes));
+        await Task.Run(() => processor.Process(document, bytes, progress));
+        progress?.Report(new(PipelineStage.Persisting, "Guardando metadatos y PDF original en SQL Server"));
         await using var tx = await db.Database.BeginTransactionAsync();
         await DatabaseSetup.LockAsync(db);
         actor = await ActorAsync(db);
@@ -168,7 +170,9 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
         Audit(db, actor, "UPLOAD", $"{document.Title}. Estado: {document.OcrStatus}. SHA-256: {document.Sha256Hash}", document.InternalCode);
         await db.SaveChangesAsync();
         await tx.CommitAsync();
+        progress?.Report(new(PipelineStage.Indexing, "Indexando páginas para búsqueda semántica local"));
         await TryIndexAsync(document.Id);
+        progress?.Report(new(PipelineStage.Completed, "Documento cargado e indexado"));
     }
 
     private async Task TryIndexAsync(string documentId)
