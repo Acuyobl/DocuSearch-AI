@@ -366,6 +366,14 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
         await db.SaveChangesAsync();
     }
 
+    public async Task LogRagQueryAsync(string details)
+    {
+        await using var db = await factory.CreateDbContextAsync();
+        var actor = await ActorAsync(db);
+        Audit(db, actor, "RAG_QUERY", details);
+        await db.SaveChangesAsync();
+    }
+
     public async Task<List<AuditEvent>> ExportAuditAsync()
     {
         await using var db = await factory.CreateDbContextAsync();

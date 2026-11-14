@@ -6,6 +6,7 @@ using DocuSearch.Components;
 using DocuSearch.Data;
 using DocuSearch.Models;
 using DocuSearch.Services;
+using DocuSearch.Services.Rag;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -113,6 +114,16 @@ builder.Services.AddHttpClient<PineconeClient>(client =>
 });
 builder.Services.AddScoped<PineconeSyncService>();
 builder.Services.AddScoped<PineconeRetriever>();
+builder.Services.Configure<RagOptions>(builder.Configuration.GetSection("Rag"));
+builder.Services.AddScoped<FixedRagChunker>();
+builder.Services.AddScoped<SemanticRagChunker>();
+builder.Services.AddScoped<IRagChunker>(provider => provider.GetRequiredService<FixedRagChunker>());
+builder.Services.AddScoped<IRagEmbedder, BgeM3RagEmbedder>();
+builder.Services.AddScoped<IRagVectorStore, SqlRagVectorStore>();
+builder.Services.AddScoped<IRagReranker, SemanticRagReranker>();
+builder.Services.AddScoped<IRagRetriever, HybridRagRetriever>();
+builder.Services.AddScoped<RagIngestionService>();
+builder.Services.AddScoped<RagQueryService>();
 builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection("Ollama"));
 builder.Services.AddHttpClient<OllamaClient>().ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
@@ -197,6 +208,24 @@ if (args.Contains("--sync-pinecone", StringComparer.Ordinal))
     catch (Exception ex) when (ex is DbException or InvalidOperationException or HttpRequestException)
     {
         app.Logger.LogError(ex, "No se pudo sincronizar Pinecone. Revisa Pinecone:ApiKey, IndexName y conectividad.");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
+if (args.Contains("--rag-reindex", StringComparer.Ordinal))
+{
+    try
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var ingestion = scope.ServiceProvider.GetRequiredService<RagIngestionService>();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        var result = await ingestion.IngestAsync(new SqlRagLoader(factory));
+        Console.WriteLine($"RAG: {result.Documents} documentos, {result.Chunks} fragmentos indexados.");
+    }
+    catch (Exception ex) when (ex is DbException or InvalidOperationException or HttpRequestException)
+    {
+        app.Logger.LogError(ex, "No se pudo reindexar el pipeline RAG por fragmentos.");
         Environment.ExitCode = 1;
     }
     return;
@@ -530,8 +559,7 @@ app.MapGet("/health/ready", async (IDbContextFactory<AppDbContext> factory) =>
 // Catálogo del selector de motores: lo lee el panel del asistente y sirve para
 // comprobar desde fuera que la lista gratis/local se descubrió en este OpenCode.
 app.MapGet("/assistant/engines", async (AssistantRuntime runtime, AgentResilience resilience) =>
-{
-    await runtime.EnsureLoadedAsync();
+{    await runtime.EnsureLoadedAsync();
     return Results.Ok(new
     {
         active = runtime.Active.Id,
@@ -549,6 +577,26 @@ app.MapGet("/assistant/engines", async (AssistantRuntime runtime, AgentResilienc
         })
     });
 });
+
+app.MapPost("/api/rag/query", async (HttpContext context, LocalSession session, RagQueryService rag,
+    RagQueryRequest request) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
+    try
+    {
+        session.SignIn(context.User);
+        return Results.Ok(await rag.QueryAsync(request.Question));
+    }
+    catch (UnauthorizedAccessException)
+    {
+        return Results.Forbid();
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();

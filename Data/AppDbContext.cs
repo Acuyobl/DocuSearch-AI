@@ -12,6 +12,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<AuditEvent> Audit => Set<AuditEvent>();
     public DbSet<AgentTrace> AgentTraces => Set<AgentTrace>();
     public DbSet<PageEmbedding> PageEmbeddings => Set<PageEmbedding>();
+    public DbSet<RagChunkRecord> RagChunks => Set<RagChunkRecord>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -49,5 +50,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         model.Entity<PageEmbedding>().Property(e => e.Vector).HasColumnType("varbinary(max)");
         model.Entity<PageEmbedding>().HasOne<DocumentItem>().WithMany()
             .HasForeignKey(e => e.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        model.Entity<RagChunkRecord>().ToTable("RagFragments");
+        model.Entity<RagChunkRecord>().HasIndex(chunk => new { chunk.DocumentId, chunk.ChunkIndex }).IsUnique();
+        model.Entity<RagChunkRecord>().Property(chunk => chunk.Vector).HasColumnType("varbinary(max)");
+        model.Entity<RagChunkRecord>().Property(chunk => chunk.Text).HasColumnType("nvarchar(max)");
     }
 }
