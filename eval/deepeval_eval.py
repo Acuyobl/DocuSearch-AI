@@ -137,12 +137,21 @@ def main() -> int:
     else:
         judge = OllamaJudge(os.getenv("JUDGE_MODEL", "qwen2.5:3b"),
                             os.getenv("OLLAMA_URL", "http://127.0.0.1:11434"))
-    metrics = [
-        ContextualRecallMetric(threshold=0.80, model=judge, async_mode=False),
-        ContextualPrecisionMetric(threshold=0.50, model=judge, async_mode=False),
-        FaithfulnessMetric(threshold=0.90, model=judge, async_mode=False),
-        AnswerRelevancyMetric(threshold=0.80, model=judge, async_mode=False),
-    ]
+    selected = os.getenv("METRICS", "all").lower()
+    if selected == "faithfulness":
+        metrics = [FaithfulnessMetric(threshold=0.90, model=judge, async_mode=False)]
+    elif selected == "retrieval":
+        metrics = [
+            ContextualRecallMetric(threshold=0.80, model=judge, async_mode=False),
+            ContextualPrecisionMetric(threshold=0.50, model=judge, async_mode=False),
+        ]
+    else:
+        metrics = [
+            ContextualRecallMetric(threshold=0.80, model=judge, async_mode=False),
+            ContextualPrecisionMetric(threshold=0.50, model=judge, async_mode=False),
+            FaithfulnessMetric(threshold=0.90, model=judge, async_mode=False),
+            AnswerRelevancyMetric(threshold=0.80, model=judge, async_mode=False),
+        ]
     totals = [0.0] * len(metrics)
     for index, item in enumerate(cases, 1):
         test_case = LLMTestCase(input=item["Question"], actual_output=item["Answer"],

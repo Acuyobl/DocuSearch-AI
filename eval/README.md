@@ -85,6 +85,12 @@ $env:EVAL_LIMIT = "3"
 .\.venv-ragas\Scripts\python eval\deepeval_eval.py eval\export.json
 ```
 
+También se puede ejecutar solo una métrica:
+
+```powershell
+$env:METRICS = "faithfulness"   # o "retrieval" o "all"
+```
+
 Una pasada completa de 30 casos con cuatro métricas sigue siendo costosa; por eso se
 documenta como evaluación separada. **RAGAS no se pudo instalar en Python 3.14** porque
 `scikit-network` no tiene wheel; DeepEval sí está instalado en el entorno de prueba.
