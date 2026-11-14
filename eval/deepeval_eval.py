@@ -1,4 +1,4 @@
-"""Evaluación DeepEval del pipeline RAG.
+﻿"""EvaluaciÃ³n DeepEval del pipeline RAG.
 
 Juez local Ollama (por defecto) o OpenCode 2:
   python eval/deepeval_eval.py eval/export.json
@@ -40,7 +40,7 @@ class OllamaJudge(DeepEvalBaseLLM):
     def generate(self, prompt: str, schema=None, **kwargs) -> str:
         if schema is not None:
             try:
-                prompt += ("\n\nDevuelve SOLO un objeto JSON válido que cumpla este esquema "
+                prompt += ("\n\nDevuelve SOLO un objeto JSON vÃ¡lido que cumpla este esquema "
                            "(sin markdown):\n" + json.dumps(schema.model_json_schema(), ensure_ascii=False))
             except Exception:
                 pass
@@ -82,7 +82,7 @@ class OpenCodeJudge(DeepEvalBaseLLM):
     def generate(self, prompt: str, schema=None, **kwargs) -> str:
         if schema is not None:
             try:
-                prompt += ("\n\nDevuelve SOLO un objeto JSON válido que cumpla este esquema "
+                prompt += ("\n\nDevuelve SOLO un objeto JSON vÃ¡lido que cumpla este esquema "
                            "(sin markdown):\n" + json.dumps(schema.model_json_schema(), ensure_ascii=False))
             except Exception:
                 pass
@@ -93,7 +93,7 @@ class OpenCodeJudge(DeepEvalBaseLLM):
         })
         session_id = (session.get("data") or {}).get("id", "")
         if not session_id:
-            raise RuntimeError("OpenCode no devolvió sesión")
+            raise RuntimeError("OpenCode no devolviÃ³ sesiÃ³n")
         try:
             self._request("POST", f"/api/session/{session_id}/prompt", {"text": prompt})
             deadline = time.time() + 300
@@ -111,7 +111,7 @@ class OpenCodeJudge(DeepEvalBaseLLM):
                 finished = bool(last.get("finish")) or bool((last.get("time") or {}).get("completed"))
                 if answer and finished:
                     return answer
-            raise TimeoutError("OpenCode judge agotó el tiempo")
+            raise TimeoutError("OpenCode judge agotÃ³ el tiempo")
         finally:
             try:
                 self._request("DELETE", f"/api/session/{session_id}")
@@ -135,7 +135,7 @@ def main() -> int:
             os.getenv("OPENCODE_PROVIDER", "deepseek"),
             os.getenv("OPENCODE_MODEL", "deepseek-flash"))
     else:
-        judge = OllamaJudge(os.getenv("JUDGE_MODEL", "qwen2.5:3b"),
+        judge = OllamaJudge(os.getenv("JUDGE_MODEL", "qwen2.5-coder:7b"),
                             os.getenv("OLLAMA_URL", "http://127.0.0.1:11434"))
     selected = os.getenv("METRICS", "all").lower()
     if selected == "faithfulness":
@@ -173,3 +173,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
