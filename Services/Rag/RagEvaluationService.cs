@@ -10,6 +10,8 @@ public sealed record RagEvalCase(string Id, string Question, string ExpectedDocu
 public sealed record RagEvalReport(int Cases, double ContextRecall, double ContextPrecision,
     double Faithfulness, double AnswerRelevancy, IReadOnlyList<string> FailedCases);
 
+public sealed record RagEvalExport(string Question, string Answer, string[] Contexts, string Expected);
+
 /// <summary>
 /// Evaluación de regresión del pipeline. Las métricas de retrieval son deterministas;
 /// faithfulness y relevancy son proxies léxicos. Para RAGAS/DeepEval se usa el
@@ -58,8 +60,28 @@ public sealed class RagEvaluationService(
         return report;
     }
 
-    private async Task<string> ReferenceAsync(RagEvalCase item, CancellationToken cancellationToken)
+    public async Task<int> ExportAsync(string questionsPath, string outputPath, bool generate,
+        CancellationToken cancellationToken = default)
     {
+        var json = await File.ReadAllTextAsync(questionsPath, cancellationToken);
+        var cases = JsonSerializer.Deserialize<List<RagEvalCase>>(json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+            ?? throw new InvalidDataException("Set de evaluación vacío o inválido.");
+        var exported = new List<RagEvalExport>();
+        foreach (var item in cases)
+        {
+            var response = await query.QueryAsync(item.Question, generate, cancellationToken);
+            exported.Add(new RagEvalExport(item.Question, response.Answer,
+                response.Sources.Select(source => source.Text).ToArray(),
+                await ReferenceAsync(item, cancellationToken)));
+        }
+        await File.WriteAllTextAsync(outputPath,
+            JsonSerializer.Serialize(exported, new JsonSerializerOptions { WriteIndented = true }),
+            cancellationToken);
+        return exported.Count;
+    }
+
+    private async Task<string> ReferenceAsync(RagEvalCase item, CancellationToken cancellationToken)    {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         return await db.RagChunks.AsNoTracking()
             .Where(chunk => chunk.DocumentId == item.ExpectedDocumentId && chunk.ChunkIndex == item.ExpectedChunkIndex)

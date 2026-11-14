@@ -119,7 +119,15 @@ builder.Services.AddScoped<FixedRagChunker>();
 builder.Services.AddScoped<SemanticRagChunker>();
 builder.Services.AddScoped<IRagChunker>(provider => provider.GetRequiredService<FixedRagChunker>());
 builder.Services.AddScoped<IRagEmbedder, BgeM3RagEmbedder>();
-builder.Services.AddScoped<IRagVectorStore, SqlRagVectorStore>();
+builder.Services.AddScoped<SqlRagVectorStore>();
+builder.Services.AddScoped<PineconeRagVectorStore>();
+builder.Services.AddScoped<IRagVectorStore>(provider =>
+{
+    var rag = provider.GetRequiredService<IOptions<RagOptions>>().Value;
+    return string.Equals(rag.VectorStore, "pinecone", StringComparison.OrdinalIgnoreCase)
+        ? provider.GetRequiredService<PineconeRagVectorStore>()
+        : provider.GetRequiredService<SqlRagVectorStore>();
+});
 builder.Services.AddScoped<IRagReranker, SemanticRagReranker>();
 builder.Services.AddScoped<IRagRetriever, HybridRagRetriever>();
 builder.Services.AddScoped<RagIngestionService>();
@@ -227,6 +235,58 @@ if (args.Contains("--rag-reindex", StringComparer.Ordinal))
     catch (Exception ex) when (ex is DbException or InvalidOperationException or HttpRequestException)
     {
         app.Logger.LogError(ex, "No se pudo reindexar el pipeline RAG por fragmentos.");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
+if (args.Contains("--rag-pinecone-sync", StringComparer.Ordinal))
+{
+    try
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<PineconeRagVectorStore>();
+        var synced = await store.SyncExistingAsync();
+        Console.WriteLine($"Pinecone RAG: {synced} fragmentos sincronizados.");
+    }
+    catch (Exception ex) when (ex is DbException or InvalidOperationException or HttpRequestException)
+    {
+        app.Logger.LogError(ex, "No se pudo sincronizar los fragmentos RAG con Pinecone.");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
+if (args.Contains("--rag-eval-export", StringComparer.Ordinal))
+{
+    try
+    {
+        var position = Array.IndexOf(args, "--rag-eval-export");
+        var outputPath = position + 1 < args.Length ? args[position + 1] : "";
+        if (string.IsNullOrWhiteSpace(outputPath))
+        {
+            Console.WriteLine("Uso: --rag-eval-export ruta.json [--generate]");
+            Environment.ExitCode = 1;
+            return;
+        }
+        await using var scope = app.Services.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+        var user = await db.Users.AsNoTracking()
+            .Where(candidate => candidate.Status == "Activo" && candidate.Role == "admin_general")
+            .FirstOrDefaultAsync()
+            ?? throw new InvalidOperationException("No hay administrador activo para exportar evaluación RAG.");
+        var session = scope.ServiceProvider.GetRequiredService<LocalSession>();
+        session.SignIn(new ClaimsPrincipal(new ClaimsIdentity(AuthService.BuildClaims(user), "cli")));
+        var evaluation = scope.ServiceProvider.GetRequiredService<RagEvaluationService>();
+        var questions = Path.Combine(AppContext.BaseDirectory, "eval", "rag_questions.json");
+        if (!File.Exists(questions)) questions = Path.Combine(Directory.GetCurrentDirectory(), "eval", "rag_questions.json");
+        var count = await evaluation.ExportAsync(questions, outputPath, args.Contains("--generate", StringComparer.Ordinal));
+        Console.WriteLine($"RAG eval: {count} casos exportados en {outputPath}.");
+    }
+    catch (Exception ex) when (ex is DbException or InvalidOperationException or IOException)
+    {
+        app.Logger.LogError(ex, "No se pudo exportar el set de evaluación RAG.");
         Environment.ExitCode = 1;
     }
     return;

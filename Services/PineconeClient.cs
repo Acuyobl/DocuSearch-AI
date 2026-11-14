@@ -21,6 +21,8 @@ public sealed record PineconeVector(string Id, float[] Values, IReadOnlyDictiona
 
 public sealed record PineconeMatch(string Id, double Score, string DocumentId, int PageNumber);
 
+public sealed record PineconeChunkMatch(string ChunkId, double Score, string DocumentId, int PageNumber, int ChunkIndex);
+
 /// <summary>
 /// Cliente REST mínimo para Pinecone. La API key se toma de configuración/entorno
 /// y nunca se registra. El índice no se crea automáticamente: debe existir con la
@@ -62,8 +64,7 @@ public sealed class PineconeClient(HttpClient http, IOptions<PineconeOptions> op
     }
 
     public async Task<IReadOnlyList<PineconeMatch>> QueryAsync(float[] queryVector,
-        IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default)
-    {
+        IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default)    {
         if (!Enabled || documentIds.Count == 0) return [];
         var filter = new Dictionary<string, object?>
         {
@@ -93,6 +94,46 @@ public sealed class PineconeClient(HttpClient http, IOptions<PineconeOptions> op
             if (string.IsNullOrWhiteSpace(id) || !page.TryGetInt32(out var pageNumber)) continue;
             result.Add(new PineconeMatch(match.TryGetProperty("id", out var matchId) ? matchId.GetString() ?? "" : "",
                 score, id, pageNumber));
+        }
+        return result;
+    }
+
+    /// <summary>Consulta específica de fragmentos RAG (metadata.kind = ragchunk).</summary>
+    public async Task<IReadOnlyList<PineconeChunkMatch>> QueryChunksAsync(float[] queryVector,
+        IReadOnlyCollection<string> documentIds, int topK, CancellationToken cancellationToken = default)
+    {
+        if (!Enabled || documentIds.Count == 0) return [];
+        var filter = new Dictionary<string, object?>
+        {
+            ["kind"] = "ragchunk",
+            ["documentId"] = new Dictionary<string, object?> { ["$in"] = documentIds.Distinct().ToArray() }
+        };
+        var payload = new Dictionary<string, object?>
+        {
+            ["vector"] = queryVector,
+            ["topK"] = Math.Clamp(topK, 1, 100),
+            ["includeMetadata"] = true,
+            ["namespace"] = settings.Namespace,
+            ["filter"] = filter
+        };
+        using var response = await SendDataAsync(HttpMethod.Post, "/query", payload, cancellationToken);
+        if (!response.RootElement.TryGetProperty("matches", out var matches) || matches.ValueKind != JsonValueKind.Array)
+            return [];
+        var result = new List<PineconeChunkMatch>();
+        foreach (var match in matches.EnumerateArray())
+        {
+            var score = match.TryGetProperty("score", out var scoreElement) ? scoreElement.GetDouble() : 0;
+            if (score < MinScore) continue;
+            if (!match.TryGetProperty("metadata", out var metadata) ||
+                !metadata.TryGetProperty("chunkId", out var chunkId) ||
+                !metadata.TryGetProperty("documentId", out var documentId) ||
+                !metadata.TryGetProperty("page", out var page) ||
+                !metadata.TryGetProperty("chunkIndex", out var chunkIndex)) continue;
+            var id = chunkId.GetString();
+            var document = documentId.GetString();
+            if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(document) ||
+                !page.TryGetInt32(out var pageNumber) || !chunkIndex.TryGetInt32(out var index)) continue;
+            result.Add(new PineconeChunkMatch(id, score, document, pageNumber, index));
         }
         return result;
     }
