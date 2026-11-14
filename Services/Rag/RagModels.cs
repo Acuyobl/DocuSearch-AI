@@ -19,6 +19,8 @@ public sealed class RagOptions
     /// <summary>sql | pinecone</summary>
     public string VectorStore { get; set; } = "sql";
     public bool AuditContent { get; set; } = true;
+    /// <summary>El asistente usa el pipeline por fragmentos; si falla, cae al RAG anterior.</summary>
+    public bool UseChunkPipeline { get; set; } = true;
 }
 
 public sealed record RagPage(int PageNumber, string Text);

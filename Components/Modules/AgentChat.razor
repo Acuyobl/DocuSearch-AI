@@ -4,6 +4,8 @@
 @inject OllamaClient Ollama
 @inject OpenCodeClient OpenCode
 @inject AssistantRuntime Runtime
+@inject RagQueryService Rag
+@inject Microsoft.Extensions.Options.IOptions<DocuSearch.Services.Rag.RagOptions> RagOptions
 @implements IAsyncDisposable
 <div class="assistant-page">
 <ModuleHeading Icon="agent" Title="Asistente IA documental" Description="@($"Acceso: hasta «{Permissions.ReadableLevels(State.Data!.Actor).Last()}» · {State.Data.Documents.Count} expediente(s) consultables · solo lectura")">
@@ -161,7 +163,31 @@ else
             query = "";
             scrollPending = true;
             StateHasChanged();
-            var answer = await Agent.AskAsync(text);
+            AgentAnswer answer;
+            if (RagOptions.Value.UseChunkPipeline)
+            {
+                try
+                {
+                    var rag = await Rag.QueryAsync(text);
+                    var sources = rag.Sources
+                        .Select(citation => State.Data!.Documents.FirstOrDefault(document =>
+                            document.InternalCode.Equals(citation.DocumentCode, StringComparison.OrdinalIgnoreCase)) is { } document
+                            ? new SearchHit(document, citation.PageNumber, citation.Text,
+                                (int)Math.Round(citation.Score * 100))
+                            : null)
+                        .Where(source => source is not null).Select(source => source!).ToList();
+                    answer = new AgentAnswer(rag.Answer, sources, rag.Engine);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
+                {
+                    // El pipeline nuevo nunca debe tumbar el asistente; se usa el RAG anterior.
+                    answer = await Agent.AskAsync(text);
+                }
+            }
+            else
+            {
+                answer = await Agent.AskAsync(text);
+            }
             messages.Add(new(false, answer.Text, answer.Sources, answer.Provider));
             scrollPending = true;
             // SendFromEnter se invoca desde JS: sin este render explícito la respuesta
