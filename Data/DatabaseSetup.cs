@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DocuSearch.Models;
+using DocuSearch.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace DocuSearch.Data;
@@ -19,7 +20,7 @@ public static class DatabaseSetup
         await db.Database.MigrateAsync();
         await using var transaction = await db.Database.BeginTransactionAsync();
         await LockAsync(db);
-        if (!await db.Users.AnyAsync())
+        if (DemoPolicy.SeedOnInitialize && !await db.Users.AnyAsync())
         {
             var seed = ReadSeed();
             db.Departments.AddRange(seed.Departments);

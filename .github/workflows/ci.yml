@@ -37,6 +37,26 @@ jobs:
       - name: Ejecutar checks
         run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug
 
+      # AG-02: verificador determinista de citas, fuentes y páginas. No usa red ni base.
+      - name: Ejecutar checks del verificador AG-02
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --verifier
+
+      # AG-10: inspector determinista de calidad documental. No usa red ni base.
+      - name: Ejecutar checks del inspector AG-10
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --inspector
+
+      # AG-01: parser determinista de la ficha propuesta por el Catalogador.
+      - name: Ejecutar checks del catalogador AG-01
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --catalog
+
+      # AG-05: resumen determinista de riesgos de la bitácora.
+      - name: Ejecutar checks del auditor AG-05
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --audit
+
+      # Endurecimiento: bloqueo temporal de login por cuenta.
+      - name: Ejecutar checks de bloqueo de login
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --auth
+
       # Verificación de higiene: los secretos TOTP viven en user-secrets, nunca en el repositorio.
       - name: Verificar que no haya secretos TOTP versionados
         shell: bash

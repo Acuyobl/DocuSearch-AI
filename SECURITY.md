@@ -36,7 +36,7 @@ No se ofrece recompensa económica por los reportes.
   Identity u OIDC con TOTP o passkeys, activar TLS y revisar la matriz de permisos.
 - La página `/enroll` muestra los secretos TOTP en claro para poder inscribir los
   teléfonos. Desactívala con `Auth:EnrollmentEnabled=false` cuando termines y no la
-  publiques.
+  publiques. **Ahora solo responde desde loopback.**
 - No la expongas a Internet ni a una red compartida, y no la publiques detrás de
   un proxy o túnel sin una capa de autenticación delante.
 - No introduzcas datos reales ni sensibles: es un entorno de demostración.
@@ -45,6 +45,23 @@ No se ofrece recompensa económica por los reportes.
   despliegue remoto.
 - Mantén actualizado el SDK de .NET dentro de la línea 10.0.x y revisa los
   avisos de dependencias (NuGet) de forma periódica.
+
+## Endurecimiento aplicado (13/11/2026)
+
+- `/enroll` exige loopback y sigue apagado por defecto.
+- Rate limiting de 10 intentos/minuto por IP en `/login` y `/account/login` (configurable).
+- Bloqueo temporal por cuenta tras varios intentos fallidos (`Auth:MaxFailedAttempts`/`Auth:LockoutMinutes`).
+- Auditoría de `LOGIN_FAILED` y `LOGOUT`; no se guardan códigos ni contraseñas.
+- `ProductionGuard` impide arrancar con `Demo:LocalOnly=false` si quedan TLS desactivado,
+  enrollment, reset/seed, secretos TOTP inline, `TrustServerCertificate=True` o `AllowedHosts`
+  local. Existe una salida explícita para la demo Docker (`Demo:AllowInsecureExposure=true`).
+- Cookies `Secure` cuando HTTPS está activo; cabeceras CORP/X-Permitted y `no-store` en
+  páginas de autenticación; HSTS y cabeceras de proxy opcionales.
+- Sondas `/health/live` y `/health/ready`; esta última falla con migraciones pendientes.
+
+Esto **no sustituye** un IdP, TLS real, SQL Server Standard, respaldos ni observabilidad.
+El detalle está en [`PRODUCCION-CAMBIOS.md`](PRODUCCION-CAMBIOS.md) y la hoja de ruta en
+[`DE-DEMO-A-PRODUCCION.md`](DE-DEMO-A-PRODUCCION.md).
 
 ## Secretos TOTP
 

@@ -10,6 +10,7 @@
 @page "/rbac"
 @page "/architecture"
 @page "/observability"
+@page "/quality"
 @attribute [Authorize]
 @implements IDisposable
 @inject WorkspaceState State
@@ -83,6 +84,7 @@
                 case "reports": <Reports /> break;
                 case "audit": <Audit /> break;
                 case "observability": <Observability /> break;
+                case "quality": <Quality /> break;
                 case "rbac": <Administration /> break;
                 case "architecture": <Architecture /> break;
                 default: <section class="panel"><h2>Módulo no encontrado</h2><a href="/">Volver al dashboard</a></section> break;
@@ -119,12 +121,14 @@
         "dashboard" => "Visión integral de tus expedientes, actividad y almacenamiento.",
         "management" => "Expedientes centralizados, metadatos y originales PDF.",
         "search" => "Búsqueda documental y asistente IA local con fuentes por página.",
+        "quality" => "Informe determinista de calidad documental, duplicados e integridad.",
         _ => "Operación y trazabilidad documental en SQL Server."
     };
     private static readonly (string Key, string Label)[] Menu = [
         ("dashboard", "Dashboard"), ("management", "Documentos"), ("pipeline", "Pipeline"),
         ("search", "Buscador"), ("reports", "Reportes"),
-        ("audit", "Auditoría"), ("observability", "Observabilidad"), ("rbac", "Administración"), ("architecture", "Arquitectura")
+        ("audit", "Auditoría"), ("observability", "Observabilidad"), ("quality", "Calidad"),
+        ("rbac", "Administración"), ("architecture", "Arquitectura")
     ];
     protected override async Task OnInitializedAsync()
     {
@@ -158,6 +162,7 @@
     {
         "audit" => Permissions.CanAudit(snapshot.Actor),
         "observability" => Permissions.CanAudit(snapshot.Actor),
+        "quality" => Permissions.CanAudit(snapshot.Actor),
         "rbac" => Permissions.CanAdmin(snapshot.Actor),
         _ => true
     };

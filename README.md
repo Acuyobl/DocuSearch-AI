@@ -8,6 +8,7 @@ LangChain sobre OpenCode; si ambos están desactivados responde en modo extracti
 ## Índice
 
 - [Especificaciones del agente](#especificaciones-del-agente)
+- [Estado de implementación](ESTADO-IMPLEMENTACION.md)
 - [Resumen ejecutivo de la presentación](RESUMEN-EJECUTIVO.md)
 - [Detalle completo del agente](AGENTE-DETALLE.md)
 - [Investigación de integración con Langfuse](LANGFUSE-INTEGRACION.md)
@@ -102,6 +103,10 @@ Este campo identifica la configuración, no certifica la disponibilidad del mode
 usa **Comprobar conexión** en el asistente. Una conexión o esquema SQL no disponible devuelve HTTP 503
 y un error explícito; no existe respaldo en memoria que simule éxito.
 
+Para orquestadores hay dos sondas adicionales: `GET /health/live` (proceso vivo, sin tocar la
+base) y `GET /health/ready` (base disponible y **sin migraciones pendientes**; devuelve 503 si
+falta aplicar el esquema).
+
 Para inicializar una instalación nueva o aplicar las migraciones pendientes:
 
 ```powershell
@@ -138,8 +143,9 @@ de Windows utilizada para conectarse a SQL Server.
 | Asistente integrado en el buscador | Respuestas generativas con OpenCode (agente sin herramientas) o LangChain/Ollama local, con citas; listas, fichas, páginas y entidades exactas; seguimiento del expediente anterior |
 | Visor | Original PDF, texto por página, zoom, resumen, entidades, notas y ficha técnica |
 | Reportes | Catálogo CSV, informe HTML autónomo e impresión a PDF |
-| Auditoría | Eventos persistentes, filtros y exportación del historial |
+| Auditoría | Eventos persistentes, filtros, resumen de riesgos AG-05 y exportación del historial |
 | Observabilidad | Metadatos del agente, duración, errores y tokens reportados; acceso de administración general y auditoría |
+| Calidad documental | Inspector determinista de OCR pendiente, originales ausentes, metadatos incompletos, duplicados SHA-256 e integridad; acceso de administración general y auditoría |
 | Administración | Perfiles, roles, activación, departamentos, responsables y cuotas |
 | Arquitectura | Descripción del sistema implementado |
 
@@ -148,6 +154,12 @@ resultados ni la conversación mientras permanezcas en el buscador. Los filtros
 de búsqueda no restringen el contexto del chat: el asistente consulta las fuentes
 autorizadas para tu usuario autenticado. La dirección anterior `/agent` abre el mismo
 buscador con el asistente seleccionado; ya no hay un módulo separado en el menú.
+
+En el formulario de metadatos, **Sugerir ficha** (AG-01) propone título, categoría,
+departamento, confidencialidad, palabras clave y resumen con **una sola llamada** al motor
+activo. Exige una casilla de consentimiento, no guarda nada por sí solo, aplica el verificador
+AG-02 y **bloquea** documentos `Confidencial`/`Estrictamente Secreto` cuando el motor es remoto;
+el usuario revisa y pulsa **Guardar cambios** para aplicarla.
 
 Se conserva el diseño de panel ejecutivo, tema oscuro/claro, acentos índigo/violeta, cabecera
 y menú lateral compacto. El dashboard incluye tarjetas de indicadores con iconografía SVG,
@@ -471,7 +483,11 @@ de usar Node.js. No requiere Docker, servicios de telemetría ni dependencias ad
   realiza también en el servicio C#. La autorización se aplica al usuario autenticado.
 - Las trazas persisten al reiniciar. No se borran automáticamente: las 500 filas son
   el límite de visualización, no una política de retención. No se calcula costo,
-  calidad de respuestas ni tiempos separados por etapa.
+  calidad de respuestas ni tiempos separados por etapa. La administración general puede
+  **purgar trazas anteriores a `Observability:RetentionDays`** (90 por defecto) desde el panel;
+  la purga deja un evento `PURGE_TRACES` en la bitácora.
+- Con `Logging:Json=true` los logs salen en JSON con `RequestId`; cada respuesta incorpora
+  `X-Request-Id` (o reutiliza el recibido). No se registra query string ni contenido.
 - Un fallo al persistir observabilidad se informa explícitamente en la interfaz y
   en la consola con ID y tipo de fallo, sin registrar el contenido de la consulta.
   No se reporta observabilidad exitosa si SQL Server no pudo guardarla.
@@ -498,12 +514,16 @@ autenticadora**.
   recibe `email`, `code`, `returnUrl` y el token antiforgery.
 - `GET /enroll`: alta de dispositivos. Muestra el QR y la clave manual de cada usuario;
   cada persona escanea **solo su** código. Se desactiva con `Auth:EnrollmentEnabled=false`
-  cuando todos los teléfonos estén inscritos.
+  cuando todos los teléfonos estén inscritos. **Solo responde desde loopback**, porque la
+  página muestra secretos TOTP.
 - `GET /account/logout` o el botón **Salir** de la cabecera cierran la sesión.
 - La cookie se llama `DocuSearch.Auth`, es HttpOnly y la sesión es deslizante con
   `Auth:SessionHours` (8 horas por defecto).
 - Cada código TOTP es de **un solo uso**: se rechaza reutilizar el mismo paso de 30 s,
   aunque siga dentro de la ventana de tolerancia (`Auth:TotpWindow`, ±1 por defecto).
+- Tras varios intentos fallidos por cuenta se aplica un **bloqueo temporal**
+  (`Auth:MaxFailedAttempts`, 10 por defecto; `Auth:LockoutMinutes`, 5 por defecto). Es un
+  bloqueo en memoria por instancia; no sustituye un bloqueo distribuido en varias instancias.
 - La identidad procede de los claims del usuario (`NameIdentifier`, `Name`, `Email`,
   `Role` y `department`); `LocalSession` se rellena con ellos y el RBAC se sigue
   aplicando en el servidor. La cabecera muestra el usuario autenticado.
@@ -604,7 +624,56 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj
 87 comprobaciones sin servicios: datos, permisos, búsqueda, respuestas locales, CSV seguro,
 HTML, PDF reales, límites exactos, esquema SQL Server, TOTP y Ollama/OpenCode con HTTP
 simulado: privacidad, contexto acotado, citas, errores y liberación del estado ocupado.
-Un fallo produce código de salida no cero.
+El verificador determinista AG-02 añade **10 comprobaciones** de citas, páginas, fuentes y
+duplicados, también sin servicios:
+
+```powershell
+dotnet run --project .\tests\DocuSearch.Checks.csproj -- --verifier
+```
+
+Ese comando ejecuta **97** comprobaciones (87 base + 10 del verificador). Un fallo produce
+código de salida no cero.
+
+El inspector determinista AG-10 añade **5 comprobaciones** de calidad documental:
+
+```powershell
+dotnet run --project .\tests\DocuSearch.Checks.csproj -- --inspector
+```
+
+Ese comando ejecuta **92** comprobaciones (87 base + 5 del inspector).
+
+El parser del Catalogador AG-01 añade **5 comprobaciones** de la ficha propuesta:
+
+```powershell
+dotnet run --project .\tests\DocuSearch.Checks.csproj -- --catalog
+```
+
+Ese comando ejecuta **92** comprobaciones (87 base + 5 del catalogador).
+
+El Auditor determinista AG-05 añade **5 comprobaciones** de riesgos de la bitácora:
+
+```powershell
+dotnet run --project .\tests\DocuSearch.Checks.csproj -- --audit
+```
+
+Ese comando ejecuta **92** comprobaciones (87 base + 5 del auditor).
+
+El bloqueo temporal de login añade **5 comprobaciones**:
+
+```powershell
+dotnet run --project .\tests\DocuSearch.Checks.csproj -- --auth
+```
+
+Ese comando ejecuta **92** comprobaciones (87 base + 5 de autenticación).
+
+Para ejecutar todas las suites deterministas de una vez:
+
+```powershell
+.\tests\run-all.ps1
+```
+
+La integración con SQL Server se añade con `-IncludeDatabase` y
+`DOCUSEARCH_TEST_CONNECTION` apuntando a una base desechable terminada en `_tests`.
 
 La integración continua ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) ejecuta
 la compilación y las 87 comprobaciones sin servicios.
@@ -651,7 +720,7 @@ y bloqueo de una respuesta si cambia el perfil durante la generación.
 Se validan también la persistencia y privacidad de las trazas, la omisión de las
 preguntas en nuevos eventos de auditoría y el acceso restringido al panel.
 La base principal `DocuSearch` no se utiliza para pruebas destructivas.
-También se comprobaron en el navegador los nueve módulos, el agente con apertura de su
+También se comprobaron en el navegador los diez módulos, el agente con apertura de su
 página citada, la restricción del consultor y la generación de CSV.
 
 ## Migraciones y publicación
@@ -675,6 +744,13 @@ Por defecto sigue siendo una aplicación **solo local**: `Demo:LocalOnly` limita
 a loopback. Para publicarla, sustituye las credenciales de demostración por ASP.NET Core
 Identity u OIDC, activa TLS (`Security:Https:Enabled`), pon `Demo:LocalOnly` en `false`
 y no publiques la carpeta completa del proyecto como sitio estático.
+
+Antes de exponerla, el arranque valida la configuración con `ProductionGuard`: con
+`Demo:LocalOnly=false` exige TLS, `/enroll` apagado, reset y seed apagados, sin secretos TOTP
+inline, sin `TrustServerCertificate=True` y con `AllowedHosts` real. La plantilla
+`appsettings.Production.example.json` sirve de punto de partida. El endurecimiento aplicado y
+lo que sigue pendiente están en [`PRODUCCION-CAMBIOS.md`](PRODUCCION-CAMBIOS.md); la hoja de
+ruta completa, en [`DE-DEMO-A-PRODUCCION.md`](DE-DEMO-A-PRODUCCION.md).
 
 ## Cómo se construyó
 

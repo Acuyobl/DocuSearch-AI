@@ -321,6 +321,8 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
 
     public async Task ResetAsync(string confirmation)
     {
+        if (!DemoPolicy.AllowReset)
+            throw new InvalidOperationException("El restablecimiento de datos de ejemplo está deshabilitado en este entorno.");
         if (!string.Equals(confirmation, "RESTABLECER", StringComparison.Ordinal))
             throw new ValidationException("Escribe RESTABLECER para confirmar el restablecimiento de los datos de ejemplo.");
         await using var db = await factory.CreateDbContextAsync();

@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Net;
 using System.Security.Claims;
 using Document = DocuSearch.Models;
@@ -26,6 +27,10 @@ public sealed class AuthOptions
     public int TotpWindow { get; set; } = 1;
     /// <summary>Habilita /enroll para mostrar los QR de alta. Desactívalo tras inscribir los dispositivos.</summary>
     public bool EnrollmentEnabled { get; set; }
+    /// <summary>Intentos fallidos por cuenta antes de bloquear temporalmente.</summary>
+    public int MaxFailedAttempts { get; set; } = 10;
+    /// <summary>Minutos que dura el bloqueo por cuenta.</summary>
+    public int LockoutMinutes { get; set; } = 5;
     public string Issuer { get; set; } = "DocuSearch AI";
     public List<AuthUserConfig> Users { get; set; } = [];
 
@@ -65,6 +70,7 @@ public sealed class AuthService(
     IDbContextFactory<AppDbContext> factory,
     IOptions<AuthOptions> options,
     IMemoryCache cache,
+    LoginAttemptLimiter limiter,
     ILogger<AuthService> logger)
 {
     private static string CacheKey(string email) => $"totp-step:{email.Trim().ToLowerInvariant()}";
@@ -75,9 +81,16 @@ public sealed class AuthService(
     /// </summary>
     public async Task<AppUser?> ValidateAsync(string email, string? code)
     {
+        if (limiter.IsLocked(email, out var lockedUntil))
+        {
+            logger.LogWarning("Inicio de sesión bloqueado temporalmente para {Email} hasta {Until}.", email, lockedUntil);
+            return null;
+        }
+
         var config = options.Value.Users.FirstOrDefault(u => string.Equals(u.Email, email?.Trim(), StringComparison.OrdinalIgnoreCase));
         if (config is null)
         {
+            limiter.RegisterFailure(email);
             logger.LogWarning("Intento de inicio de sesión con un correo no autorizado: {Email}.", email);
             return null;
         }
@@ -86,26 +99,58 @@ public sealed class AuthService(
         var secret = options.Value.ResolveTotpSecret(config);
         if (string.IsNullOrWhiteSpace(secret))
         {
+            limiter.RegisterFailure(config.Email);
             logger.LogWarning("El usuario {Email} no tiene secreto TOTP configurado (Auth:TotpSecrets).", config.Email);
             return null;
         }
 
         if (!Totp.TryVerify(secret, code, DateTimeOffset.UtcNow, options.Value.TotpWindow, out var step))
         {
+            limiter.RegisterFailure(config.Email);
             logger.LogWarning("Código TOTP no válido para {Email}.", config.Email);
             return null;
         }
 
         if (cache.TryGetValue(CacheKey(config.Email), out long previousStep) && step <= previousStep)
         {
+            limiter.RegisterFailure(config.Email);
             logger.LogWarning("Código TOTP reutilizado para {Email} (paso {Step}).", config.Email, step);
             return null;
         }
         cache.Set(CacheKey(config.Email), step, TimeSpan.FromSeconds(Totp.PeriodSeconds * (Math.Clamp(options.Value.TotpWindow, 0, 3) + 2)));
+        limiter.Reset(config.Email);
 
         var user = await EnsureUserAsync(config);
         logger.LogInformation("Inicio de sesión correcto de {Email} ({Role}).", user.Email, user.Role);
         return user;
+    }
+
+    /// <summary>
+    /// Registra el intento fallido en la bitácora. No guarda el código TOTP ni la contraseña;
+    /// solo el identificador intentado, que es necesario para investigar fuerza bruta.
+    /// </summary>
+    public async Task RecordFailedLoginAsync(string? email)
+    {
+        try
+        {
+            await using var db = await factory.CreateDbContextAsync();
+            var attempted = (email ?? "").Trim();
+            if (attempted.Length > 200) attempted = attempted[..200];
+            db.Audit.Add(new AuditEvent
+            {
+                UserName = attempted.Length > 0 ? attempted : "desconocido",
+                UserRole = "",
+                Action = "LOGIN_FAILED",
+                Details = "Intento de inicio de sesión fallido: correo no autorizado o código TOTP inválido.",
+                DocumentCode = "SYSTEM",
+                Status = "DENEGADO"
+            });
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex) when (ex is DbException or DbUpdateException or InvalidOperationException)
+        {
+            logger.LogWarning("No se pudo auditar el inicio de sesión fallido ({Error}).", ex.GetType().Name);
+        }
     }
 
     /// <summary>

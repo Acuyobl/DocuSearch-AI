@@ -60,6 +60,8 @@ else
         <label>Archivo JSON de respaldo (máximo 100 MB)<InputFile OnChange="Import" accept=".json,application/json" disabled="@State.Busy" /></label>
         <p>La importación se realiza en una sola transacción SQL Server. Se reemplazan los expedientes del mismo ID; los originales existentes no se eliminan. Conflictos de códigos o correos se notifican como error y revierten todo el lote.</p>
     </section>
+    @if (DemoPolicy.AllowReset)
+    {
     <section class="panel"><h2>Restablecer datos de ejemplo</h2><p class="error-text">Elimina todos los PDF, notas, usuarios y departamentos actuales. Conserva la bitácora.</p>
         <label>Escribe exactamente <strong>RESTABLECER</strong> para habilitar la acción
             <input @bind="resetConfirmation" @bind:event="oninput" autocomplete="off" spellcheck="false" aria-describedby="reset-help" disabled="@State.Busy" />
@@ -68,6 +70,7 @@ else
         <small role="status" aria-live="polite">@(CanReset ? "Confirmación correcta: el botón de restablecimiento ya está habilitado." : "")</small>
         <button class="danger" @onclick="Reset" disabled="@(State.Busy || !CanReset)">Restablecer con confirmación</button>
     </section>
+    }
 }
 </div>
 @if (editingUser is not null)
@@ -135,6 +138,7 @@ else
     });
     private Task Reset() => State.RunAsync(async () =>
     {
+        if (!DemoPolicy.AllowReset) return;
         if (!CanReset) return;
         await Service.ResetAsync("RESTABLECER");
         resetConfirmation = "";

@@ -1,0 +1,117 @@
+@inject DocumentQualityService Inspector
+
+<div class="module-page">
+<ModuleHeading Icon="quality" Title="Calidad documental" Description="Inspector determinista · sin IA · solo lectura">
+    <button disabled="@busy" @onclick="() => ReloadAsync(verifyIntegrity)"><AppIcon Name="refresh" />Actualizar informe</button>
+</ModuleHeading>
+
+@if (error is not null)
+{
+    <div class="alert error" role="alert">@error</div>
+}
+
+<section class="panel">
+    <p>Informe calculado sobre metadatos, estados y hashes. No muestra ni envía texto de los documentos y no modifica expedientes. La verificación de integridad recalcula el SHA-256 de los PDF guardados y puede tardar más.</p>
+    <label><input type="checkbox" @bind="verifyIntegrity" disabled="@busy" /> Recalcular SHA-256 de los originales</label>
+
+    @if (busy)
+    {
+        <p class="empty" role="status">Calculando informe…</p>
+    }
+
+    @if (report is not null)
+    {
+        <p><small>Generado: @report.GeneratedUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small></p>
+        <div class="grid two">
+            <div>
+                <h3>@report.TotalDocuments expedientes revisados</h3>
+                <p>@report.Findings.Count hallazgos · @report.Duplicates.Count grupos con SHA-256 duplicado</p>
+            </div>
+            <div>
+                <h3>@report.OcrPending requieren OCR · @report.MissingOriginals sin original</h3>
+                <p>@report.MetadataGaps con metadatos incompletos · @report.IntegrityMismatches con integridad alterada</p>
+            </div>
+        </div>
+
+        @if (report.Findings.Count == 0)
+        {
+            <p class="empty">Sin hallazgos en los expedientes revisados.</p>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="module-table">
+                    <thead><tr><th>Tipo</th><th>Código</th><th>Título</th><th>Departamento</th><th>Clasificación</th><th>Detalle</th></tr></thead>
+                    <tbody>
+                    @foreach (var finding in report.Findings)
+                    {
+                        <tr>
+                            <td><span class="badge @(finding.Severity == "error" ? "danger" : finding.Severity == "warning" ? "warning" : "")">@KindLabel(finding.Kind)</span></td>
+                            <td>@finding.DocumentCode</td>
+                            <td>@finding.Title</td>
+                            <td>@finding.Department</td>
+                            <td>@finding.Confidentiality</td>
+                            <td>@finding.Detail</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (report.Duplicates.Count > 0)
+        {
+            <h3>Duplicados por SHA-256</h3>
+            <div class="table-scroll">
+                <table class="module-table">
+                    <thead><tr><th>Hash (12)</th><th>Expedientes</th></tr></thead>
+                    <tbody>
+                    @foreach (var duplicate in report.Duplicates)
+                    {
+                        <tr><td><code>@(duplicate.Sha256Hash[..Math.Min(12, duplicate.Sha256Hash.Length)])</code></td><td>@string.Join(" · ", duplicate.DocumentCodes)</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</section>
+</div>
+
+@code {
+    private DocumentInspectionReport? report;
+    private bool verifyIntegrity;
+    private bool busy;
+    private string? error;
+
+    protected override Task OnInitializedAsync() => ReloadAsync(false);
+
+    private async Task ReloadAsync(bool integrity)
+    {
+        if (busy) return;
+        busy = true;
+        error = null;
+        try
+        {
+            report = await Inspector.InspectAsync(integrity);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException or System.Data.Common.DbException)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private static string KindLabel(string kind) => kind switch
+    {
+        "ocr" => "Requiere OCR",
+        "missing_original" => "Sin original",
+        "metadata" => "Metadatos incompletos",
+        "duplicate" => "Duplicado",
+        "integrity" => "Integridad",
+        _ => kind
+    };
+}

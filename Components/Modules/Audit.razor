@@ -5,6 +5,33 @@
     <ModuleHeading Icon="audit" Title="Bitácora de Auditoría (Audit Trail)" Description="Registro cronológico de lectura, ingesta, descargas y eventos de seguridad.">
         <button class="primary" @onclick="Export" disabled="@State.Busy"><AppIcon Name="download" />Exportar Evidencia (.CSV)</button>
     </ModuleHeading>
+<section class="panel audit-risk">
+    <div class="section-heading">
+        <div><h2><AppIcon Name="audit" />Resumen de riesgos</h2><p>Análisis determinista AG-05 sobre la bitácora cargada; no usa IA ni modifica eventos.</p></div>
+        <label>Periodo<select @bind="riskDays"><option value="7">7 días</option><option value="30">30 días</option><option value="90">90 días</option></select></label>
+    </div>
+    <div class="grid two">
+        <div><h3>@Risk.TotalEvents eventos en @riskDays días</h3><p>@Risk.FailedLogins inicios fallidos · @Risk.AccessDenied accesos denegados · @Risk.Downloads descargas</p></div>
+        <div><h3>@Risk.IntegrityMismatches incidencias de integridad · @Risk.AdminChanges cambios administrativos</h3><p>@Risk.Deletions eliminaciones · @Risk.Alerts.Count alertas</p></div>
+    </div>
+    @if (Risk.Alerts.Count == 0)
+    {
+        <p class="empty">Sin alertas para el periodo seleccionado.</p>
+    }
+    else
+    {
+        <div class="table-scroll"><table class="module-table"><thead><tr><th>Severidad</th><th>Alerta</th><th>Detalle</th></tr></thead><tbody>
+            @foreach (var alert in Risk.Alerts)
+            {
+                <tr><td><span class="badge @(alert.Severity == "error" ? "danger" : alert.Severity == "warning" ? "warning" : "")">@SeverityLabel(alert.Severity)</span></td><td>@alert.Title</td><td>@alert.Detail</td></tr>
+            }
+        </tbody></table></div>
+    }
+    @if (Risk.TopActions.Count > 0)
+    {
+        <p><strong>Acciones más frecuentes:</strong> @string.Join(" · ", Risk.TopActions.Select(action => $"{action.Action} ({action.Count})"))</p>
+    }
+</section>
 <section class="panel audit-filters">
     <div class="filters"><label>Buscar<input @bind="text" @bind:event="oninput" placeholder="Usuario, detalle o expediente" /></label>
         <label>Acción<select @bind="action"><option value="">Todas</option>@foreach (var a in State.Data!.Audit.Select(a => a.Action).Distinct().Order()) { <option>@a</option> }</select></label>
@@ -27,6 +54,15 @@
     private string text = "", action = "", status = "";
     private DateTime? since, until;
     private int limit = 50;
+    private int riskDays = 30;
+    private AuditRiskReport Risk => AuditInspector.Analyze(State.Data!.Audit,
+        DateTimeOffset.UtcNow.AddDays(-riskDays), DateTimeOffset.UtcNow);
+    private static string SeverityLabel(string severity) => severity switch
+    {
+        "error" => "Crítica",
+        "warning" => "Advertencia",
+        _ => "Informativa"
+    };
     private IEnumerable<AuditEvent> Filter(IEnumerable<AuditEvent> rows) => rows.Where(a =>
         (text.Length == 0 || TextAnalysis.Normalize($"{a.UserName} {a.Details} {a.DocumentCode}").Contains(TextAnalysis.Normalize(text))) &&
         (action.Length == 0 || a.Action == action) && (status.Length == 0 || a.Status == status) &&

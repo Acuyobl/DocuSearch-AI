@@ -133,14 +133,15 @@ public sealed class OllamaClient
         {
             throw new InvalidOperationException("Ollama devolvió una respuesta sin el formato de citas requerido. No se ha mostrado como válida.", ex);
         }
-        if (string.IsNullOrWhiteSpace(generated.Answer) || generated.Answer.Length > 10000 ||
-            generated.Citations is not { Length: > 0 } || generated.Citations.Any(id => id < 1 || id > selected.Count))
+        if (string.IsNullOrWhiteSpace(generated.Answer) || generated.Answer.Length > 10000)
+            throw new InvalidOperationException("Ollama devolvió contenido vacío o citas fuera de las fuentes autorizadas. La respuesta se ha bloqueado.");
+        if (!AgentVerifier.TryNormalizeCitations(generated.Citations, selected.Count, out var citations, out _))
             throw new InvalidOperationException("Ollama devolvió contenido vacío o citas fuera de las fuentes autorizadas. La respuesta se ha bloqueado.");
         var inputTokens = settings.UseLangChain ? generated.InputTokens : response.InputTokens;
         var outputTokens = settings.UseLangChain ? generated.OutputTokens : response.OutputTokens;
         if (inputTokens < 0 || outputTokens < 0)
             throw new InvalidOperationException("El modelo devolvió contadores de tokens inválidos.");
-        return new(generated.Answer.Trim(), generated.Citations.Distinct().Select(id => selected[id - 1]).ToList(),
+        return new(generated.Answer.Trim(), citations.Select(id => selected[id - 1]).ToList(),
             $"{Provider} · {Model}", inputTokens, outputTokens);
     }
 

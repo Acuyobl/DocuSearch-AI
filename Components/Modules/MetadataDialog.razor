@@ -1,8 +1,16 @@
 @inject WorkspaceState State
 @inject DocumentService Service
+@inject CatalogSuggester Suggester
 <div class="modal-backdrop">
     <section class="modal form-modal metadata-modal" role="dialog" aria-modal="true" aria-labelledby="metadata-title" tabindex="-1" @ref="dialog" @onkeydown="OnKeyDown">
         <div class="dialog-heading"><span class="dialog-icon"><AppIcon Name="edit" /></span><div><h2 id="metadata-title">Editar Metadatos de Expediente</h2><p>Clasificación, confidencialidad y etiquetas</p><span class="badge code">@Document.InternalCode</span></div><button class="icon-button" aria-label="Cerrar" title="Cerrar" @onclick="OnClose" disabled="@State.Busy"><AppIcon Name="close" /></button></div>
+        <div class="catalog-suggestion">
+            <label><input type="checkbox" @bind="consent" disabled="@suggesting" /> Autorizo enviar hasta 6 fragmentos de este expediente al motor seleccionado</label>
+            <button type="button" class="primary" @onclick="Suggest" disabled="@(suggesting || State.Busy)"><AppIcon Name="agent" />@(suggesting ? "Consultando…" : "Sugerir ficha")</button>
+            <small>Propuesta AG-01: no se guarda sola; revisa los campos y pulsa Guardar cambios.</small>
+        </div>
+        @if (suggestionNotice is not null) { <div class="alert success" role="status">@suggestionNotice</div> }
+        @if (suggestionError is not null) { <div class="alert error" role="alert">@suggestionError</div> }
         <EditForm Model="Document" OnValidSubmit="Save">
             <DataAnnotationsValidator /><ValidationSummary />
             <div class="dialog-body"><div class="form-grid">
@@ -30,11 +38,43 @@
     private ElementReference dialog;
     private string keywords = "";
     private string tags = "";
+    private bool consent;
+    private bool suggesting;
+    private string? suggestionNotice;
+    private string? suggestionError;
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender) await dialog.FocusAsync();
     }
     private Task OnKeyDown(KeyboardEventArgs args) => args.Key == "Escape" ? OnClose.InvokeAsync() : Task.CompletedTask;
+    private async Task Suggest()
+    {
+        if (suggesting) return;
+        suggesting = true;
+        suggestionNotice = null;
+        suggestionError = null;
+        try
+        {
+            var suggestion = await Suggester.SuggestAsync(Document.Id, consent);
+            Document.Title = suggestion.Title;
+            Document.Category = suggestion.Category;
+            Document.Department = suggestion.Department;
+            Document.Confidentiality = suggestion.Confidentiality;
+            Document.ExecutiveSummary = suggestion.Summary;
+            Document.Keywords = suggestion.Keywords.ToArray();
+            keywords = string.Join(", ", suggestion.Keywords);
+            var warnings = suggestion.Warnings.Count > 0 ? " " + string.Join(" ", suggestion.Warnings) : "";
+            suggestionNotice = $"Propuesta de {suggestion.Provider} (confianza {suggestion.Confidence:P0}). Revisa los campos y guarda para aplicarla.{warnings}";
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException or ValidationException)
+        {
+            suggestionError = ex.Message;
+        }
+        finally
+        {
+            suggesting = false;
+        }
+    }
     protected override void OnInitialized() { keywords = string.Join(", ", Document.Keywords); tags = string.Join(", ", Document.Tags); }
     private Task Save() => State.RunAsync(async () =>
     {

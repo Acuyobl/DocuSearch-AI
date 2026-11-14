@@ -410,12 +410,13 @@ public sealed class OpenCodeClient
         {
             throw new InvalidOperationException("OpenCode devolvió una respuesta sin el formato de citas requerido. No se ha mostrado como válida.", ex);
         }
-        if (string.IsNullOrWhiteSpace(generated.Answer) || generated.Answer.Length > 10000 ||
-            generated.Citations is not { Length: > 0 } || generated.Citations.Any(id => id < 1 || id > selected.Count))
+        if (string.IsNullOrWhiteSpace(generated.Answer) || generated.Answer.Length > 10000)
+            throw new InvalidOperationException("OpenCode devolvió contenido vacío o citas fuera de las fuentes autorizadas. La respuesta se ha bloqueado.");
+        if (!AgentVerifier.TryNormalizeCitations(generated.Citations, selected.Count, out var citations, out _))
             throw new InvalidOperationException("OpenCode devolvió contenido vacío o citas fuera de las fuentes autorizadas. La respuesta se ha bloqueado.");
         if (tokens is { Input: < 0 } or { Output: < 0 })
             throw new InvalidOperationException("OpenCode devolvió contadores de tokens inválidos.");
-        return new(generated.Answer.Trim(), generated.Citations.Distinct().Select(id => selected[id - 1]).ToList(),
+        return new(generated.Answer.Trim(), citations.Select(id => selected[id - 1]).ToList(),
             $"OpenCode · {provider}/{model}", tokens?.Input, tokens?.Output);
     }
 
@@ -519,12 +520,13 @@ public sealed class OpenCodeClient
         {
             throw new InvalidOperationException("LangChain devolvió una respuesta sin el formato de citas requerido.", ex);
         }
-        if (string.IsNullOrWhiteSpace(generated.Answer) || generated.Answer.Length > 10000 ||
-            generated.Citations is not { Length: > 0 } || generated.Citations.Any(id => id < 1 || id > selected.Count))
+        if (string.IsNullOrWhiteSpace(generated.Answer) || generated.Answer.Length > 10000)
+            throw new InvalidOperationException("LangChain devolvió contenido vacío o citas fuera de las fuentes autorizadas. La respuesta se ha bloqueado.");
+        if (!AgentVerifier.TryNormalizeCitations(generated.Citations, selected.Count, out var citations, out _))
             throw new InvalidOperationException("LangChain devolvió contenido vacío o citas fuera de las fuentes autorizadas. La respuesta se ha bloqueado.");
         if (generated.InputTokens is < 0 || generated.OutputTokens is < 0)
             throw new InvalidOperationException("LangChain devolvió contadores de tokens inválidos.");
-        return new(generated.Answer.Trim(), generated.Citations.Distinct().Select(id => selected[id - 1]).ToList(),
+        return new(generated.Answer.Trim(), citations.Select(id => selected[id - 1]).ToList(),
             $"LangChain · OpenCode · {provider}/{model}", generated.InputTokens, generated.OutputTokens);
     }
 

@@ -1,20 +1,37 @@
 using System.Data.Common;
 using System.Net;
 using System.Security.Claims;
+using System.Threading.RateLimiting;
 using DocuSearch.Components;
 using DocuSearch.Data;
+using DocuSearch.Models;
 using DocuSearch.Services;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using QRCoder;
 
 var builder = WebApplication.CreateBuilder(args);
+// Interruptores de demo: en producción deben quedar en false (ver appsettings.Production.example.json).
+DemoPolicy.AllowReset = builder.Configuration.GetValue("Demo:AllowReset", true);
+DemoPolicy.SeedOnInitialize = builder.Configuration.GetValue("Demo:SeedOnInitialize", true);
+var httpsEnabled = builder.Configuration.GetValue("Security:Https:Enabled", false);
+if (builder.Configuration.GetValue("Logging:Json", false))
+{
+    builder.Logging.AddJsonConsole(options =>
+    {
+        options.IncludeScopes = true;
+        options.UseUtcTimestamp = true;
+        options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
+    });
+}
 // Falla al arrancar si algún servicio (p. ej. el asistente con OpenCode) no se puede construir.
 builder.Host.UseDefaultServiceProvider(options =>
 {
@@ -28,6 +45,25 @@ builder.Services.AddCascadingAuthenticationState();
 // El estado de autenticación del circuito interactivo procede de la cookie del handshake.
 builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
 builder.Services.AddMemoryCache();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json; charset=utf-8";
+        await context.HttpContext.Response.WriteAsync("{\"error\":\"rate_limited\"}", cancellationToken);
+    };
+    var permitLimit = builder.Configuration.GetValue("Security:LoginRateLimitPerMinute", 10);
+    options.AddPolicy("login", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = permitLimit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+});
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
@@ -37,13 +73,14 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.Name = "DocuSearch.Auth";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.Cookie.SecurePolicy = httpsEnabled ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
         options.ExpireTimeSpan = TimeSpan.FromHours(builder.Configuration.GetValue("Auth:SessionHours", 8));
         options.SlidingExpiration = true;
     });
 builder.Services.AddAuthorization();
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection("Auth"));
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddSingleton<LoginAttemptLimiter>();
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Documents")
         ?? throw new InvalidOperationException("Falta ConnectionStrings:Documents."),
@@ -51,6 +88,8 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 builder.Services.AddScoped<LocalSession>();
 builder.Services.AddSingleton<PdfProcessor>();
 builder.Services.AddScoped<DocumentService>();
+builder.Services.AddScoped<DocumentQualityService>();
+builder.Services.AddScoped<CatalogSuggester>();
 builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection("Ollama"));
 builder.Services.AddHttpClient<OllamaClient>().ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
@@ -94,7 +133,31 @@ if (args.Contains("--initialize-database", StringComparer.Ordinal))
     return;
 }
 
-if (app.Configuration.GetValue("Security:Https:Enabled", false))
+var production = ProductionGuard.Validate(app.Configuration);
+foreach (var warning in production.Warnings)
+    app.Logger.LogWarning("Producción: {Warning}", warning);
+if (production.Fatal.Count > 0)
+{
+    foreach (var issue in production.Fatal)
+        app.Logger.LogCritical("Producción: configuración insegura: {Issue}", issue);
+    throw new InvalidOperationException("Configuración de producción insegura. Corrige los mensajes de arranque antes de exponer la aplicación.");
+}
+
+var localOnly = app.Configuration.GetValue("Demo:LocalOnly", true);
+if (!localOnly && app.Configuration.GetValue("Security:ForwardedHeaders:Enabled", false))
+{
+    var forwarded = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost
+    };
+    forwarded.KnownProxies.Clear();
+    forwarded.KnownIPNetworks.Clear();
+    foreach (var proxy in app.Configuration.GetSection("Security:ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+        if (IPAddress.TryParse(proxy, out var address)) forwarded.KnownProxies.Add(address);
+    app.UseForwardedHeaders(forwarded);
+}
+
+if (httpsEnabled)
 {
     app.UseHsts();
     app.UseHttpsRedirection();
@@ -109,14 +172,44 @@ app.Use(async (context, next) =>
     headers["Referrer-Policy"] = "no-referrer";
     headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
     headers["Cross-Origin-Opener-Policy"] = "same-origin";
+    headers["Cross-Origin-Resource-Policy"] = "same-origin";
+    headers["X-Permitted-Cross-Domain-Policies"] = "none";
+    var path = context.Request.Path.Value ?? "";
+    if (path.Equals("/login", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("/account/", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("/enroll", StringComparison.OrdinalIgnoreCase))
+    {
+        headers["Cache-Control"] = "no-store";
+        headers["Pragma"] = "no-cache";
+    }
     var csp = app.Configuration["Security:ContentSecurityPolicy"];
     if (!string.IsNullOrWhiteSpace(csp)) headers["Content-Security-Policy"] = csp;
     await next(context);
 });
 
+// Correlación de peticiones y log estructurado sin contenido de documentos ni query string.
+app.Use(async (context, next) =>
+{
+    var requestId = context.Request.Headers["X-Request-Id"].FirstOrDefault();
+    if (string.IsNullOrWhiteSpace(requestId) || requestId.Length > 100) requestId = context.TraceIdentifier;
+    context.Response.Headers["X-Request-Id"] = requestId;
+    using (app.Logger.BeginScope(new Dictionary<string, object> { ["RequestId"] = requestId }))
+    {
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            await next(context);
+        }
+        finally
+        {
+            app.Logger.LogInformation("HTTP {Method} {Path} -> {StatusCode} en {ElapsedMs:N0} ms",
+                context.Request.Method, context.Request.Path.Value ?? "/", context.Response.StatusCode, started.ElapsedMilliseconds);
+        }
+    }
+});
+
 // La demo solo admite peticiones locales directas. Rechazar cabeceras de proxy evita
 // que un proxy inverso en la propia máquina convierta RemoteIpAddress en 127.0.0.1.
-var localOnly = app.Configuration.GetValue("Demo:LocalOnly", true);
 if (localOnly)
 {
     app.Use(async (context, next) =>
@@ -144,6 +237,8 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseRouting();
+app.UseRateLimiter();
 app.UseAuthentication();
 
 // Defensa en profundidad: ninguna página se sirve sin autenticar. Los recursos
@@ -163,7 +258,8 @@ app.Use(async (context, next) =>
     var isPublic = path.Equals("/login", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/account/", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/enroll", StringComparison.OrdinalIgnoreCase)
-        || path.Equals("/health", StringComparison.OrdinalIgnoreCase);
+        || path.Equals("/health", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("/health/", StringComparison.OrdinalIgnoreCase);
     if (isStatic || isPublic)
     {
         await next(context);
@@ -184,7 +280,7 @@ app.MapGet("/login", (HttpContext context, IAntiforgery antiforgery, IOptions<Au
     var denied = context.Request.Query.ContainsKey("denied");
     var html = AuthPages.Login(tokens.RequestToken ?? "", returnUrl, failed, denied, auth.Value.EnrollmentEnabled);
     return Results.Content(html, "text/html; charset=utf-8");
-});
+}).RequireRateLimiting("login");
 
 app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforgery, AuthService auth, IOptions<AuthOptions> authOptions) =>
 {
@@ -202,7 +298,11 @@ app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforge
     var code = form["code"].ToString();
     var returnUrl = form["returnUrl"].ToString();
     var user = await auth.ValidateAsync(email, code);
-    if (user is null) return Results.Redirect("/login?error=1");
+    if (user is null)
+    {
+        await auth.RecordFailedLoginAsync(email);
+        return Results.Redirect("/login?error=1");
+    }
 
     var identity = new ClaimsIdentity(AuthService.BuildClaims(user), CookieAuthenticationDefaults.AuthenticationScheme);
     await context.SignInAsync(
@@ -216,10 +316,31 @@ app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforge
 
     var target = returnUrl.StartsWith('/') && !returnUrl.StartsWith("//", StringComparison.Ordinal) ? returnUrl : "/";
     return Results.Redirect(target);
-});
+}).RequireRateLimiting("login");
 
-app.MapGet("/account/logout", async (HttpContext context) =>
+app.MapGet("/account/logout", async (HttpContext context, IDbContextFactory<AppDbContext> factory) =>
 {
+    if (context.User.Identity?.IsAuthenticated == true)
+    {
+        try
+        {
+            await using var db = await factory.CreateDbContextAsync();
+            db.Audit.Add(new AuditEvent
+            {
+                UserName = context.User.Identity.Name ?? "desconocido",
+                UserRole = context.User.FindFirstValue(ClaimTypes.Role) ?? "",
+                Action = "LOGOUT",
+                Details = "Cierre de sesión.",
+                DocumentCode = "SYSTEM",
+                Status = "EXITOSO"
+            });
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex) when (ex is DbException or DbUpdateException or InvalidOperationException)
+        {
+            app.Logger.LogWarning("No se pudo auditar el cierre de sesión ({Error}).", ex.GetType().Name);
+        }
+    }
     await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Redirect("/login");
 });
@@ -227,10 +348,13 @@ app.MapGet("/account/logout", async (HttpContext context) =>
 // --- Alta de dispositivos TOTP ---------------------------------------------
 // Muestra el secreto y el QR de cada usuario autorizado. Solo debe estar activo
 // mientras se inscriben los teléfonos: Auth:EnrollmentEnabled=false lo desactiva.
-app.MapGet("/enroll", (IOptions<AuthOptions> auth) =>
+app.MapGet("/enroll", (HttpContext context, IOptions<AuthOptions> auth) =>
 {
     var options = auth.Value;
-    if (!options.EnrollmentEnabled) return Results.NotFound();
+    // Solo se permite inscribir dispositivos desde el propio servidor: la página muestra secretos.
+    var remote = context.Connection.RemoteIpAddress;
+    if (!options.EnrollmentEnabled || remote is null || !IPAddress.IsLoopback(remote))
+        return Results.Json(new { status = "not_found" }, statusCode: StatusCodes.Status404NotFound);
 
     var users = new List<(AuthUserConfig User, string Secret, string OtpAuthUri, string QrSvg)>();
     foreach (var user in options.Users)
@@ -266,6 +390,24 @@ app.MapGet("/health", async (IDbContextFactory<AppDbContext> factory, ILogger<Pr
     {
         logger.LogWarning(ex, "SQL Server no está disponible o no se ha inicializado.");
         return Results.Json(new { status = "unavailable", database = "SQL Server", instruction = "Configura la conexión y ejecuta dotnet run -- --initialize-database." }, statusCode: 503);
+    }
+});
+// Sondas separadas para orquestadores: liveness no toca la base; readiness exige esquema al día.
+app.MapGet("/health/live", () => Results.Ok(new { status = "live" }));
+app.MapGet("/health/ready", async (IDbContextFactory<AppDbContext> factory) =>
+{
+    try
+    {
+        await using var db = await factory.CreateDbContextAsync();
+        var pending = (await db.Database.GetPendingMigrationsAsync()).ToArray();
+        if (pending.Length > 0)
+            return Results.Json(new { status = "degraded", database = "SQL Server", pendingMigrations = pending }, statusCode: 503);
+        await db.Users.CountAsync();
+        return Results.Ok(new { status = "ready", database = "SQL Server", pendingMigrations = 0 });
+    }
+    catch (Exception ex) when (ex is DbException or InvalidOperationException)
+    {
+        return Results.Json(new { status = "unavailable", database = "SQL Server" }, statusCode: 503);
     }
 });
 // Catálogo del selector de motores: lo lee el panel del asistente y sirve para

@@ -72,6 +72,7 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
             ?? (UseOpenCode ? "opencode" : ollama.Enabled ? "ollama" : "extractive");
         if (engine is not ("opencode" or "ollama") || extracted.Sources.Count == 0 || IsExactRequest(query)) return extracted;
         AgentAnswer answer;
+        var generated = false;
         var engineLabel = engine == "opencode" ? "OpenCode" : "Ollama";
         try
         {
@@ -83,6 +84,7 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
                 trace.Model = $"{profile?.ProviderId}/{profile?.ModelId} ({profile?.Agent})";
                 answer = await opencode!.GenerateAsync(query, extracted.Sources, profile?.ProviderId, profile?.ModelId, profile?.Agent,
                     direct: profile?.Group == "Gratis");
+                generated = true;
             }
             else
             {
@@ -90,6 +92,7 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
                 trace.Engine = ollama.UseLangChain ? "langchain-ollama" : "ollama";
                 trace.Model = ollama.Model;
                 answer = await ollama.GenerateAsync(query, extracted.Sources);
+                generated = true;
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
@@ -115,6 +118,28 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
                         ? $"{engineLabel} no disponible · revisión humana · respuesta extractiva"
                         : $"{engineLabel} no disponible · respuesta extractiva");
         }
+
+        // AG-02: el motor propone; C# verifica antes de mostrar. Si la respuesta generada
+        // cita una fuente/página inexistente, no autorizada o texto que no consta, se bloquea
+        // y se devuelve la respuesta extractiva con las mismas fuentes.
+        if (generated)
+        {
+            var verification = AgentVerifier.Verify(answer, snapshot.Documents, snapshot.Actor);
+            if (!verification.IsValid)
+            {
+                trace.ErrorCode = "generation_or_validation";
+                var reason = verification.Issues.Any(issue => issue.Code == VerificationCode.TextNotInPage)
+                    ? "La respuesta generada citó texto que no consta en la página indicada."
+                    : "La respuesta generada no superó la verificación de citas.";
+                logger?.LogWarning("Verificador AG-02 bloqueó una respuesta generada: {Codes}.",
+                    string.Join(",", verification.Issues.Select(issue => issue.Code)));
+                answer = new AgentAnswer(
+                    extracted.Text + "\n\n" + reason + " Se muestra la respuesta extractiva con las fuentes autorizadas.",
+                    extracted.Sources,
+                    $"{engineLabel} · respuesta bloqueada por verificación · extractivo");
+            }
+        }
+
         var current = await documents.LoadAsync();
         if (current.Actor.Id != snapshot.Actor.Id ||
             extracted.Sources.Any(s => current.Documents.All(d => d.Id != s.Document.Id)))

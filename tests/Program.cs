@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Data.SqlClient;
 using System.Net;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Caching.Memory;
 
 var passed = 0;
 var failed = 0;
@@ -848,6 +849,280 @@ await Check("Asistente: incluye LangChain/Ollama local en el catálogo", async (
     Assert(withoutOpenCode.Profiles.Any(profile => profile.Engine == "ollama") &&
         withoutOpenCode.Profiles.Any(profile => profile.Engine == "extractive"));
 });
+if (args.Contains("--verifier"))
+{
+    var verifierDocument = new DocumentItem
+    {
+        InternalCode = "VER-2026-0001", Title = "Contrato de verificación", Author = "Pruebas",
+        Department = "Tecnología & TI", Confidentiality = "Uso Interno",
+        Pages = [new DocumentPage(1, "El contrato garantiza un SLA del 99.99%.", "SLA 99.99% del contrato.", [])]
+    };
+    var secretDocument = new DocumentItem
+    {
+        InternalCode = "VER-2026-SECRET", Title = "Documento secreto de verificación", Author = "Pruebas",
+        Department = "Legal & Contratos", Confidentiality = "Estrictamente Secreto",
+        Pages = [new DocumentPage(1, "Contenido estrictamente secreto.", "Contenido reservado.", [])]
+    };
+    var verifierDocuments = new List<DocumentItem> { verifierDocument, secretDocument };
+    var verifierAdmin = admin;
+    SearchHit Source(string snippet) => new(verifierDocument, 1, snippet, 100);
+    var validSource = Source("El contrato garantiza un SLA del 99.99%.");
+    var validAnswer = new AgentAnswer("El SLA es 99.99%.", [validSource]);
+
+    await Check("Verificador AG-02: acepta una respuesta con fuente y página reales", () => Sync(() =>
+    {
+        var result = AgentVerifier.Verify(validAnswer, verifierDocuments, verifierAdmin);
+        Assert(result.IsValid, string.Join(",", result.Issues.Select(issue => issue.Code)));
+    }));
+    await Check("Verificador AG-02: rechaza respuesta vacía o demasiado larga", () => Sync(() =>
+    {
+        var empty = AgentVerifier.Verify(new AgentAnswer(" ", [validSource]), verifierDocuments, verifierAdmin);
+        Assert(!empty.IsValid && empty.Issues.Any(issue => issue.Code == VerificationCode.Empty));
+        var tooLong = AgentVerifier.Verify(
+            new AgentAnswer(new string('a', AgentVerifier.MaxAnswerLength + 1), [validSource]),
+            verifierDocuments, verifierAdmin);
+        Assert(!tooLong.IsValid && tooLong.Issues.Any(issue => issue.Code == VerificationCode.TooLong));
+    }));
+    await Check("Verificador AG-02: exige al menos una cita", () => Sync(() =>
+    {
+        var result = AgentVerifier.Verify(new AgentAnswer("Respuesta sin fuentes", []), verifierDocuments, verifierAdmin);
+        Assert(!result.IsValid && result.Issues.Any(issue => issue.Code == VerificationCode.NoCitations));
+    }));
+    await Check("Verificador AG-02: rechaza fuentes no autorizadas", () => Sync(() =>
+    {
+        var secretPage = secretDocument.Pages[0];
+        var answer = new AgentAnswer("x", [new SearchHit(secretDocument, secretPage.PageNumber, secretPage.ExtractedText, 100)]);
+        var result = AgentVerifier.Verify(answer, verifierDocuments, consultant);
+        Assert(!result.IsValid && result.Issues.Any(issue => issue.Code == VerificationCode.UnauthorizedSource));
+    }));
+    await Check("Verificador AG-02: rechaza páginas inexistentes", () => Sync(() =>
+    {
+        var result = AgentVerifier.Verify(new AgentAnswer("x", [new SearchHit(verifierDocument, 2, "texto", 100)]), verifierDocuments, verifierAdmin);
+        Assert(!result.IsValid && result.Issues.Any(issue => issue.Code == VerificationCode.PageMissing));
+    }));
+    await Check("Verificador AG-02: rechaza pares documento/página duplicados", () => Sync(() =>
+    {
+        var result = AgentVerifier.Verify(new AgentAnswer("x", [validSource, validSource]), verifierDocuments, verifierAdmin);
+        Assert(!result.IsValid && result.Issues.Any(issue => issue.Code == VerificationCode.DuplicatePair));
+    }));
+    await Check("Verificador AG-02: rechaza texto citado que no consta en la página", () => Sync(() =>
+    {
+        var result = AgentVerifier.Verify(new AgentAnswer("x", [Source("texto inexistente zzz")]), verifierDocuments, verifierAdmin);
+        Assert(!result.IsValid && result.Issues.Any(issue => issue.Code == VerificationCode.TextNotInPage));
+    }));
+    await Check("Verificador AG-02: acepta un resumen extractivo de la página como evidencia", () => Sync(() =>
+    {
+        var result = AgentVerifier.Verify(new AgentAnswer("x", [new SearchHit(verifierDocument, 1, "SLA 99.99% del contrato.", 100)]), verifierDocuments, verifierAdmin);
+        Assert(result.IsValid, string.Join(",", result.Issues.Select(issue => issue.Code)));
+    }));
+    await Check("Verificador AG-02: informa duplicados por SHA-256", () => Sync(() =>
+    {
+        var duplicates = AgentVerifier.FindDuplicateDocuments([
+            new DocumentItem { InternalCode = "DUP-A", Sha256Hash = "abc" },
+            new DocumentItem { InternalCode = "DUP-B", Sha256Hash = "abc" }
+        ]);
+        Assert(duplicates.Count == 1 && duplicates[0].DocumentCodes.SequenceEqual(["DUP-A", "DUP-B"]));
+    }));
+    await Check("Verificador AG-02: normaliza citas 1..N y rechaza fuera de rango", () => Sync(() =>
+    {
+        Assert(AgentVerifier.TryNormalizeCitations([2, 1, 2], 2, out var normalized, out var okCode) &&
+               okCode == VerificationCode.Ok && normalized.SequenceEqual([2, 1]));
+        Assert(!AgentVerifier.TryNormalizeCitations([0], 2, out _, out var badCode) && badCode == VerificationCode.BadCitation);
+        Assert(!AgentVerifier.TryNormalizeCitations([], 2, out _, out var emptyCode) && emptyCode == VerificationCode.NoCitations);
+    }));
+}
+
+if (args.Contains("--inspector"))
+{
+    var inspectorGood = new DocumentItem
+    {
+        InternalCode = "INS-2026-0001", Title = "Expediente íntegro", Author = "Pruebas",
+        Department = "Tecnología & TI", Category = "Contrato", Confidentiality = "Uso Interno",
+        HasOriginal = true, Sha256Hash = "aaa", OcrStatus = "Completado",
+        ExecutiveSummary = "Resumen de prueba.", Keywords = ["calidad"]
+    };
+    var inspectorBad = new DocumentItem
+    {
+        InternalCode = "INS-2026-0002", Title = "", Author = "", Department = "Tecnología & TI",
+        Category = "", Confidentiality = "Uso Interno", HasOriginal = false, Sha256Hash = "aaa",
+        OcrStatus = "Requiere OCR", ExecutiveSummary = "", Keywords = []
+    };
+    var inspectorDocuments = new List<DocumentItem> { inspectorGood, inspectorBad };
+    var inspectorHashes = new Dictionary<string, string> { [inspectorGood.Id] = "bbb" };
+    var inspectorReport = DocumentInspector.Analyze(inspectorDocuments, inspectorHashes);
+
+    await Check("Inspector AG-10: cuenta OCR, originales, metadatos e integridad", () => Sync(() =>
+    {
+        Assert(inspectorReport.TotalDocuments == 2 && inspectorReport.OcrPending == 1 &&
+               inspectorReport.MissingOriginals == 1 && inspectorReport.MetadataGaps == 1 &&
+               inspectorReport.IntegrityMismatches == 1);
+        Assert(inspectorReport.Findings.Any(finding => finding.Kind == "integrity" && finding.Severity == "error"));
+        Assert(inspectorReport.Findings.Any(finding => finding.Kind == "ocr"));
+        Assert(inspectorReport.Findings.Any(finding => finding.Kind == "missing_original"));
+    }));
+    await Check("Inspector AG-10: detecta duplicados por SHA-256", () => Sync(() =>
+    {
+        Assert(inspectorReport.Duplicates.Count == 1 && inspectorReport.Duplicates[0].DocumentCodes.Contains("INS-2026-0001"));
+        Assert(inspectorReport.Findings.Any(finding => finding.Kind == "duplicate"));
+    }));
+    await Check("Inspector AG-10: no verifica integridad si no se piden hashes", () => Sync(() =>
+    {
+        var withoutHashes = DocumentInspector.Analyze(inspectorDocuments);
+        Assert(withoutHashes.IntegrityMismatches == 0 && withoutHashes.Findings.All(finding => finding.Kind != "integrity"));
+    }));
+    await Check("Inspector AG-10: detalla los metadatos incompletos", () => Sync(() =>
+    {
+        var metadata = inspectorReport.Findings.First(finding => finding.Kind == "metadata");
+        Assert(metadata.DocumentCode == "INS-2026-0002" && metadata.Detail.Contains("título") && metadata.Detail.Contains("palabras clave"));
+    }));
+    await Check("Inspector AG-10: informe vacío sin documentos", () => Sync(() =>
+    {
+        var empty = DocumentInspector.Analyze([]);
+        Assert(empty.TotalDocuments == 0 && empty.Findings.Count == 0 && empty.Duplicates.Count == 0);
+    }));
+}
+
+if (args.Contains("--catalog"))
+{
+    var catalogDocument = new DocumentItem
+    {
+        InternalCode = "CAT-2026-0001", Title = "Título actual", Author = "Pruebas",
+        Department = manager.Department, Category = "Contrato", Confidentiality = "Uso Interno",
+        ExecutiveSummary = "Resumen actual.", Keywords = ["actual"]
+    };
+    var catalogDepartments = seed.Departments.Select(department => department.Name).ToList();
+    await Check("Catalogador AG-01: interpreta una ficha válida", () => Sync(() =>
+    {
+        var json = """{"title":"Contrato de servicios 2026","category":"Contrato","department":"Tecnología & TI","confidentiality":"Confidencial","keywords":["SLA","2026"],"summary":"Resumen propuesto.","confidence":0.82}""";
+        Assert(CatalogSuggester.TryParse(json, catalogDocument, manager, catalogDepartments, out var suggestion, out var error), error);
+        Assert(suggestion.Title == "Contrato de servicios 2026" && suggestion.Category == "Contrato" &&
+               suggestion.Department == "Tecnología & TI" && suggestion.Confidentiality == "Confidencial" &&
+               suggestion.Keywords.SequenceEqual(["SLA", "2026"]) && suggestion.Confidence > 0.8);
+    }));
+    await Check("Catalogador AG-01: conserva valores si categoría, departamento o nivel no son válidos", () => Sync(() =>
+    {
+        var json = """{"title":"X","category":"Inexistente","department":"Inexistente","confidentiality":"Estrictamente Secreto","keywords":[],"summary":"","confidence":2}""";
+        Assert(CatalogSuggester.TryParse(json, catalogDocument, manager, catalogDepartments, out var suggestion, out var error), error);
+        Assert(suggestion.Category == catalogDocument.Category && suggestion.Department == catalogDocument.Department &&
+               suggestion.Confidentiality == catalogDocument.Confidentiality && suggestion.Confidence <= 1 &&
+               suggestion.Warnings.Count >= 3);
+    }));
+    await Check("Catalogador AG-01: limita palabras clave y resumen", () => Sync(() =>
+    {
+        var keywords = string.Join(",", Enumerable.Range(1, 12).Select(index => $"\"k{index}\""));
+        var summary = new string('s', 1300);
+        var json = $$"""{"title":"Título","category":"Contrato","department":"{{manager.Department}}","confidentiality":"Uso Interno","keywords":[{{keywords}}],"summary":"{{summary}}","confidence":0.5}""";
+        Assert(CatalogSuggester.TryParse(json, catalogDocument, manager, catalogDepartments, out var suggestion, out var error), error);
+        Assert(suggestion.Keywords.Count == 10 && suggestion.Summary.Length <= 1201 && suggestion.Warnings.Count >= 2);
+    }));
+    await Check("Catalogador AG-01: rechaza JSON inválido", () => Sync(() =>
+    {
+        Assert(!CatalogSuggester.TryParse("esto no es JSON", catalogDocument, manager, catalogDepartments, out _, out var error) &&
+               error.Contains("JSON"));
+    }));
+    await Check("Catalogador AG-01: tolera el JSON envuelto en texto o bloque de código", () => Sync(() =>
+    {
+        var json = "```json\n{\"title\":\"Propuesta\",\"category\":\"Contrato\",\"department\":\"Tecnología & TI\",\"confidentiality\":\"Uso Interno\",\"keywords\":[\"k\"],\"summary\":\"s\",\"confidence\":0.1}\n```";
+        Assert(CatalogSuggester.TryParse(json, catalogDocument, manager, catalogDepartments, out var suggestion, out var error), error);
+        Assert(suggestion.Title == "Propuesta" && Math.Abs(suggestion.Confidence - 0.1) < 0.001);
+    }));
+}
+
+if (args.Contains("--audit"))
+{
+    AuditEvent AuditRow(string action, string status, DateTimeOffset timestamp, string user = "tester") => new()
+    {
+        Action = action, Status = status, TimestampUTC = timestamp, UserName = user,
+        UserRole = "gestor_documental", Details = "Evento de prueba"
+    };
+    var auditNow = DateTimeOffset.UtcNow;
+    var auditEvents = new List<AuditEvent>();
+    for (var index = 0; index < 5; index++) auditEvents.Add(AuditRow("LOGIN_FAILED", "DENEGADO", auditNow.AddDays(-1)));
+    for (var index = 0; index < 3; index++) auditEvents.Add(AuditRow("ACCESS_DENIED", "DENEGADO", auditNow.AddDays(-2)));
+    auditEvents.Add(AuditRow("INTEGRITY_MISMATCH", "ADVERTENCIA", auditNow.AddDays(-3)));
+    auditEvents.Add(AuditRow("UPDATE_USER", "EXITOSO", auditNow.AddDays(-4)));
+    auditEvents.Add(AuditRow("LOGIN", "EXITOSO", auditNow.AddDays(-5)));
+    auditEvents.Add(AuditRow("DOWNLOAD", "EXITOSO", auditNow.AddDays(-20)));
+    auditEvents.Add(AuditRow("DELETE", "EXITOSO", auditNow.AddDays(-25)));
+    auditEvents.Add(AuditRow("DOWNLOAD", "EXITOSO", auditNow.AddDays(-60)));
+    var auditReport = AuditInspector.Analyze(auditEvents, auditNow.AddDays(-30), auditNow);
+
+    await Check("Auditor AG-05: cuenta eventos de riesgo del periodo", () => Sync(() =>
+    {
+        Assert(auditReport.TotalEvents == 13 && auditReport.FailedLogins == 5 &&
+               auditReport.AccessDenied == 3 && auditReport.IntegrityMismatches == 1 &&
+               auditReport.AdminChanges == 1 && auditReport.Downloads == 1 && auditReport.Deletions == 1);
+    }));
+    await Check("Auditor AG-05: genera alertas de integridad, fuerza bruta y accesos denegados", () => Sync(() =>
+    {
+        Assert(auditReport.Alerts.Any(alert => alert.Severity == "error" && alert.Title.Contains("Integridad")));
+        Assert(auditReport.Alerts.Any(alert => alert.Severity == "warning" && alert.Title.Contains("inicio de sesión")));
+        Assert(auditReport.Alerts.Any(alert => alert.Severity == "warning" && alert.Title.Contains("Accesos denegados")));
+    }));
+    await Check("Auditor AG-05: resume las acciones más frecuentes", () => Sync(() =>
+    {
+        Assert(auditReport.TopActions.Count > 0 && auditReport.TopActions[0].Action == "LOGIN_FAILED" &&
+               auditReport.TopActions[0].Count == 5);
+    }));
+    await Check("Auditor AG-05: respeta el periodo consultado", () => Sync(() =>
+    {
+        var week = AuditInspector.Analyze(auditEvents, auditNow.AddDays(-7), auditNow);
+        Assert(week.TotalEvents == 11 && week.Downloads == 0 && week.Deletions == 0);
+    }));
+    await Check("Auditor AG-05: informe vacío sin eventos", () => Sync(() =>
+    {
+        var empty = AuditInspector.Analyze([], auditNow.AddDays(-30), auditNow);
+        Assert(empty.TotalEvents == 0 && empty.Alerts.Count == 0 && empty.TopActions.Count == 0);
+    }));
+}
+
+if (args.Contains("--auth"))
+{
+    LoginAttemptLimiter NewLimiter() => new(new MemoryCache(new MemoryCacheOptions()),
+        Options.Create(new AuthOptions { MaxFailedAttempts = 3, LockoutMinutes = 1 }));
+
+    await Check("Bloqueo de login: tres fallos bloquean la cuenta", () => Sync(() =>
+    {
+        var limiter = NewLimiter();
+        limiter.RegisterFailure("user@example.test");
+        limiter.RegisterFailure("user@example.test");
+        Assert(!limiter.IsLocked("user@example.test", out _));
+        limiter.RegisterFailure("user@example.test");
+        Assert(limiter.IsLocked("user@example.test", out var until) && until > DateTimeOffset.UtcNow);
+    }));
+    await Check("Bloqueo de login: dos fallos no bloquean", () => Sync(() =>
+    {
+        var limiter = NewLimiter();
+        limiter.RegisterFailure("user2@example.test");
+        limiter.RegisterFailure("user2@example.test");
+        Assert(!limiter.IsLocked("user2@example.test", out _));
+    }));
+    await Check("Bloqueo de login: cuentas distintas no se contaminan", () => Sync(() =>
+    {
+        var limiter = NewLimiter();
+        limiter.RegisterFailure("a@example.test");
+        limiter.RegisterFailure("a@example.test");
+        limiter.RegisterFailure("a@example.test");
+        Assert(limiter.IsLocked("a@example.test", out _) && !limiter.IsLocked("b@example.test", out _));
+    }));
+    await Check("Bloqueo de login: un éxito reinicia el contador", () => Sync(() =>
+    {
+        var limiter = NewLimiter();
+        limiter.RegisterFailure("reset@example.test");
+        limiter.RegisterFailure("reset@example.test");
+        limiter.Reset("reset@example.test");
+        limiter.RegisterFailure("reset@example.test");
+        Assert(!limiter.IsLocked("reset@example.test", out _));
+    }));
+    await Check("Bloqueo de login: correo vacío no bloquea", () => Sync(() =>
+    {
+        var limiter = NewLimiter();
+        limiter.RegisterFailure("");
+        limiter.RegisterFailure(null);
+        Assert(!limiter.IsLocked("", out _) && !limiter.IsLocked(null, out _));
+    }));
+}
+
 if (args.Contains("--database"))
 {
     var connection = Environment.GetEnvironmentVariable("DOCUSEARCH_TEST_CONNECTION")
