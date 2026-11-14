@@ -32,7 +32,7 @@ Genera respuestas a partir de fragmentos autorizados y valida las referencias co
 las fuentes enviadas. Las listas, fichas, entidades y páginas explícitas conservan
 su respuesta exacta por reglas. La IA puede equivocarse; se deben revisar las citas.
 Los escaneos sin texto requieren un motor OCR adicional.
-No hay embeddings ni métricas de similitud vectorial ficticias.
+Búsqueda híbrida con embeddings locales (`bge-m3`) y métricas reales, sin cifras ficticias.
 
 El acceso usa inicio de sesión real con cookie de ASP.NET Core (`/login`) y **verificación
 en dos pasos TOTP**: la clave es el código temporal de 6 dígitos de la app autenticadora.

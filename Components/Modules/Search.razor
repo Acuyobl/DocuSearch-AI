@@ -1,5 +1,6 @@
 @inject WorkspaceState State
 @inject DocumentService Service
+@inject EmbeddingClient Embeddings
 <div class="module-page smart-search">
 <div class="segmented-control search-modes" role="group" aria-label="Herramientas del buscador">
     <button type="button" aria-pressed="@(!showAssistant)" aria-controls="document-search" class="@(!showAssistant ? "active" : "")" @onclick="() => SelectAssistant(false)"><AppIcon Name="search" />Buscar documentos</button>
@@ -8,10 +9,10 @@
 <div id="document-search" hidden="@showAssistant">
 <div class="module-page">
 <header class="search-hero">
-    <span class="module-kicker"><AppIcon Name="search" />Búsqueda Contextual por Términos &amp; Texto Exacto</span>
+    <span class="module-kicker"><AppIcon Name="search" />Búsqueda Híbrida (léxica + semántica) &amp; Texto Exacto</span>
     <h1>Exploración Inteligente del Contenido Documental</h1>
     <p>Localiza conceptos clave, cláusulas y fragmentos específicos con fuentes verificables por página.</p>
-    <div class="segmented-control" aria-label="Modo de búsqueda"><button type="button" aria-pressed="@(!exact)" class="@(!exact ? "active" : "")" @onclick="() => SetMode(false)"><AppIcon Name="agent" />Lenguaje Natural (por términos)</button><button type="button" aria-pressed="@exact" class="@(exact ? "active" : "")" @onclick="() => SetMode(true)"><AppIcon Name="search" />Coincidencia Textual Exacta</button></div>
+    <div class="segmented-control" aria-label="Modo de búsqueda"><button type="button" aria-pressed="@(!exact)" class="@(!exact ? "active" : "")" @onclick="() => SetMode(false)"><AppIcon Name="agent" />Lenguaje Natural (híbrida)</button><button type="button" aria-pressed="@exact" class="@(exact ? "active" : "")" @onclick="() => SetMode(true)"><AppIcon Name="search" />Coincidencia Textual Exacta</button></div>
     <form @onsubmit="Execute" @onsubmit:preventDefault>
         <div class="central-search"><AppIcon Name="search" /><input aria-label="Consulta documental" maxlength="2000" placeholder="Pregunta o busca algo (ej. SLA 99.99%, ISO 27001, EBITDA)…" @bind="query" /><button class="primary" disabled="@State.Busy">Buscar</button></div>
     </form>
@@ -29,7 +30,7 @@
     <div class="section-heading"><strong><AppIcon Name="search" />Filtros de exploración</strong><label class="inline">Relevancia mínima <input type="number" min="1" max="100" @bind="minimum" @bind:after="Refilter" /> %</label></div>
     <DocumentFilters Filter="filter" ShowText="false" OnChanged="Refilter" />
 </section>
-<div class="section-heading"><h2>@results.Count fragmento(s)</h2><span class="badge">@(exact ? "Texto exacto" : "Relevancia por términos") · @elapsed ms</span></div>
+<div class="section-heading"><h2>@results.Count fragmento(s)</h2><span class="badge">@(exact ? "Texto exacto" : "Relevancia híbrida") · @elapsed ms</span></div>
 @foreach (var hit in results.Take(limit))
 {
     <article class="panel result">
@@ -62,6 +63,7 @@
     private int minimum = 10;
     private int limit = 20;
     private long elapsed;
+    private float[]? queryVector;
     private List<SearchHit> results = [];
     private readonly List<string> history = [];
     protected override void OnInitialized() => Refilter();
@@ -76,11 +78,16 @@
         showAssistant = value;
         assistantOpened |= value;
     }
-    private void SetMode(bool value) { exact = value; Refilter(); }
+    private async Task SetMode(bool value)
+    {
+        exact = value;
+        queryVector = exact || string.IsNullOrWhiteSpace(query) ? null : await Embeddings.TryEmbedAsync(query);
+        Refilter();
+    }
     private void Refilter()
     {
         var timer = System.Diagnostics.Stopwatch.StartNew();
-        results = LocalSearch.Search(filter.Apply(State.Data!.Documents), query, exact, Math.Clamp(minimum, 1, 100));
+        results = LocalSearch.Search(filter.Apply(State.Data!.Documents), query, exact, Math.Clamp(minimum, 1, 100), queryVector);
         elapsed = timer.ElapsedMilliseconds;
         limit = 20;
     }
@@ -88,7 +95,8 @@
     {
         if (query.Length > 2000) throw new ValidationException("La consulta admite hasta 2000 caracteres.");
         await State.RefreshAsync();
-        await Service.LogQueryAsync("SEARCH", $"{(exact ? "Exacta" : "Contextual")}: {query}");
+        queryVector = exact || string.IsNullOrWhiteSpace(query) ? null : await Embeddings.TryEmbedAsync(query);
+        await Service.LogQueryAsync("SEARCH", $"{(exact ? "Exacta" : "Híbrida")}: {query}");
         if (!string.IsNullOrWhiteSpace(query))
         {
             history.Remove(query);

@@ -52,6 +52,8 @@ public sealed class DocumentItem
             ?? throw new InvalidDataException("Páginas almacenadas inválidas.");
         set => PagesJson = JsonSerializer.Serialize(value, Catalog.Json);
     }
+    /// <summary>Vectores normalizados por página para la búsqueda híbrida; no se persisten en Documents.</summary>
+    [NotMapped, JsonIgnore] public Dictionary<int, float[]> PageVectors { get; set; } = new();
     [NotMapped] public List<DocumentNote> Notes
     {
         get => JsonSerializer.Deserialize<List<DocumentNote>>(NotesJson, Catalog.Json)

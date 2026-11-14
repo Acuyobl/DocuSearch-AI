@@ -5,7 +5,7 @@
 **Verificación realizada (13/11/2026):**
 
 - Compilación correcta de `DocuSearch.csproj` y `tests/DocuSearch.Checks.csproj` en una copia de trabajo (0 errores, 0 advertencias).
-- **87/87 comprobaciones base** ejecutadas y correctas desde una copia limpia del binario; **97/97** con `--verifier` (10 checks de AG-02), **92/92** con `--inspector` (5 de AG-10), **92/92** con `--catalog` (5 de AG-01), **92/92** con `--audit` (5 de AG-05), **92/92** con `--auth` (5 de bloqueo de login) y **99/99** con `--database` contra la base desechable del SQL Server del contenedor. El entorno de trabajo bloquea la ejecución directa por Control de aplicaciones; la copia elimina esa marca.
+- **87/87 comprobaciones base** ejecutadas y correctas desde una copia limpia del binario; **97/97** con `--verifier` (10 checks de AG-02), **92/92** con `--inspector` (5 de AG-10), **92/92** con `--catalog` (5 de AG-01), **92/92** con `--audit` (5 de AG-05), **92/92** con `--auth` (5 de bloqueo de login), **92/92** con `--rag` (5 de RAG híbrido) y **99/99** con `--database` contra la base desechable del SQL Server del contenedor. El entorno de trabajo bloquea la ejecución directa por Control de aplicaciones; la copia elimina esa marca.
 - Verificación HTTP en vivo: `/login` 200 con `Cache-Control: no-store`, `X-Frame-Options`, CORP y X-Permitted; `/enroll` 404 sin secretos; `/health/live` 200; `/health/ready` 503 sin base; `/` redirige a `/login`.
 - Rate limiting comprobado: 10 peticiones permitidas y después **429 con cuerpo JSON** `{"error":"rate_limited"}`.
 - `ProductionGuard` comprobado con `Demo:LocalOnly=false`: rechaza el arranque y enumera TLS, reset, seed, `TrustServerCertificate` y `AllowedHosts`.
@@ -20,6 +20,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -c Debug -- --inspector
 dotnet run --project .\tests\DocuSearch.Checks.csproj -c Debug -- --catalog
 dotnet run --project .\tests\DocuSearch.Checks.csproj -c Debug -- --audit
 dotnet run --project .\tests\DocuSearch.Checks.csproj -c Debug -- --auth
+dotnet run --project .\tests\DocuSearch.Checks.csproj -c Debug -- --rag
 dotnet run --project .\tests\DocuSearch.Checks.csproj -c Debug -- --database --langchain
 ```
 
@@ -37,6 +38,7 @@ Debe seguir dando **87/87** y **102/102** (y 88 con `--langchain-opencode` si ap
 | Bloqueo por cuenta | Tras 10 fallos por cuenta, bloqueo temporal de 5 minutos (configurable). | `Services/LoginAttemptLimiter.cs`, `AuthService.cs`, `appsettings.json` | Añade defensa por cuenta además del límite por IP; es por instancia. |
 | Logs estructurados | `Logging:Json=true` emite JSON; cada petición registra método, ruta, estado y duración, y devuelve `X-Request-Id`. | `Program.cs`, `appsettings.json` | Correlación sin registrar query string ni contenido. |
 | Retención de trazas | Purga manual de `AgentTraces` anteriores a `Observability:RetentionDays` (90) por administración general; audita `PURGE_TRACES`. | `Services/AgentObservability.cs`, `Observability.razor`, `appsettings.json` | Cierra el hueco de retención de trazas; no afecta documentos ni auditoría. |
+| RAG híbrido | Embeddings locales `bge-m3` (1024 dims) por página, tabla `PageEmbeddings`, índice al cargar/editar/reprocesar, backfill `--reindex-embeddings` y búsqueda léxica + coseno. | `Services/EmbeddingClient.cs`, `Services/EmbeddingIndexer.cs`, `Services/LocalSearch.cs`, migración `20261114150444_PageEmbeddings.cs` | Búsqueda semántica local sin base vectorial externa; fallback léxico si Ollama no está. |
 | `/enroll` | Solo responde en loopback; sigue apagado por defecto. | `Program.cs` | Ya no expone secretos a la red. |
 | Auditoría | Nuevos eventos `LOGIN_FAILED` y `LOGOUT`; el login correcto ya se auditaba. | `Services/AuthService.cs`, `Program.cs` |Investigación de accesos sin guardar códigos ni contraseñas. |
 | Cookies | `Secure` cuando `Security:Https:Enabled=true`. | `Program.cs` | La cookie no viaja por HTTP en producción. |

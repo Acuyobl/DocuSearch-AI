@@ -16,6 +16,7 @@
 | Cabeceras y proxy | HSTS, CSP configurable, CORP, X-Permitted, `no-store` en autenticación, `X-Request-Id`; forwarded headers opcionales con proxies declarados. | `Program.cs`, `appsettings.json` |
 | Salud | `/health`, `/health/live`, `/health/ready` (falla con migraciones pendientes). | `Program.cs` |
 | Observabilidad | Logs JSON opcionales, correlación por petición, trazas del agente sin contenido, purga de trazas antiguas por administración. | `Program.cs`, `Services/AgentObservability.cs`, `Observability.razor` |
+| RAG híbrido | Embeddings locales `bge-m3` (1024 dims) por página en `PageEmbeddings`, índice al cargar/editar/reprocesar, backfill con `--reindex-embeddings`, búsqueda léxica + coseno y fallback léxico si el modelo no está. | `Services/EmbeddingClient.cs`, `Services/EmbeddingIndexer.cs`, `Services/LocalSearch.cs`, migración `PageEmbeddings` |
 | Demo | Reset oculto/bloqueado y seed desactivable; plantilla de producción sin secretos. | `Services/DemoPolicy.cs`, `DocumentService.cs`, `appsettings.Production.example.json` |
 
 ### 1.2 Agentes y multiagente
@@ -83,6 +84,7 @@ Entorno: sin OpenCode en `:4097` (el asistente queda en modo extractivo); SQL Se
 | AG-01 Catalogador | `... -- --catalog` | **92/92** |
 | AG-05 Auditor | `... -- --audit` | **92/92** |
 | Bloqueo de login | `... -- --auth` | **92/92** |
+| RAG híbrido | `... -- --rag` | **92/92** |
 | SQL Server real | `... -- --database` (base `DocuSearch_tests`) | **99/99** |
 | Compilación | `dotnet build` | **0 errores, 0 advertencias** |
 | Runtime | login TOTP, `/`, `/quality`, `/observability`, `/health`, `/health/ready` | 200 |

@@ -90,6 +90,21 @@ builder.Services.AddSingleton<PdfProcessor>();
 builder.Services.AddScoped<DocumentService>();
 builder.Services.AddScoped<DocumentQualityService>();
 builder.Services.AddScoped<CatalogSuggester>();
+builder.Services.Configure<EmbeddingOptions>(builder.Configuration.GetSection("Embeddings"));
+var embeddingBase = builder.Configuration["Embeddings:BaseUrl"] ?? "http://127.0.0.1:11434";
+if (!Uri.TryCreate(embeddingBase, UriKind.Absolute, out var embeddingUri) || embeddingUri.Scheme is not ("http" or "https"))
+    throw new InvalidOperationException("Embeddings:BaseUrl debe ser una URL HTTP como http://127.0.0.1:11434.");
+builder.Services.AddHttpClient<EmbeddingClient>(client =>
+{
+    client.BaseAddress = new Uri(embeddingUri.AbsoluteUri.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("Embeddings:TimeoutSeconds", 60)));
+}).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    AllowAutoRedirect = false,
+    UseProxy = false,
+    ConnectTimeout = TimeSpan.FromSeconds(5)
+});
+builder.Services.AddScoped<EmbeddingIndexer>();
 builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection("Ollama"));
 builder.Services.AddHttpClient<OllamaClient>().ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
@@ -128,6 +143,65 @@ if (args.Contains("--initialize-database", StringComparer.Ordinal))
     catch (Exception ex) when (ex is DbException or InvalidOperationException)
     {
         app.Logger.LogError(ex, "No se pudo inicializar SQL Server. Revisa la instancia, los permisos de Windows y ConnectionStrings:Documents.");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
+if (args.Contains("--reindex-embeddings", StringComparer.Ordinal))
+{
+    try
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var indexer = scope.ServiceProvider.GetRequiredService<EmbeddingIndexer>();
+        var updated = await indexer.ReindexAllAsync();
+        Console.WriteLine($"Índice semántico actualizado: {updated} páginas.");
+    }
+    catch (Exception ex) when (ex is DbException or InvalidOperationException)
+    {
+        app.Logger.LogError(ex, "No se pudo reindexar la búsqueda semántica. Revisa Embeddings:BaseUrl y el modelo configurado.");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
+if (args.Contains("--search", StringComparer.Ordinal))
+{
+    try
+    {
+        var position = Array.IndexOf(args, "--search");
+        var query = position + 1 < args.Length ? args[position + 1] : "";
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            Console.WriteLine("Uso: --search \"tu consulta\"");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+        var user = await db.Users.AsNoTracking()
+            .Where(candidate => candidate.Status == "Activo" && (candidate.Role == "admin_general" || candidate.Role == "gestor_documental"))
+            .OrderBy(candidate => candidate.Role == "admin_general" ? 0 : 1)
+            .FirstOrDefaultAsync()
+            ?? throw new InvalidOperationException("No hay un usuario activo para la consulta de diagnóstico.");
+        var session = scope.ServiceProvider.GetRequiredService<LocalSession>();
+        session.SignIn(new ClaimsPrincipal(new ClaimsIdentity(AuthService.BuildClaims(user), "cli")));
+
+        var documents = await scope.ServiceProvider.GetRequiredService<DocumentService>().LoadAsync();
+        var embeddings = scope.ServiceProvider.GetRequiredService<EmbeddingClient>();
+        var queryVector = await embeddings.TryEmbedAsync(query);
+        var hits = LocalSearch.Search(documents.Documents, query, minimum: 20, queryVector: queryVector).Take(5).ToList();
+        Console.WriteLine($"Consulta: {query}");
+        Console.WriteLine(queryVector is null ? "Vector: no disponible (recuperación léxica)." : "Vector: bge-m3 (búsqueda híbrida).");
+        Console.WriteLine($"Resultados: {hits.Count}");
+        foreach (var hit in hits)
+            Console.WriteLine($"{hit.Score,3} · {hit.Document.InternalCode} p.{hit.PageNumber} · {TextAnalysis.Truncate(hit.Snippet, 160)}");
+    }
+    catch (Exception ex) when (ex is DbException or InvalidOperationException)
+    {
+        app.Logger.LogError(ex, "No se pudo ejecutar la consulta de diagnóstico.");
         Environment.ExitCode = 1;
     }
     return;

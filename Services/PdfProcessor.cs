@@ -11,7 +11,7 @@ namespace DocuSearch.Services;
 public static class TextAnalysis
 {
     private static readonly HashSet<string> StopWords = new(
-        "de la que el en y a los del se las por un para con no una su al lo como mas sus le sobre entre este esta ese documento documentos buscar busca mostrar muestra resume resumen extrae entidades pagina cuales cuanto cuantos lista listado tiene cual son hay".Split(' '));
+        "de la que el en y a los del se las por un para con no una su al lo como mas sus le sobre entre este esta ese documento documentos buscar busca mostrar muestra resume resumen extrae entidades pagina cuales cuanto cuantos lista listado tiene cual son hay es fue ser estan donde cuando porque pero muy tambien solo estos estas esos esas mi tu nos les me te quien quienes cuanta cuantas".Split(' '));
 
     public static string Normalize(string value) => string.Concat(value.ToLowerInvariant()
         .Normalize(NormalizationForm.FormD).Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark));

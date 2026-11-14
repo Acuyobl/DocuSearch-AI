@@ -11,6 +11,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<DepartmentInfo> Departments => Set<DepartmentInfo>();
     public DbSet<AuditEvent> Audit => Set<AuditEvent>();
     public DbSet<AgentTrace> AgentTraces => Set<AgentTrace>();
+    public DbSet<PageEmbedding> PageEmbeddings => Set<PageEmbedding>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -43,5 +44,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             .HasForeignKey<DocumentFile>(f => f.DocumentId).OnDelete(DeleteBehavior.Cascade);
         model.Entity<AuditEvent>().HasIndex(a => a.TimestampUTC);
         model.Entity<AgentTrace>().HasIndex(t => t.StartedUtc);
+        model.Entity<PageEmbedding>().ToTable("PageEmbeddings");
+        model.Entity<PageEmbedding>().HasIndex(e => new { e.DocumentId, e.PageNumber }).IsUnique();
+        model.Entity<PageEmbedding>().Property(e => e.Vector).HasColumnType("varbinary(max)");
+        model.Entity<PageEmbedding>().HasOne<DocumentItem>().WithMany()
+            .HasForeignKey(e => e.DocumentId).OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -1123,6 +1123,55 @@ if (args.Contains("--auth"))
     }));
 }
 
+if (args.Contains("--rag"))
+{
+    var ragPersonas = new DocumentItem
+    {
+        InternalCode = "RAG-PERSONAS", Title = "Manual de personas", Category = "Manual Técnico",
+        Department = "Tecnología & TI", Confidentiality = "Uso Interno",
+        Pages = [new DocumentPage(1, "Las vacaciones se solicitan con quince días de antelación.", "Vacaciones y descanso.", [])]
+    };
+    ragPersonas.PageVectors[1] = [1f, 0f, 0f];
+    var ragContrato = new DocumentItem
+    {
+        InternalCode = "RAG-CONTRATO", Title = "Contrato de servicios", Category = "Contrato",
+        Department = "Tecnología & TI", Confidentiality = "Uso Interno",
+        Pages = [new DocumentPage(1, "El proveedor garantiza mantenimiento preventivo y correctivo.", "Mantenimiento del servicio.", [])]
+    };
+    ragContrato.PageVectors[1] = [0f, 1f, 0f];
+    var ragDocuments = new List<DocumentItem> { ragPersonas, ragContrato };
+
+    await Check("RAG: el coseno ordena por similitud vectorial", () => Sync(() =>
+    {
+        Assert(Math.Abs(LocalSearch.Cosine([1f, 0f, 0f], [1f, 0f, 0f]) - 1f) < 0.0001f);
+        Assert(Math.Abs(LocalSearch.Cosine([1f, 0f, 0f], [0f, 1f, 0f])) < 0.0001f);
+        Assert(LocalSearch.Cosine([], []) == 0);
+    }));
+    await Check("RAG: recupera una página por significado aunque no coincidan términos", () => Sync(() =>
+    {
+        var hits = LocalSearch.Search(ragDocuments, "politica de descanso", minimum: 20, queryVector: [1f, 0f, 0f]);
+        Assert(hits.Count > 0 && hits[0].Document.Id == ragPersonas.Id && hits[0].PageNumber == 1);
+    }));
+    await Check("RAG: un vector no relacionado no inventa resultados", () => Sync(() =>
+    {
+        var hits = LocalSearch.Search(ragDocuments, "consulta sin relacion", minimum: 20, queryVector: [0f, 0f, 1f]);
+        Assert(hits.Count == 0);
+    }));
+    await Check("RAG: combina coincidencia léxica y vectorial sin perder la exacta", () => Sync(() =>
+    {
+        var hits = LocalSearch.Search(ragDocuments, "vacaciones", minimum: 0, queryVector: [0f, 1f, 0f]);
+        Assert(hits.Count > 0 && hits.Any(hit => hit.Document.Id == ragPersonas.Id));
+        var exact = LocalSearch.Search(ragDocuments, "vacaciones", exact: true, minimum: 0, queryVector: [0f, 1f, 0f]);
+        Assert(exact.Count == 1 && exact[0].Document.Id == ragPersonas.Id);
+    }));
+    await Check("RAG: los vectores se serializan y recuperan sin pérdida", () => Sync(() =>
+    {
+        var vector = new[] { 0.25f, -0.5f, 0.75f };
+        var restored = EmbeddingIndexer.FromBytes(EmbeddingIndexer.ToBytes(vector));
+        Assert(restored.SequenceEqual(vector));
+    }));
+}
+
 if (args.Contains("--database"))
 {
     var connection = Environment.GetEnvironmentVariable("DOCUSEARCH_TEST_CONNECTION")

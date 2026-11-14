@@ -140,7 +140,7 @@ de Windows utilizada para conectarse a SQL Server.
 | Documentos | Catálogo, filtros, paginación, metadatos, borrado confirmado y descarga |
 | Carga | Individual o lote, hasta 20 archivos con progreso y resultado independiente |
 | Pipeline | Estado persistente, SHA-256 y reprocesamiento real |
-| Buscador | Pestañas Buscar documentos y Asistente IA; coincidencia exacta o relevancia por términos, filtros e historial de sesión |
+| Buscador | Pestañas Buscar documentos y Asistente IA; coincidencia exacta o relevancia híbrida (léxica + embeddings locales), filtros e historial de sesión |
 | Asistente integrado en el buscador | Respuestas generativas con OpenCode (agente sin herramientas) o LangChain/Ollama local, con citas; listas, fichas, páginas y entidades exactas; seguimiento del expediente anterior |
 | Visor | Original PDF, texto por página, zoom, resumen, entidades, notas y ficha técnica |
 | Reportes | Catálogo CSV, informe HTML autónomo e impresión a PDF |
@@ -206,7 +206,28 @@ porcentajes de éxito ni servicios de IA simulados. No se afirma igualdad píxel
 - La ingesta mantiene resúmenes extractivos y entidades por reglas. El asistente añade
   generación con OpenCode (local o remoto según configuración) o con Ollama local; el
   modo determinista sigue disponible sin modelo.
-- Relevancia por términos, **no similitud vectorial ni embeddings**.
+- **RAG híbrido:** recuperación léxica + embeddings locales (`bge-m3`, 1024 dimensiones) por
+  página, guardados en `PageEmbeddings`; el vector de la consulta se calcula con Ollama local.
+  Si el índice o el modelo no están disponibles, se usa solo el índice léxico.
+- La indexación semántica se ejecuta al cargar, editar o reprocesar un expediente. Para una
+  base existente, ejecuta `dotnet run -- --reindex-embeddings`; el comando informa cuántas
+  páginas actualizó. Los vectores no salen del equipo: se calculan contra `Embeddings:BaseUrl`.
+- Las páginas sin capa de texto no generan embeddings: se marcan **Requiere OCR** y no se
+  inventa contenido.
+
+Configuración en `appsettings.json` (o variables `Embeddings__*`):
+
+| Clave | Valor por defecto | Uso |
+|---|---|---|
+| `Embeddings:Enabled` | `true` | Activa el índice y la consulta semántica |
+| `Embeddings:BaseUrl` | `http://127.0.0.1:11434` | Ollama local; en Docker: `http://host.docker.internal:11434` |
+| `Embeddings:Model` | `bge-m3` | Modelo de embeddings (1024 dimensiones) |
+| `Embeddings:Dimensions` | `1024` | Validación de dimensión del vector |
+| `Embeddings:TimeoutSeconds` | `60` | Límite por llamada de embeddings |
+| `Embeddings:MaxChars` | `2000` | Texto máximo por página que se vectoriza |
+
+La demo Docker ya arranca con `Embeddings__BaseUrl=http://host.docker.internal:11434`.
+Si el servidor no responde, la búsqueda y el asistente siguen funcionando en modo léxico.
 - Los cinco ejemplos conservan sus páginas de referencia y notas, pero no incluyen PDF
   original. Sus hashes históricos no prueban un archivo que no se proporcionó; la
   interfaz los identifica como **Sin original**.
@@ -389,8 +410,9 @@ al Python del entorno virtual (se admite `%LOCALAPPDATA%`).
 
 LangChain usa `ChatPromptTemplate`, `ChatOllama` y salida estructurada con esquema
 Pydantic. No es un agente autónomo con herramientas: no añade por sí solo memoria,
-OCR ni embeddings. La recuperación y la autorización siguen en C#; LangChain
-organiza la preparación de mensajes y la generación estructurada local.
+OCR. Los embeddings se calculan en C# contra el Ollama local; LangChain solo
+organiza la preparación de mensajes y la generación estructurada local. La recuperación
+híbrida y la autorización siguen en C#.
 
 #### LangChain sin Ollama (usando OpenCode)
 
@@ -441,7 +463,8 @@ Configuración en `appsettings.json`:
   Cada mensaje identifica si se utilizó LangChain/Ollama o extracción local.
 - El modelo no dispone de herramientas ni acceso directo a archivos, SQL o internet.
   La IA puede equivocarse: validar los IDs de cita no garantiza que su texto sea cierto.
-  La búsqueda sigue siendo por términos, no vectorial; el contexto es parcial.
+  La búsqueda es híbrida (léxica + embeddings locales); el contexto sigue siendo parcial.
+  Si Ollama/embeddings no están disponibles, se usa el índice léxico.
 - Si Python, LangChain u Ollama falla o excede el tiempo de espera, se muestra el error y se libera la
   interfaz; no se cambia silenciosamente a otro motor o proveedor.
 - Para usar solo la extracción existente, configura `Enabled: false`.
@@ -666,6 +689,14 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --auth
 ```
 
 Ese comando ejecuta **92** comprobaciones (87 base + 5 de autenticación).
+
+El RAG híbrido añade **5 comprobaciones** (coseno, recuperación vectorial, híbrida y serialización):
+
+```powershell
+dotnet run --project .\tests\DocuSearch.Checks.csproj -- --rag
+```
+
+Ese comando ejecuta **92** comprobaciones (87 base + 5 de RAG).
 
 Para ejecutar todas las suites deterministas de una vez:
 

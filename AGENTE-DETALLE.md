@@ -53,7 +53,7 @@ No puede: navegar por internet, leer archivos, consultar la base directamente, u
 | Seguimiento del último expediente | Parcial | Reconoce «ese», «este», «anterior», «su» y usa el último código citado |
 | Conversación con historial completo en el modelo | No | El modelo recibe solo la pregunta actual y los fragmentos; el historial queda en la UI |
 | Comparar varios documentos completos | Parcial | Como máximo 6 fragmentos de hasta 1000 caracteres |
-| Búsqueda semántica/embeddings | No | Recuperación por términos normalizados, sin embeddings |
+| Búsqueda semántica/embeddings | Sí, local | Embeddings `bge-m3` (1024 dims) por página + relevancia léxica; híbrida en C#, sin base vectorial externa |
 | Internet, archivos, base de datos, shell | No | El modelo no tiene herramientas ni acceso directo |
 | OCR de escaneos | No | Las páginas sin texto se marcan «Requiere OCR»; el agente no inventa su contenido |
 | Subir, editar, borrar o descargar | No | Son módulos separados; el agente es solo lectura |
@@ -117,7 +117,8 @@ Lista los documentos confidenciales
 
 ### 4.6 Frase textual
 
-Si usas comillas, busca la frase exacta; si no, recupera por términos normalizados.
+Si usas comillas, busca la frase exacta; si no, recupera por relevancia híbrida: términos
+normalizados + similitud de embeddings locales (`bge-m3`).
 
 ```text
 Busca "mantenimiento preventivo y correctivo"
@@ -162,7 +163,7 @@ Es un seguimiento acotado: no es memoria completa de la conversación y el model
 1. Login TOTP
 2. Carga del snapshot de documentos según RBAC
 3. Registro de AGENT_QUERY en auditoría (sin contenido)
-4. Recuperación local por términos (LocalSearch)
+4. Recuperación local híbrida: términos (LocalSearch) + embeddings de página (`bge-m3`)
 5. Respuesta extractiva base: resumen, página, entidades o listado
 6. Si no es una consulta exacta y hay fuentes:
       selección de hasta 6 fragmentos (documento + página únicos)
@@ -443,7 +444,7 @@ Esperado: vigencia del mismo contrato, usando el último código citado.
 
 | Archivo | Responsabilidad |
 |---|---|
-| `Services/LocalSearch.cs` | Recuperación por términos, intenciones exactas, fallback extractivo, RBAC |
+| `Services/LocalSearch.cs` | Recuperación híbrida (léxica + coseno), intenciones exactas, fallback extractivo, RBAC |
 | `Services/OpenCodeClient.cs` | Cliente OpenCode 1/2, LangChain, citas, tokens, validación |
 | `LangChain/opencode_worker.py` | Worker LangChain para OpenCode 1/2; prompt, sesión, permisos deny |
 | `Services/AssistantPrompt.cs` | Instrucciones del sistema y formato JSON |

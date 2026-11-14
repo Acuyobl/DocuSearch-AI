@@ -11,7 +11,7 @@
                 <article class="pipeline-stage"><span>FASE @step.Number</span><h3><AppIcon Name="@step.Icon" />@step.Title</h3><p>@step.Description</p></article>
             }
         </div>
-        <small>Los escaneos sin capa de texto se marcan «Requiere OCR». No se generan embeddings ni se simula OCR de imágenes.</small>
+        <small>Los escaneos sin capa de texto se marcan «Requiere OCR». No se simula OCR de imágenes. Las páginas con texto generan embeddings locales para la búsqueda híbrida.</small>
     </section>
     <section class="panel"><div class="section-heading"><h2>Ingesta &amp; Procesamiento Registrado</h2><span class="badge">@State.Data!.Documents.Count expedientes</span></div>
         <div class="table-scroll"><table class="module-table"><thead><tr><th>Código</th><th>Documento</th><th>Páginas</th><th>Estado de extracción</th><th>Integridad SHA-256</th><th>Reprocesar</th></tr></thead><tbody>

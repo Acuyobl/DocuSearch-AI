@@ -87,7 +87,7 @@
 
 1. **La IA suma cuando el contexto y los permisos son del sistema, no del modelo.**
 2. **Local-first es viable:** sin nube obligatoria, con integridad y auditoría demostrables.
-3. **Decir lo que falta genera confianza:** OCR y búsqueda semántica son los siguientes pasos, no promesas ocultas.
+3. **Decir lo que falta genera confianza:** OCR sigue pendiente; la búsqueda semántica híbrida ya está implementada, no es una promesa oculta.
 
 ## 8. Próximos pasos
 

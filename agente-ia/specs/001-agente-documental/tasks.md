@@ -122,8 +122,9 @@ Fuentes de pruebas: [.NET](../../../tests/Program.cs) y
   mantener privacidad y evitar registrar prompts.
 - [ ] **P05 — Evaluación de respuestas:** conjunto sintético en español, calidad de
   citas y resistencia a instrucciones dentro de documentos.
-- [ ] **P06 — Búsqueda semántica:** embeddings/modelos locales, índice y pruebas RBAC,
-  solo si se aprueba una ampliación de arquitectura.
+- [x] **P06 — Búsqueda semántica:** embeddings locales `bge-m3` (1024 dims) por página
+  en `PageEmbeddings`, búsqueda híbrida léxica + coseno, RBAC antes de recuperar,
+  backfill `--reindex-embeddings` y fallback léxico si Ollama no está.
 - [ ] **P07 — OCR de imágenes:** motor local, costo de procesamiento y límites medidos.
 - [ ] **P08 — Memoria conversacional:** alcance, borrado, autorización y privacidad;
   no enviar historial automáticamente.

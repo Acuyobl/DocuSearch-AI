@@ -57,6 +57,10 @@ jobs:
       - name: Ejecutar checks de bloqueo de login
         run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --auth
 
+      # RAG híbrido: coseno, recuperación vectorial y serialización.
+      - name: Ejecutar checks de RAG híbrido
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --rag
+
       # Verificación de higiene: los secretos TOTP viven en user-secrets, nunca en el repositorio.
       - name: Verificar que no haya secretos TOTP versionados
         shell: bash

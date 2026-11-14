@@ -32,10 +32,11 @@ Cambiar de perfil o limpiar la conversación borra el contexto anterior.
 
 ## Límites
 
-Hay generación con un LLM local, pero no embeddings, OCR de imágenes, herramientas
-del modelo ni modificaciones documentales desde el chat. La recuperación sigue
-siendo léxica y el contexto es parcial. El texto de los expedientes se trata como
-datos; validar citas no garantiza exactitud factual.
+Hay generación con un LLM local y búsqueda híbrida con embeddings locales (`bge-m3`)
+por página; no hay OCR de imágenes, herramientas del modelo ni modificaciones
+documentales desde el chat. La recuperación sigue siendo acotada y el contexto es
+parcial. El texto de los expedientes se trata como datos; validar citas no garantiza
+exactitud factual.
 
 El motor puede ser OpenCode (servidor local opcional, agente sin herramientas),
 LangChain Python con Ollama o el modo extractivo; OpenCode tiene prioridad cuando está

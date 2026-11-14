@@ -38,7 +38,8 @@ Se incluye migración de esquema y recuperación de datos anteriores desde el na
 - Ingesta con resumen extractivo, entidades por reglas y relevancia por términos.
   El asistente añade generación con Ollama local y citas verificadas contra las fuentes
   autorizadas enviadas. Listas, fichas, entidades y páginas conservan respuestas exactas.
-  No se afirman embeddings ni búsqueda vectorial.
+  Ahora incluye búsqueda híbrida con embeddings locales (`bge-m3`) además de la léxica;
+  no se afirma una base vectorial externa.
 - Notas compartidas persistentes con actualización explícita.
 - La bitácora se conserva al restablecer los ejemplos.
 
@@ -82,7 +83,7 @@ Resumen de los cambios de esta rama:
    y remoto (`deepseek/deepseek-flash`) se eligen por configuración y la interfaz avisa
    cuando el modelo es remoto. Añade 8 comprobaciones (7 simuladas y 2 reales con `--opencode`).
 
-Pendientes que no cubre esta rama: embeddings/OCR, autenticación de producción con
+Pendientes que no cubre esta rama: OCR, autenticación de producción con
 Identity u OIDC, un lock global para la importación y accesibilidad completa con trampa
 de foco.
 
@@ -104,6 +105,6 @@ sin servicios.
 
 Antes de uso en red faltan sustituir los secretos TOTP y roles de configuración por
 ASP.NET Core Identity u OIDC con TOTP/passkeys, TLS y políticas de despliegue.
-OCR de imágenes y búsqueda semántica con embeddings son ampliaciones no implementadas.
+OCR de imágenes sigue pendiente; la búsqueda semántica con embeddings locales ya está implementada (14/11/2026).
 
 Consulta [README](README.md) para instalar, configurar, ejecutar y verificar.

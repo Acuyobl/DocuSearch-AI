@@ -16,7 +16,7 @@
 | ¿Y un agente con IA (LLM)? | **`Agente Catalogador` (AG-01)**, **MVP opt-in implementado**: una llamada por documento, propuesta sin escritura y consentimiento explícito. La cola/aprobaciones siguen condicionadas. |
 | ¿Quién ya existe? | **`Agente Redactor` (AG-04)**: es el asistente actual (`LocalAgent` + `OpenCodeClient`). No se “implementa”, se refactoriza si hace falta. |
 | ¿Cuántos agentes valen la pena? | **2 reales** (Verificador + Catalogador condicional) y **2 informes deterministas** (Inspector, Auditor). El resto del catálogo son módulos SQL con nombre de agente. |
-| ¿Qué no hacer? | AutoGen/CrewAI/LangGraph, embeddings/vector DB, OCR simulado, `ToolGateway` con herramientas elegidas por el modelo, agentes que escriben sin aprobación, fan-out de llamadas por consulta. |
+| ¿Qué no hacer? | AutoGen/CrewAI/LangGraph, **base vectorial externa** o embeddings remotos (los locales ya están implementados), OCR simulado, `ToolGateway` con herramientas elegidas por el modelo, agentes que escriben sin aprobación, fan-out de llamadas por consulta. |
 | Esfuerzo realista | **Verificador: 1–2 días (hecho).** **Catalogador MVP opt-in: 1 día (hecho).** Plataforma + cola: 2–3 semanas, solo con caso de uso aprobado. |
 
 **El nombre que se puede implementar ya: `Agente Verificador` (AG-02).**
@@ -355,7 +355,7 @@ Reglas: (1) lo determinista siempre funciona sin modelo; (2) modelo local antes 
 
 - No `ToolGateway` ni herramientas elegidas por el modelo: hoy el modelo no puede actuar y esa es su mayor defensa.
 - No AutoGen/CrewAI/LangGraph/Semantic Kernel: autonomía, dependencias y modos de fallo no justificados.
-- No embeddings/vector DB: 9 documentos/89 páginas se resuelven con recuperación léxica.
+- **Embeddings locales implementados (14/11/2026):** `bge-m3` (1024 dims) por página en `PageEmbeddings`, búsqueda híbrida léxica + coseno, índice al cargar/editar/reprocesar y backfill `--reindex-embeddings`. No hay base vectorial externa; el fallback léxico se mantiene si Ollama no responde.
 - No OCR simulado: `PdfPig` solo lee capa de texto; el OCR es un proyecto aparte.
 - No RAG de documento completo ni map-reduce: 20 PDF × 5 M caracteres sería inviable (~25 M tokens).
 - No debate/votación entre agentes: multiplica llamadas y no es evaluable.

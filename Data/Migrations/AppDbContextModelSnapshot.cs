@@ -300,6 +300,48 @@ namespace DocuSearch.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("DocuSearch.Models.PageEmbedding", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Dimensions")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DocumentId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("PageNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<byte[]>("Vector")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId", "PageNumber")
+                        .IsUnique();
+
+                    b.ToTable("PageEmbeddings", (string)null);
+                });
+
             modelBuilder.Entity("DocuSearch.Models.AppUser", b =>
                 {
                     b.HasOne("DocuSearch.Models.DepartmentInfo", null)
@@ -326,6 +368,15 @@ namespace DocuSearch.Data.Migrations
                         .HasForeignKey("Department")
                         .HasPrincipalKey("Name")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DocuSearch.Models.PageEmbedding", b =>
+                {
+                    b.HasOne("DocuSearch.Models.DocumentItem", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 #pragma warning restore 612, 618

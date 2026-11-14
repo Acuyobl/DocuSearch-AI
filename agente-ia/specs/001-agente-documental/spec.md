@@ -31,7 +31,7 @@ Validar una cita no garantiza la exactitud factual de una respuesta generativa.
 | SQL Server Express local con autenticación Windows | PostgreSQL como proveedor activo |
 | Python aislado, LangChain Core y ChatOllama | LangChain.js, servicio Python HTTP y agente autónomo |
 | Ollama y modelo local `qwen2.5-coder:7b` | Proveedores remotos, modelos cloud y descarga automática |
-| Búsqueda por términos y coincidencia exacta | Embeddings, base vectorial y búsqueda semántica real |
+| Búsqueda híbrida local (léxica + embeddings `bge-m3`) | Base vectorial externa o embeddings remotos |
 | Resúmenes generativos del chat y extractivos de ingesta | OCR de imágenes |
 | Citas, seguimiento por último código y visor | Memoria conversacional completa o persistente |
 | Panel propio de observabilidad Blazor/SQL Server | Langfuse, LangSmith tracing y exportadores externos |

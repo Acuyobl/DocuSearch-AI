@@ -236,7 +236,7 @@ El total de 8–12 semanas asume solapamiento de F3/F4/F5; en serie serían 12�
 - No dejar `ResetAsync`, seed de ejemplo ni textos de demo.
 - No enviar documentos `Confidencial`/`Estrictamente Secreto` a un proveedor remoto.
 - No implementar la plataforma multiagente antes de G1–G5.
-- No añadir embeddings/OCR/multiagente “para innovar” antes de resolver identidad, datos y operación.
+- No añadir OCR/multiagente “para innovar” antes de resolver identidad, datos y operación (la búsqueda híbrida ya está implementada).
 - No confundir autenticación TOTP con MFA real: correo + TOTP es un solo factor.
 - No prometer HA con Blazor Server sin backplane y sesiones pegajosas.
 

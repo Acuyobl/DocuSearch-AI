@@ -33,7 +33,7 @@ La regla excluye Node.js, no todo JavaScript ejecutado por el navegador.
 - **Decisión:** C# obtiene exclusivamente fuentes autorizadas y determina intención;
   el modelo solo redacta a partir de un contexto acotado.
 - **Motivo:** preservar RBAC, referencias y respuestas exactas.
-- **Alternativa no implementada:** búsqueda vectorial con embeddings.
+- **Implementado (14/11/2026):** búsqueda híbrida con embeddings locales `bge-m3` por página en `PageEmbeddings` y coseno en C#; fallback léxico si Ollama no responde.
 - **Consecuencia:** recuperación por proporción de términos y coincidencia exacta;
   no prometer comprensión semántica ni cobertura completa del documento.
 - **Evidencia:** [LocalSearch/LocalAgent](../../../Services/LocalSearch.cs).

@@ -8,7 +8,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DocuSearch.Services;
 
-public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, LocalSession session, PdfProcessor processor)
+public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, LocalSession session, PdfProcessor processor,
+    EmbeddingIndexer? indexer = null, ILogger<DocumentService>? logger = null)
 {
     private async Task<AppUser> ActorAsync(AppDbContext db)
     {
@@ -57,7 +58,23 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
     {
         await using var db = await factory.CreateDbContextAsync();
         var actor = await ActorAsync(db);
-        return new(actor, await Readable(db, actor).AsNoTracking().OrderByDescending(d => d.UploadDate).ToListAsync(),
+        var documents = await Readable(db, actor).AsNoTracking().OrderByDescending(d => d.UploadDate).ToListAsync();
+        if (documents.Count > 0)
+        {
+            var ids = documents.Select(document => document.Id).ToList();
+            var embeddings = new List<PageEmbedding>();
+            foreach (var batch in ids.Chunk(100))
+                embeddings.AddRange(await db.PageEmbeddings.AsNoTracking()
+                    .Where(embedding => batch.Contains(embedding.DocumentId)).ToListAsync());
+            foreach (var document in documents)
+            {
+                document.PageVectors = embeddings
+                    .Where(embedding => embedding.DocumentId == document.Id)
+                    .GroupBy(embedding => embedding.PageNumber)
+                    .ToDictionary(group => group.Key, group => EmbeddingIndexer.FromBytes(group.Last().Vector));
+            }
+        }
+        return new(actor, documents,
             await db.Users.AsNoTracking().OrderBy(u => u.Name).ToListAsync(),
             await db.Departments.AsNoTracking().OrderBy(d => d.Name).ToListAsync(),
             Permissions.CanAudit(actor) ? await db.Audit.AsNoTracking().OrderByDescending(a => a.TimestampUTC).Take(1000).ToListAsync() : []);
@@ -151,6 +168,21 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
         Audit(db, actor, "UPLOAD", $"{document.Title}. Estado: {document.OcrStatus}. SHA-256: {document.Sha256Hash}", document.InternalCode);
         await db.SaveChangesAsync();
         await tx.CommitAsync();
+        await TryIndexAsync(document.Id);
+    }
+
+    private async Task TryIndexAsync(string documentId)
+    {
+        if (indexer is null) return;
+        try
+        {
+            await indexer.IndexDocumentAsync(documentId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger?.LogWarning("El expediente {DocumentId} se guardó, pero no se pudo indexar semánticamente ({Error}).",
+                documentId, ex.GetType().Name);
+        }
     }
 
     private static async Task CheckQuotaAsync(AppDbContext db, string department, long extraBytes, string? excluding = null)
@@ -180,6 +212,7 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
             document.Tags = edited.Tags;
             ValidateDocument(document);
         });
+        await TryIndexAsync(edited.Id);
     }
 
     public Task DeleteAsync(string id) => MutateDocumentAsync(id, "DELETE", async (db, actor, document) =>
@@ -211,6 +244,7 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
             document.Keywords = processed.Keywords;
             return Task.CompletedTask;
         });
+        await TryIndexAsync(id);
     }
 
     public async Task AddNoteAsync(string id, string text, int page)

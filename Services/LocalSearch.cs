@@ -5,11 +5,12 @@ namespace DocuSearch.Services;
 
 public static class LocalSearch
 {
-    public static List<SearchHit> Search(IEnumerable<DocumentItem> documents, string query, bool exact = false, int minimum = 10)
+    public static List<SearchHit> Search(IEnumerable<DocumentItem> documents, string query, bool exact = false, int minimum = 10,
+        float[]? queryVector = null)
     {
         var normalized = TextAnalysis.Normalize(query.Trim());
         var terms = TextAnalysis.Terms(query);
-        return documents.SelectMany(document =>
+        var candidates = documents.SelectMany(document =>
         {
             var pages = document.Pages.Count > 0 ? document.Pages : [new DocumentPage(1, document.ExecutiveSummary, document.ExecutiveSummary, [])];
             return pages.Select(page =>
@@ -17,22 +18,83 @@ public static class LocalSearch
                 var metadata = TextAnalysis.Normalize($"{document.Title} {document.InternalCode} {document.Category} {string.Join(' ', document.Keywords)}");
                 var content = TextAnalysis.Normalize(page.ExtractedText);
                 var combined = $"{metadata} {content}";
-                var score = normalized.Length == 0 ? 100 : exact
+                var lexical = normalized.Length == 0 ? 100 : exact
                     ? (combined.Contains(normalized, StringComparison.Ordinal) ? 100 : 0)
                     : terms.Length == 0 ? 0 : (int)Math.Round(100.0 * terms.Count(t => combined.Contains(t, StringComparison.Ordinal)) / terms.Length);
-                var position = terms.Select(t => content.IndexOf(t, StringComparison.Ordinal)).Where(i => i >= 0).DefaultIfEmpty(0).Min();
-                var snippet = page.ExtractedText.Length == 0 ? document.ExecutiveSummary :
-                    TextAnalysis.Truncate(page.ExtractedText[Math.Max(0, position - 80)..], 600);
-                return new SearchHit(document, page.PageNumber, snippet, score);
+                var matched = terms.Count(t => combined.Contains(t, StringComparison.Ordinal));
+                float? cosine = null;
+                if (!exact && queryVector is { Length: > 0 } &&
+                    document.PageVectors.TryGetValue(page.PageNumber, out var pageVector) &&
+                    pageVector.Length == queryVector.Length)
+                    cosine = Cosine(queryVector, pageVector);
+                return new VectorCandidate(document, page, lexical, matched, cosine);
             });
-        }).Where(hit => hit.Score > 0 && hit.Score >= minimum).OrderByDescending(hit => hit.Score)
+        }).ToList();
+
+        // Compuerta de relevancia: bge-m3 tiene una línea base de coseno alta entre textos
+        // no relacionados. Solo se usa el vector si el mejor candidato supera 0.40.
+        var useVector = false;
+        if (!exact && queryVector is { Length: > 0 })
+        {
+            var similarities = candidates.Where(candidate => candidate.Cosine.HasValue)
+                .Select(candidate => candidate.Cosine!.Value).ToList();
+            useVector = similarities.Count > 0 && similarities.Max() >= 0.40f;
+        }
+
+        var scored = candidates.Select(candidate =>
+        {
+            var score = candidate.Lexical;
+            // Para consultas de varias palabras se exige al menos dos términos o señal
+            // vectorial; evita que una palabra común ("capital", "es") devuelva páginas.
+            if (!exact && terms.Length >= 2 && candidate.Matched < 2 && !useVector) score = 0;
+            if (useVector && candidate.Cosine is { } cosine)
+            {
+                var vectorScore = Math.Clamp((cosine - 0.30f) / 0.35f, 0f, 1f) * 100f;
+                score = (int)Math.Round(score * 0.45 + vectorScore * 0.55);
+                // Sin coincidencia léxica, una similitud débil no alcanza para mostrar la página.
+                if (candidate.Matched == 0 && cosine < 0.45f) score = 0;
+            }
+
+            var content = TextAnalysis.Normalize(candidate.Page.ExtractedText);
+            var position = terms.Select(t => content.IndexOf(t, StringComparison.Ordinal)).Where(i => i >= 0).DefaultIfEmpty(0).Min();
+            var snippet = candidate.Page.ExtractedText.Length == 0 ? candidate.Document.ExecutiveSummary :
+                TextAnalysis.Truncate(candidate.Page.ExtractedText[Math.Max(0, position - 80)..], 600);
+            return new SearchHit(candidate.Document, candidate.Page.PageNumber, snippet, score);
+        }).Where(hit => hit.Score > 0 && hit.Score >= minimum).ToList();
+
+        // En el asistente (minimum >= 20) se descartan las colas vectoriales muy por
+        // debajo del mejor resultado; evita mezclar páginas apenas relacionadas.
+        if (useVector && minimum >= 20 && scored.Count > 0)
+        {
+            var top = scored.Max(hit => hit.Score);
+            scored = scored.Where(hit => hit.Score >= Math.Max(30, (int)Math.Round(top * 0.55))).ToList();
+        }
+
+        return scored.OrderByDescending(hit => hit.Score)
             .ThenBy(hit => hit.Document.InternalCode).ThenBy(hit => hit.PageNumber).ToList();
+    }
+
+    private sealed record VectorCandidate(DocumentItem Document, DocumentPage Page, int Lexical, int Matched, float? Cosine);
+
+    /// <summary>Coseno entre dos vectores; 0 si alguno es nulo o de dimensión distinta.</summary>
+    public static float Cosine(float[] left, float[] right)
+    {
+        if (left.Length == 0 || left.Length != right.Length) return 0;
+        double dot = 0, leftNorm = 0, rightNorm = 0;
+        for (var index = 0; index < left.Length; index++)
+        {
+            dot += left[index] * right[index];
+            leftNorm += left[index] * left[index];
+            rightNorm += right[index] * right[index];
+        }
+        if (leftNorm <= 0 || rightNorm <= 0) return 0;
+        return (float)(dot / Math.Sqrt(leftNorm * rightNorm));
     }
 }
 
 public sealed class LocalAgent(DocumentService documents, LocalSession session, OllamaClient ollama,
     AgentObservability observability, OpenCodeClient? opencode = null, AssistantRuntime? assistant = null,
-    ILogger<LocalAgent>? logger = null)
+    ILogger<LocalAgent>? logger = null, EmbeddingClient? embeddings = null)
 {
     private bool UseOpenCode => opencode is { Enabled: true };
 
@@ -65,7 +127,10 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
         ValidateQuery(query);
         var snapshot = await documents.LoadAsync();
         await documents.LogQueryAsync("AGENT_QUERY", "Consulta del asistente; contenido omitido por privacidad.");
-        var extracted = AnswerFromSources(query, snapshot.Documents, session);
+        float[]? queryVector = null;
+        if (embeddings is { Enabled: true })
+            queryVector = await embeddings.TryEmbedAsync(query);
+        var extracted = AnswerFromSources(query, snapshot.Documents, session, queryVector);
         if (assistant is not null) await assistant.EnsureLoadedAsync();
         var profile = assistant?.Active;
         var engine = profile?.Engine?.ToLowerInvariant()
@@ -152,7 +217,7 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
             @"\b(lista|listado|listar|cuantos|cuales|disponibles|pagina|extrae|entidades|montos|fechas|leyes|personas|firmantes|organizaciones|autor|departamento|clasificacion|version|ficha|metadatos)\b") ||
         Regex.IsMatch(query.Trim(), @"^[A-Z]{2,4}-[A-Z0-9]+(?:-[A-Z0-9]+){0,3}$", RegexOptions.IgnoreCase);
 
-    public static AgentAnswer AnswerFromSources(string query, IReadOnlyList<DocumentItem> readableDocuments, LocalSession session)
+    public static AgentAnswer AnswerFromSources(string query, IReadOnlyList<DocumentItem> readableDocuments, LocalSession session, float[]? queryVector = null)
     {
         ValidateQuery(query);
         var normalized = TextAnalysis.Normalize(query);
@@ -188,7 +253,7 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
             if (Regex.IsMatch(normalized, @"\b(resume|resumen|sintetiza|sintesis)\b"))
                 return Summary(document);
             var question = Regex.Replace(query, Regex.Escape(code), "", RegexOptions.IgnoreCase);
-            var matches = LocalSearch.Search([document], question, minimum: 20).Take(3).ToList();
+            var matches = LocalSearch.Search([document], question, minimum: 20, queryVector: queryVector).Take(3).ToList();
             var metadata = $"{document.InternalCode} — {document.Title}\nAutor: {document.Author}\nDepartamento: {document.Department}\n" +
                 $"Clasificación: {document.Confidentiality}\nVersión: {document.Version}\n\n{document.ExecutiveSummary}";
             return new(metadata + (matches.Count > 0 ? "\n\n" + string.Join("\n\n", matches.Select(h =>
@@ -208,12 +273,12 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
                 rows.Select(d => new SearchHit(d, d.Pages.FirstOrDefault()?.PageNumber ?? 1, d.ExecutiveSummary, 100)).ToList());
         }
         var quoted = Regex.Match(query, "[\"“]([^\"”]{2,})[\"”]");
-        var hits = LocalSearch.Search(readableDocuments, quoted.Success ? quoted.Groups[1].Value : query, quoted.Success, 20).Take(5).ToList();
+        var hits = LocalSearch.Search(readableDocuments, quoted.Success ? quoted.Groups[1].Value : query, quoted.Success, 20, queryVector).Take(5).ToList();
         if (hits.Count == 0) return new("No hay fuentes suficientes para responder. Indica un código o términos más específicos. No se ha consultado ningún servicio externo.", []);
         session.LastDocumentCode = hits[0].Document.InternalCode;
         if (Regex.IsMatch(normalized, @"\b(resume|resumen|sintetiza)\b")) return Summary(hits[0].Document);
         return new(string.Join("\n\n", hits.Select(h => $"{h.Snippet}\n[{h.Document.InternalCode}, p. {h.PageNumber}]")) +
-            "\n\nRespuesta extractiva local: relevancia por coincidencia de términos, sin modelo generativo ni embeddings.", hits);
+            "\n\nRespuesta extractiva local: recuperación híbrida (léxica + vectores locales cuando el índice está disponible), sin modelo generativo.", hits);
     }
 
     private static void ValidateQuery(string query)
