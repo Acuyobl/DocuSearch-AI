@@ -136,6 +136,7 @@ builder.Services.AddHttpClient("rag-reranker", client =>
 });
 builder.Services.AddScoped<IRagRetriever, HybridRagRetriever>();
 builder.Services.AddScoped<RagIngestionService>();
+builder.Services.AddScoped<RagSourceStore>();
 builder.Services.AddScoped<RagQueryService>();
 builder.Services.AddScoped<RagEvaluationService>();
 builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection("Ollama"));
@@ -326,6 +327,53 @@ if (args.Contains("--rag-eval", StringComparer.Ordinal))
     catch (Exception ex) when (ex is DbException or InvalidOperationException or IOException)
     {
         app.Logger.LogError(ex, "No se pudo ejecutar la evaluación RAG.");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
+if (args.Contains("--rag-ingest-pdf", StringComparer.Ordinal) || args.Contains("--rag-ingest-rest", StringComparer.Ordinal))
+{
+    try
+    {
+        var isPdf = args.Contains("--rag-ingest-pdf", StringComparer.Ordinal);
+        var position = Array.IndexOf(args, isPdf ? "--rag-ingest-pdf" : "--rag-ingest-rest");
+        var sourceArgument = position + 1 < args.Length ? args[position + 1] : "";
+        if (string.IsNullOrWhiteSpace(sourceArgument))
+        {
+            Console.WriteLine(isPdf ? "Uso: --rag-ingest-pdf ruta.pdf" : "Uso: --rag-ingest-rest https://...");
+            Environment.ExitCode = 1;
+            return;
+        }
+        await using var scope = app.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<RagSourceStore>();
+        var ingestion = scope.ServiceProvider.GetRequiredService<RagIngestionService>();
+        IRagLoader loader;
+        HttpClient? restHttp = null;
+        if (isPdf)
+        {
+            loader = new PdfRagLoader(sourceArgument);
+        }
+        else
+        {
+            restHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+            loader = new RestRagLoader(restHttp, sourceArgument);
+        }
+        try
+        {
+            var documents = await loader.LoadAsync();
+            foreach (var document in documents) await store.EnsureDocumentAsync(document);
+            var result = await ingestion.IngestAsync(loader);
+            Console.WriteLine($"RAG {loader.SourceType}: {result.Documents} fuente(s), {result.Chunks} fragmentos.");
+        }
+        finally
+        {
+            restHttp?.Dispose();
+        }
+    }
+    catch (Exception ex) when (ex is DbException or InvalidOperationException or HttpRequestException or IOException)
+    {
+        app.Logger.LogError(ex, "No se pudo ingerir la fuente RAG.");
         Environment.ExitCode = 1;
     }
     return;

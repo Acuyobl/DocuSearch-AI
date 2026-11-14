@@ -26,6 +26,19 @@ Relevancy con proxies léxicos. Resultado actual:
 Los proxies **no sustituyen RAGAS/DeepEval**. La precisión baja porque cada caso espera un
 chunk y el endpoint devuelve hasta 8 fuentes; RAGAS la evalúa con un juez.
 
+## Ingesta multi-fuente
+
+```powershell
+# PDF: crea el expediente y sus fragmentos
+docker exec ds-app bash -lc "cd /work && dotnet run --no-build --project DocuSearch.csproj -- --rag-ingest-pdf /work/AGENTE-DETALLE.pdf"
+
+# API REST que devuelve {documents:[{id,title,text|pages}]}
+docker exec ds-app bash -lc "cd /work && dotnet run --no-build --project DocuSearch.csproj -- --rag-ingest-rest http://host.docker.internal:8099/doc.json"
+```
+
+Ambas fuentes se persisten como expedientes (`Documents`) y se indexan como fragmentos.
+La ingesta SQL se hace con `--rag-reindex`.
+
 ## Cross-encoder real
 
 `eval/reranker_service.py` expone un microservicio local con FastEmbed/ONNX
