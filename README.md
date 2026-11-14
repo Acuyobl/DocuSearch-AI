@@ -210,8 +210,10 @@ porcentajes de éxito ni servicios de IA simulados. No se afirma igualdad píxel
   página, guardados en `PageEmbeddings`; el vector de la consulta se calcula con Ollama local.
   Si el índice o el modelo no están disponibles, se usa solo el índice léxico.
 - La indexación semántica se ejecuta al cargar, editar o reprocesar un expediente. Para una
-  base existente, ejecuta `dotnet run -- --reindex-embeddings`; el comando informa cuántas
-  páginas actualizó. Los vectores no salen del equipo: se calculan contra `Embeddings:BaseUrl`.
+  base existente, aplica primero la migración con `dotnet run -- --initialize-database` y
+  después ejecuta `dotnet run -- --reindex-embeddings`; el comando informa cuántas páginas
+  actualizó. El contenedor demo aplica la migración al arrancar. Los vectores no salen del
+  equipo: se calculan contra `Embeddings:BaseUrl`.
 - Las páginas sin capa de texto no generan embeddings: se marcan **Requiere OCR** y no se
   inventa contenido.
 

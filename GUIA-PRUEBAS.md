@@ -74,6 +74,10 @@ Debe devolver **89 · 1024 · 1024**.
 
 ### 2.2 Reindexar
 
+Si vienes de una base sin `PageEmbeddings`, aplica la migración con
+`dotnet run -- --initialize-database` (el contenedor demo la aplica al arrancar).
+Después:
+
 ```powershell
 # En el contenedor
 docker exec ds-app bash -lc "cd /work && dotnet run --no-build --project DocuSearch.csproj -- --reindex-embeddings"
