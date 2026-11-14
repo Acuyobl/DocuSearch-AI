@@ -26,6 +26,25 @@ Relevancy con proxies léxicos. Resultado actual:
 Los proxies **no sustituyen RAGAS/DeepEval**. La precisión baja porque cada caso espera un
 chunk y el endpoint devuelve hasta 8 fuentes; RAGAS la evalúa con un juez.
 
+## Cross-encoder real
+
+`eval/reranker_service.py` expone un microservicio local con FastEmbed/ONNX
+(`BAAI/bge-reranker-v2-m3-int8`). El pipeline lo consulta antes de generar y cae al
+reranker semántico si el servicio no responde.
+
+```powershell
+python -m venv .venv-reranker
+.\.venv-reranker\Scripts\python -m pip install -r eval\requirements-reranker.txt
+.\.venv-reranker\Scripts\python eval\reranker_service.py --port 4098
+```
+
+- Local: `Rag__RerankerUrl=http://127.0.0.1:4098`.
+- Docker: `Rag__RerankerUrl=http://host.docker.internal:4098`.
+- `Rag:RerankCandidates` limita cuántos candidatos se envían (10 por defecto).
+
+La evaluación de 30 casos con el cross-encoder mantiene: Recall 0.900, Precision 0.154,
+Faithfulness 0.966 y Relevancy 0.881.
+
 ## DeepEval
 
 ```powershell

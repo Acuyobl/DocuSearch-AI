@@ -12,6 +12,10 @@ public sealed class RagOptions
     public double VectorWeight { get; set; } = 0.65;
     public double LexicalWeight { get; set; } = 0.35;
     public bool Rerank { get; set; } = true;
+    public int RerankCandidates { get; set; } = 10;
+    /// <summary>URL del microservicio cross-encoder; vacío usa el reranker semántico local.</summary>
+    public string RerankerUrl { get; set; } = "";
+    public int RerankerTimeoutSeconds { get; set; } = 60;
     /// <summary>sql | pinecone</summary>
     public string VectorStore { get; set; } = "sql";
     public bool AuditContent { get; set; } = true;

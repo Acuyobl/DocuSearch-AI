@@ -128,7 +128,12 @@ builder.Services.AddScoped<IRagVectorStore>(provider =>
         ? provider.GetRequiredService<PineconeRagVectorStore>()
         : provider.GetRequiredService<SqlRagVectorStore>();
 });
-builder.Services.AddScoped<IRagReranker, SemanticRagReranker>();
+builder.Services.AddScoped<IRagReranker, CrossEncoderRagReranker>();
+builder.Services.AddScoped<SemanticRagReranker>();
+builder.Services.AddHttpClient("rag-reranker", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("Rag:RerankerTimeoutSeconds", 60)));
+});
 builder.Services.AddScoped<IRagRetriever, HybridRagRetriever>();
 builder.Services.AddScoped<RagIngestionService>();
 builder.Services.AddScoped<RagQueryService>();
