@@ -4,12 +4,14 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using DocuSearch.Data;
 using DocuSearch.Models;
+using DocuSearch.Services.Rag;
 using Microsoft.EntityFrameworkCore;
 
 namespace DocuSearch.Services;
 
 public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, LocalSession session, PdfProcessor processor,
-    EmbeddingIndexer? indexer = null, ILogger<DocumentService>? logger = null, PineconeSyncService? pinecone = null)
+    EmbeddingIndexer? indexer = null, ILogger<DocumentService>? logger = null, PineconeSyncService? pinecone = null,
+    RagIngestionService? rag = null)
 {
     private async Task<AppUser> ActorAsync(AppDbContext db)
     {
@@ -173,7 +175,22 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
         progress?.Report(new(PipelineStage.Indexing, "Indexando páginas para búsqueda semántica local"));
         await TryIndexAsync(document.Id);
         await TrySyncPineconeAsync(document.Id);
+        await TryIndexRagAsync(document.Id);
         progress?.Report(new(PipelineStage.Completed, "Documento cargado e indexado"));
+    }
+
+    private async Task TryIndexRagAsync(string documentId)
+    {
+        if (rag is null) return;
+        try
+        {
+            await rag.IngestDocumentAsync(documentId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger?.LogWarning("El expediente {DocumentId} se guardó, pero no se indexó por fragmentos ({Error}).",
+                documentId, ex.GetType().Name);
+        }
     }
 
     private async Task TrySyncPineconeAsync(string documentId)
@@ -233,6 +250,7 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
         });
         await TryIndexAsync(edited.Id);
         await TrySyncPineconeAsync(edited.Id);
+        await TryIndexRagAsync(edited.Id);
     }
 
     public Task DeleteAsync(string id) => MutateDocumentAsync(id, "DELETE", async (db, actor, document) =>
@@ -266,6 +284,7 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
         });
         await TryIndexAsync(id);
         await TrySyncPineconeAsync(id);
+        await TryIndexRagAsync(id);
     }
 
     public async Task AddNoteAsync(string id, string text, int page)

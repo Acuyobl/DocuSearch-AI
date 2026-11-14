@@ -44,7 +44,7 @@ public sealed class RagQueryService(
             var document = snapshot.Documents.FirstOrDefault(item => item.Id == hit.Chunk.DocumentId);
             if (document is null || document.Pages.All(page => page.PageNumber != hit.Chunk.PageNumber)) continue;
             sourcePairs.Add((new SearchHit(document, hit.Chunk.PageNumber,
-                TextAnalysis.Truncate(hit.Chunk.Text, 1000), (int)Math.Round(hit.Score * 100)), hit.Chunk, hit.Score));
+                TextAnalysis.Truncate(hit.Chunk.Text, 1000), Math.Clamp((int)Math.Round(hit.Score * 100), 0, 100)), hit.Chunk, hit.Score));
         }
         if (sourcePairs.Count == 0)
         {

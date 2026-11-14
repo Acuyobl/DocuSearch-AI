@@ -2,6 +2,8 @@
 @inject DocumentService Service
 @inject EmbeddingClient Embeddings
 @inject PineconeRetriever Pinecone
+@inject IRagRetriever Retrieval
+@inject Microsoft.Extensions.Options.IOptions<RagOptions> RagOptions
 <div class="module-page smart-search">
 <div class="segmented-control search-modes" role="group" aria-label="Herramientas del buscador">
     <button type="button" aria-pressed="@(!showAssistant)" aria-controls="document-search" class="@(!showAssistant ? "active" : "")" @onclick="() => SelectAssistant(false)"><AppIcon Name="search" />Buscar documentos</button>
@@ -28,8 +30,8 @@
     }
 </header>
 <section class="panel search-panel">
-    <div class="section-heading"><strong><AppIcon Name="search" />Filtros de exploración</strong><label class="inline">Relevancia mínima <input type="number" min="1" max="100" @bind="minimum" @bind:after="Refilter" /> %</label></div>
-    <DocumentFilters Filter="filter" ShowText="false" OnChanged="Refilter" />
+    <div class="section-heading"><strong><AppIcon Name="search" />Filtros de exploración</strong><label class="inline">Relevancia mínima <input type="number" min="1" max="100" @bind="minimum" @bind:after="RefilterAsync" /> %</label></div>
+    <DocumentFilters Filter="filter" ShowText="false" OnChanged="RefilterAsync" />
 </section>
 <div class="section-heading"><h2>@results.Count fragmento(s)</h2><span class="badge">@(exact ? "Texto exacto" : "Relevancia híbrida") · @elapsed ms</span></div>
 @foreach (var hit in results.Take(limit))
@@ -68,7 +70,7 @@
     private IReadOnlyDictionary<(string DocumentId, int PageNumber), double>? externalScores;
     private List<SearchHit> results = [];
     private readonly List<string> history = [];
-    protected override void OnInitialized() => Refilter();
+    protected override async Task OnInitializedAsync() => await RefilterAsync();
     protected override void OnParametersSet()
     {
         if (previousOpenAssistant == OpenAssistant) return;
@@ -84,7 +86,7 @@
     {
         exact = value;
         await RefreshQuerySignals();
-        Refilter();
+        await RefilterAsync();
     }
     private async Task RefreshQuerySignals()
     {
@@ -93,9 +95,33 @@
             ? null
             : await Pinecone.SearchAsync(queryVector, State.Data!.Documents.Select(document => document.Id).ToList());
     }
-    private void Refilter()
+    private async Task RefilterAsync()
     {
         var timer = System.Diagnostics.Stopwatch.StartNew();
+        if (RagOptions.Value.UseChunkPipeline && !exact && !string.IsNullOrWhiteSpace(query) && queryVector is not null)
+        {
+            try
+            {
+                var documents = filter.Apply(State.Data!.Documents).ToList();
+                var hits = await Retrieval.RetrieveAsync(query, queryVector,
+                    documents.Select(document => document.Id).ToList());
+                results = hits.Select(hit =>
+                {
+                    var document = documents.FirstOrDefault(item => item.Id == hit.Chunk.DocumentId);
+                    if (document is null || document.Pages.All(page => page.PageNumber != hit.Chunk.PageNumber)) return null;
+                    return new SearchHit(document, hit.Chunk.PageNumber, hit.Chunk.Text,
+                        Math.Clamp((int)Math.Round(hit.Score * 100), 0, 100));
+                }).Where(hit => hit is not null && hit.Score >= Math.Clamp(minimum, 1, 100))
+                    .Select(hit => hit!).ToList();
+                elapsed = timer.ElapsedMilliseconds;
+                limit = 20;
+                return;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Si el pipeline nuevo falla, se usa el índice anterior.
+            }
+        }
         results = LocalSearch.Search(filter.Apply(State.Data!.Documents), query, exact, Math.Clamp(minimum, 1, 100),
             queryVector, externalScores);
         elapsed = timer.ElapsedMilliseconds;
@@ -113,7 +139,7 @@
             history.Insert(0, query);
             if (history.Count > 5) history.RemoveAt(5);
         }
-        Refilter();
+        await RefilterAsync();
     });
     private Task Suggest(string value) { query = value; return Execute(); }
 }
