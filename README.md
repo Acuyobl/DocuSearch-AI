@@ -9,6 +9,7 @@ LangChain sobre OpenCode; si ambos están desactivados responde en modo extracti
 
 - [Especificaciones del agente](#especificaciones-del-agente)
 - [Estado de implementación](ESTADO-IMPLEMENTACION.md)
+- [Guía de pruebas](GUIA-PRUEBAS.md)
 - [Resumen ejecutivo de la presentación](RESUMEN-EJECUTIVO.md)
 - [Detalle completo del agente](AGENTE-DETALLE.md)
 - [Investigación de integración con Langfuse](LANGFUSE-INTEGRACION.md)

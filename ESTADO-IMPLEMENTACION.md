@@ -63,17 +63,17 @@
 
 ### 2.3 Pruebas pendientes de ejecutar en un entorno real
 
-- `--database --langchain`: 102 comprobaciones con SQL Server real y LangChain/Ollama.
-- `--langchain-opencode`: 88 comprobaciones con LangChain + OpenCode.
+- `--database --langchain`: 102 comprobaciones con SQL Server real y LangChain/Ollama (requiere Ollama).
+- `--langchain-opencode`: 88 comprobaciones con LangChain + OpenCode (requiere servidor OpenCode).
 - `--opencode`: integración contra un servidor OpenCode real.
 - Prueba end-to-end de AG-01 con un modelo real (el parser y la integración están cubiertos, no la llamada real).
-- Prueba de la purga de trazas y del bloqueo de login contra SQL real.
+- Prueba de la purga de trazas contra SQL real (la suite SQL ya cubre el resto de operaciones).
 
 ---
 
 ## 3. Pruebas ejecutadas (13/11/2026)
 
-Entorno: sin SQL Server (no hay servicio `MSSQL*` ni `sqlservr`) y sin OpenCode en `:4097`; por eso solo se ejecutaron las suites deterministas.
+Entorno: sin OpenCode en `:4097` (el asistente queda en modo extractivo); SQL Server disponible en el contenedor `ds-sql` y su proxy en `127.0.0.1:14331`.
 
 | Suite | Comando | Resultado |
 |---|---|---|
@@ -83,10 +83,11 @@ Entorno: sin SQL Server (no hay servicio `MSSQL*` ni `sqlservr`) y sin OpenCode 
 | AG-01 Catalogador | `... -- --catalog` | **92/92** |
 | AG-05 Auditor | `... -- --audit` | **92/92** |
 | Bloqueo de login | `... -- --auth` | **92/92** |
+| SQL Server real | `... -- --database` (base `DocuSearch_tests`) | **99/99** |
 | Compilación | `dotnet build` | **0 errores, 0 advertencias** |
-| Runtime | arranque + `/login`, `/quality`, `/health/live`, logs JSON, `X-Request-Id` | correcto |
+| Runtime | login TOTP, `/`, `/quality`, `/observability`, `/health`, `/health/ready` | 200 |
 
-**No ejecutado:** integración SQL/OpenCode y purga real de trazas. Quedan como próximo paso en la máquina con esos servicios.
+**No ejecutado:** `--database --langchain` (requiere Ollama), `--langchain-opencode` (requiere OpenCode) y la generación real del Catalogador. Ver [`GUIA-PRUEBAS.md`](GUIA-PRUEBAS.md).
 
 ---
 

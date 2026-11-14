@@ -5,7 +5,7 @@
 **Verificación realizada (13/11/2026):**
 
 - Compilación correcta de `DocuSearch.csproj` y `tests/DocuSearch.Checks.csproj` en una copia de trabajo (0 errores, 0 advertencias).
-- **87/87 comprobaciones base** ejecutadas y correctas desde una copia limpia del binario; **97/97** con `--verifier` (10 checks de AG-02), **92/92** con `--inspector` (5 de AG-10), **92/92** con `--catalog` (5 de AG-01), **92/92** con `--audit` (5 de AG-05) y **92/92** con `--auth` (5 de bloqueo de login). El entorno de trabajo bloquea la ejecución directa por Control de aplicaciones; la copia elimina esa marca.
+- **87/87 comprobaciones base** ejecutadas y correctas desde una copia limpia del binario; **97/97** con `--verifier` (10 checks de AG-02), **92/92** con `--inspector` (5 de AG-10), **92/92** con `--catalog` (5 de AG-01), **92/92** con `--audit` (5 de AG-05), **92/92** con `--auth` (5 de bloqueo de login) y **99/99** con `--database` contra la base desechable del SQL Server del contenedor. El entorno de trabajo bloquea la ejecución directa por Control de aplicaciones; la copia elimina esa marca.
 - Verificación HTTP en vivo: `/login` 200 con `Cache-Control: no-store`, `X-Frame-Options`, CORP y X-Permitted; `/enroll` 404 sin secretos; `/health/live` 200; `/health/ready` 503 sin base; `/` redirige a `/login`.
 - Rate limiting comprobado: 10 peticiones permitidas y después **429 con cuerpo JSON** `{"error":"rate_limited"}`.
 - `ProductionGuard` comprobado con `Demo:LocalOnly=false`: rechaza el arranque y enumera TLS, reset, seed, `TrustServerCertificate` y `AllowedHosts`.
