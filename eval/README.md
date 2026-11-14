@@ -73,7 +73,18 @@ $env:EVAL_LIMIT = "2"
 .\.venv-ragas\Scripts\python eval\deepeval_eval.py eval\export.json
 ```
 
-El arnés usa `qwen2.5:3b` como juez local. En este equipo una pasada completa de 30 casos no
-terminó en un tiempo razonable con CPU para las cuatro métricas; hay que ejecutarla en un
-equipo con más capacidad o con un juez remoto. **RAGAS no se pudo instalar en Python 3.14**
-porque `scikit-network` no tiene wheel; DeepEval sí está instalado en el entorno de prueba.
+El arnés usa `qwen2.5:3b` como juez local por defecto. También puede usar OpenCode 2
+(`deepseek-flash`) como juez, mucho más rápido que el modelo local en CPU:
+
+```powershell
+$env:JUDGE = "opencode"
+$env:OPENCODE_PASSWORD = "DocuSearch-Local-2026"
+$env:OPENCODE_PROVIDER = "deepseek"
+$env:OPENCODE_MODEL = "deepseek-flash"
+$env:EVAL_LIMIT = "3"
+.\.venv-ragas\Scripts\python eval\deepeval_eval.py eval\export.json
+```
+
+Una pasada completa de 30 casos con cuatro métricas sigue siendo costosa; por eso se
+documenta como evaluación separada. **RAGAS no se pudo instalar en Python 3.14** porque
+`scikit-network` no tiene wheel; DeepEval sí está instalado en el entorno de prueba.
