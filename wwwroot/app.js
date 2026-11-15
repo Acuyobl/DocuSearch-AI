@@ -11,6 +11,22 @@ window.docusearch = {
             console.warn("No se pudo guardar el tema del navegador.", error);
         }
     },
+    palettes: ["original", "esmeralda"],
+    /** Aplica y recuerda la paleta; cualquier valor desconocido vuelve a «original». */
+    setPalette(name) {
+        const palette = this.palettes.includes(name) ? name : "original";
+        if (palette === "original") delete document.documentElement.dataset.palette;
+        else document.documentElement.dataset.palette = palette;
+        try {
+            localStorage.setItem("docusearch-palette", palette);
+        } catch (error) {
+            console.warn("No se pudo guardar la paleta del navegador.", error);
+        }
+        return palette;
+    },
+    getPalette() {
+        return document.documentElement.dataset.palette || "original";
+    },
     async blobUrl(stream, type) {
         return URL.createObjectURL(new Blob([await stream.arrayBuffer()], { type }));
     },
@@ -55,4 +71,11 @@ try {
 } catch (error) {
     document.documentElement.dataset.theme = "dark";
     console.warn("No se pudo recuperar el tema del navegador.", error);
+}
+try {
+    const palette = localStorage.getItem("docusearch-palette");
+    if (palette && palette !== "original" && window.docusearch.palettes.includes(palette))
+        document.documentElement.dataset.palette = palette;
+} catch (error) {
+    console.warn("No se pudo recuperar la paleta del navegador.", error);
 }

@@ -1,0 +1,242 @@
+[
+  {
+    "id": "rag-01",
+    "question": "¿Cuál es el saldo disponible en caja según el resumen financiero?",
+    "expectedDocumentId": "5aed2ca7a6094005a0a9717ad7c12112",
+    "expectedCode": "CNT-2026-CE904C1785DE",
+    "expectedPage": 1,
+    "expectedChunkIndex": 0
+  },
+  {
+    "id": "rag-02",
+    "question": "¿Qué tipo de sistema cuántico se estudia en relación con la emisión espontánea en una guía de ondas?",
+    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
+    "expectedCode": "REG-2026-E7018F24E848",
+    "expectedPage": 1,
+    "expectedChunkIndex": 0
+  },
+  {
+    "id": "rag-03",
+    "question": "¿Por qué se considera que el modelo de un átomo estacionario es demasiado simple?",
+    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
+    "expectedCode": "REG-2026-E7018F24E848",
+    "expectedPage": 1,
+    "expectedChunkIndex": 1
+  },
+  {
+    "id": "rag-04",
+    "question": "¿Qué modo de guiado es el más bajo cuando la dimensión a es mayor que b?",
+    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
+    "expectedCode": "REG-2026-E7018F24E848",
+    "expectedPage": 2,
+    "expectedChunkIndex": 2
+  },
+  {
+    "id": "rag-05",
+    "question": "¿Qué indica la conservación del momento respecto al movimiento del centro de masa del átomo?",
+    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
+    "expectedCode": "REG-2026-E7018F24E848",
+    "expectedPage": 2,
+    "expectedChunkIndex": 3
+  },
+  {
+    "id": "rag-06",
+    "question": "¿Cómo se denotan los modos propagantes confinados transversalmente que se acoplan al átomo?",
+    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
+    "expectedCode": "REG-2026-E7018F24E848",
+    "expectedPage": 3,
+    "expectedChunkIndex": 4
+  },
+  {
+    "id": "rag-07",
+    "question": "¿Qué ocurre con la emisión de fotones en el modo TMmn cuando el átomo se ubica en el centro de la sección transversal?",
+    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
+    "expectedCode": "REG-2026-E7018F24E848",
+    "expectedPage": 3,
+    "expectedChunkIndex": 5
+  },
+  {
+    "id": "rag-08",
+    "question": "¿Qué efecto tiene el movimiento inicial del centro de masa sobre la frecuencia del fotón emitido?",
+    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
+    "expectedCode": "REG-2026-E7018F24E848",
+    "expectedPage": 4,
+    "expectedChunkIndex": 6
+  },
+  {
+    "id": "rag-09",
+    "question": "¿De qué depende la velocidad de la tasa de emisión espontánea cuando el sistema está inicialmente en reposo?",
+    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
+    "expectedCode": "REG-2026-E7018F24E848",
+    "expectedPage": 4,
+    "expectedChunkIndex": 7
+  },
+  {
+    "id": "rag-10",
+    "question": "¿Qué tipo de publicaciones se incluyen en la lista de referencias del artículo?",
+    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
+    "expectedCode": "REG-2026-E7018F24E848",
+    "expectedPage": 5,
+    "expectedChunkIndex": 8
+  },
+  {
+    "id": "rag-11",
+    "question": "¿En qué revista se publicó el artículo sobre resiliencia y apoyo social en gestantes que sufren violencia de género?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 1,
+    "expectedChunkIndex": 0
+  },
+  {
+    "id": "rag-12",
+    "question": "¿Cuál fue el objetivo principal del estudio realizado con gestantes que experimentaron violencia?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 2,
+    "expectedChunkIndex": 1
+  },
+  {
+    "id": "rag-13",
+    "question": "¿Qué tipo de violencia fue la más frecuente entre las gestantes que reportaron haber sufrido maltrato durante el embarazo?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 2,
+    "expectedChunkIndex": 2
+  },
+  {
+    "id": "rag-14",
+    "question": "¿Qué factores se identificaron como protectores frente a los síntomas de depresión durante el embarazo?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 3,
+    "expectedChunkIndex": 3
+  },
+  {
+    "id": "rag-15",
+    "question": "¿Qué consecuencias del maltrato durante el embarazo se mencionan además de los trastornos del ánimo?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 3,
+    "expectedChunkIndex": 4
+  },
+  {
+    "id": "rag-16",
+    "question": "¿Qué instrumento se utilizó para evaluar si las gestantes habían sufrido violencia de género?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 4,
+    "expectedChunkIndex": 5
+  },
+  {
+    "id": "rag-17",
+    "question": "¿Qué prueba estadística se empleó para comparar las medias de las variables estudiadas?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 4,
+    "expectedChunkIndex": 6
+  },
+  {
+    "id": "rag-18",
+    "question": "¿Qué variable demográfica mostró diferencias significativas en los puntajes de apoyo social, resiliencia y sintomatología depresiva?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 5,
+    "expectedChunkIndex": 7
+  },
+  {
+    "id": "rag-19",
+    "question": "¿Cuánto menos riesgo de depresión gestacional tenían las mujeres que contaban con un adecuado apoyo social?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 5,
+    "expectedChunkIndex": 8
+  },
+  {
+    "id": "rag-20",
+    "question": "¿Qué tipo de apoyo social resultó significativo para reducir el riesgo de depresión en las gestantes que habían sufrido violencia?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 6,
+    "expectedChunkIndex": 9
+  },
+  {
+    "id": "rag-21",
+    "question": "¿Cómo se garantizó a las participantes la confidencialidad de la información que proporcionaron?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 6,
+    "expectedChunkIndex": 10
+  },
+  {
+    "id": "rag-22",
+    "question": "¿Qué relación encontraron entre haber sufrido violencia y la probabilidad de presentar depresión durante el embarazo?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 7,
+    "expectedChunkIndex": 11
+  },
+  {
+    "id": "rag-23",
+    "question": "¿Por qué no se pudo comprobar o descartar la presencia de depresión gestacional con una referencia diagnóstica definitiva?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 7,
+    "expectedChunkIndex": 12
+  },
+  {
+    "id": "rag-24",
+    "question": "¿Qué revista publicó un estudio sobre la prevalencia y las complicaciones de la violencia física durante el embarazo?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 8,
+    "expectedChunkIndex": 13
+  },
+  {
+    "id": "rag-25",
+    "question": "¿Qué autor propuso mecanismos psicobiológicos que explican la resiliencia y la vulnerabilidad ante el estrés extremo?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 8,
+    "expectedChunkIndex": 14
+  },
+  {
+    "id": "rag-26",
+    "question": "¿Qué instrumento se utilizó para medir el apoyo social percibido en el estudio?",
+    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
+    "expectedCode": "CNT-2026-89D4E4BF8F53",
+    "expectedPage": 9,
+    "expectedChunkIndex": 15
+  },
+  {
+    "id": "rag-27",
+    "question": "¿Cuál es el propósito principal de esta revisión sistemática sobre acreditación educativa?",
+    "expectedDocumentId": "c35ff69bb26b4ffb87aaa453774b8316",
+    "expectedCode": "DIC-2026-FFD43C918510",
+    "expectedPage": 1,
+    "expectedChunkIndex": 0
+  },
+  {
+    "id": "rag-28",
+    "question": "¿Qué obstáculos importantes pueden dificultar que una institución educativa logre la acreditación?",
+    "expectedDocumentId": "c35ff69bb26b4ffb87aaa453774b8316",
+    "expectedCode": "DIC-2026-FFD43C918510",
+    "expectedPage": 2,
+    "expectedChunkIndex": 1
+  },
+  {
+    "id": "rag-29",
+    "question": "¿Con qué objetivo de desarrollo sostenible se vincula cada vez más la acreditación educativa?",
+    "expectedDocumentId": "c35ff69bb26b4ffb87aaa453774b8316",
+    "expectedCode": "DIC-2026-FFD43C918510",
+    "expectedPage": 2,
+    "expectedChunkIndex": 2
+  },
+  {
+    "id": "rag-30",
+    "question": "¿Qué tres preguntas centrales busca responder esta revisión sistemática?",
+    "expectedDocumentId": "c35ff69bb26b4ffb87aaa453774b8316",
+    "expectedCode": "DIC-2026-FFD43C918510",
+    "expectedPage": 3,
+    "expectedChunkIndex": 3
+  }
+]

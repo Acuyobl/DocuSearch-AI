@@ -54,5 +54,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         model.Entity<RagChunkRecord>().HasIndex(chunk => new { chunk.DocumentId, chunk.ChunkIndex }).IsUnique();
         model.Entity<RagChunkRecord>().Property(chunk => chunk.Vector).HasColumnType("varbinary(max)");
         model.Entity<RagChunkRecord>().Property(chunk => chunk.Text).HasColumnType("nvarchar(max)");
+        // Al borrar un expediente, SQL Server elimina también su texto troceado.
+        model.Entity<RagChunkRecord>().HasOne<DocumentItem>().WithMany()
+            .HasForeignKey(chunk => chunk.DocumentId).OnDelete(DeleteBehavior.Cascade);
     }
 }

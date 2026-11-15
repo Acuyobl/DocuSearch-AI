@@ -12,7 +12,11 @@ public sealed class EmbeddingOptions
     public string Model { get; set; } = "bge-m3";
     public int Dimensions { get; set; } = 1024;
     public int TimeoutSeconds { get; set; } = 60;
-    public int MaxChars { get; set; } = 2000;
+    /// <summary>
+    /// Tope de caracteres por texto. Debe cubrir un fragmento RAG completo
+    /// (Rag:MaxTokens palabras ≈ 6 caracteres cada una); bge-m3 admite 8k tokens.
+    /// </summary>
+    public int MaxChars { get; set; } = 8000;
 }
 
 /// <summary>

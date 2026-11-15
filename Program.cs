@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Net;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 using DocuSearch.Components;
 using DocuSearch.Data;
@@ -285,12 +286,11 @@ if (args.Contains("--rag-eval-export", StringComparer.Ordinal))
         var session = scope.ServiceProvider.GetRequiredService<LocalSession>();
         session.SignIn(new ClaimsPrincipal(new ClaimsIdentity(AuthService.BuildClaims(user), "cli")));
         var evaluation = scope.ServiceProvider.GetRequiredService<RagEvaluationService>();
-        var questions = Path.Combine(AppContext.BaseDirectory, "eval", "rag_questions.json");
-        if (!File.Exists(questions)) questions = Path.Combine(Directory.GetCurrentDirectory(), "eval", "rag_questions.json");
+        var questions = RagQuestionsPath(args);
         var count = await evaluation.ExportAsync(questions, outputPath, args.Contains("--generate", StringComparer.Ordinal));
-        Console.WriteLine($"RAG eval: {count} casos exportados en {outputPath}.");
+        Console.WriteLine($"RAG eval: {count} casos de {Path.GetFileName(questions)} exportados en {outputPath}.");
     }
-    catch (Exception ex) when (ex is DbException or InvalidOperationException or IOException)
+    catch (Exception ex) when (ex is DbException or InvalidOperationException or IOException or InvalidDataException or JsonException)
     {
         app.Logger.LogError(ex, "No se pudo exportar el set de evaluación RAG.");
         Environment.ExitCode = 1;
@@ -312,19 +312,24 @@ if (args.Contains("--rag-eval", StringComparer.Ordinal))
         var session = scope.ServiceProvider.GetRequiredService<LocalSession>();
         session.SignIn(new ClaimsPrincipal(new ClaimsIdentity(AuthService.BuildClaims(user), "cli")));
         var evaluation = scope.ServiceProvider.GetRequiredService<RagEvaluationService>();
-        var path = Path.Combine(AppContext.BaseDirectory, "eval", "rag_questions.json");
-        if (!File.Exists(path)) path = Path.Combine(Directory.GetCurrentDirectory(), "eval", "rag_questions.json");
+        var path = RagQuestionsPath(args);
         var report = await evaluation.RunAsync(path, args.Contains("--generate", StringComparer.Ordinal));
-        Console.WriteLine($"RAG eval: {report.Cases} casos");
+        Console.WriteLine($"RAG eval ({Path.GetFileName(path)}): {report.Cases} casos evaluados");
         Console.WriteLine($"Context Recall: {report.ContextRecall:F3}");
         Console.WriteLine($"Context Precision: {report.ContextPrecision:F3}");
+        Console.WriteLine($"MRR: {report.MeanReciprocalRank:F3}");
         Console.WriteLine($"Faithfulness (proxy): {report.Faithfulness:F3}");
         Console.WriteLine($"Answer Relevancy (proxy): {report.AnswerRelevancy:F3}");
-        Console.WriteLine($"Casos sin la fuente esperada: {report.FailedCases.Count}");
+        Console.WriteLine($"Casos sin la fuente esperada: {report.FailedCases.Count}" +
+            (report.FailedCases.Count > 0 ? $" ({string.Join(", ", report.FailedCases)})" : ""));
+        if (report.MissingCases.Count > 0)
+            Console.WriteLine($"Casos omitidos, su documento no existe: {string.Join(", ", report.MissingCases)}");
+        if (report.LeakyCases.Count > 0)
+            Console.WriteLine($"AVISO: {report.LeakyCases.Count} preguntas revelan la respuesta; el recall está inflado.");
         if (report.ContextRecall < 0.8 || report.Faithfulness < 0.9)
             Console.WriteLine("Umbrales del prompt no alcanzados (0.80 / 0.90).");
     }
-    catch (Exception ex) when (ex is DbException or InvalidOperationException or IOException)
+    catch (Exception ex) when (ex is DbException or InvalidOperationException or IOException or InvalidDataException or JsonException)
     {
         app.Logger.LogError(ex, "No se pudo ejecutar la evaluación RAG.");
         Environment.ExitCode = 1;
@@ -363,7 +368,8 @@ if (args.Contains("--rag-ingest-pdf", StringComparer.Ordinal) || args.Contains("
         {
             var documents = await loader.LoadAsync();
             foreach (var document in documents) await store.EnsureDocumentAsync(document);
-            var result = await ingestion.IngestAsync(loader);
+            // Se reutilizan los documentos ya cargados: la fuente (PDF o API REST) se lee una sola vez.
+            var result = await ingestion.IngestAsync(documents);
             Console.WriteLine($"RAG {loader.SourceType}: {result.Documents} fuente(s), {result.Chunks} fragmentos.");
         }
         finally
@@ -748,3 +754,18 @@ app.MapPost("/api/rag/query", async (HttpContext context, LocalSession session, 
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();
+
+// --questions ruta.json elige otro set; por defecto eval/rag_questions.json junto al binario o en el directorio actual.
+static string RagQuestionsPath(string[] args)
+{
+    var position = Array.IndexOf(args, "--questions");
+    if (position >= 0)
+    {
+        var custom = position + 1 < args.Length ? args[position + 1] : "";
+        if (string.IsNullOrWhiteSpace(custom) || custom.StartsWith("--", StringComparison.Ordinal))
+            throw new InvalidOperationException("Uso: --questions ruta.json");
+        return Path.GetFullPath(custom);
+    }
+    var path = Path.Combine(AppContext.BaseDirectory, "eval", "rag_questions.json");
+    return File.Exists(path) ? path : Path.Combine(Directory.GetCurrentDirectory(), "eval", "rag_questions.json");
+}

@@ -19,6 +19,12 @@ public sealed class RagQueryService(
     OllamaClient ollama,
     ILogger<RagQueryService> logger)
 {
+    /// <summary>
+    /// Motor informado cuando el índice por fragmentos no aporta ninguna fuente
+    /// (p. ej. expedientes aún sin indexar). Quien llama puede recurrir al RAG anterior.
+    /// </summary>
+    public const string NoCoverageEngine = "sin-indice";
+
     public async Task<RagQueryResponse> QueryAsync(string question, bool generate = true,
         CancellationToken cancellationToken = default)
     {
@@ -33,7 +39,7 @@ public sealed class RagQueryService(
         {
             var empty = new RagQueryResponse(
                 "No hay fuentes suficientes para responder. No se ha consultado ningún servicio externo.",
-                [], "extractivo", timer.ElapsedMilliseconds);
+                [], NoCoverageEngine, timer.ElapsedMilliseconds);
             await LogAsync(question, empty);
             return empty;
         }
@@ -48,7 +54,7 @@ public sealed class RagQueryService(
         }
         if (sourcePairs.Count == 0)
         {
-            var empty = new RagQueryResponse("No hay fuentes autorizadas para responder.", [], "extractivo", timer.ElapsedMilliseconds);
+            var empty = new RagQueryResponse("No hay fuentes autorizadas para responder.", [], NoCoverageEngine, timer.ElapsedMilliseconds);
             await LogAsync(question, empty);
             return empty;
         }

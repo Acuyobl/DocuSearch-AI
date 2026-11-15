@@ -6,6 +6,7 @@ using System.Text.Json;
 using DocuSearch.Data;
 using DocuSearch.Models;
 using DocuSearch.Services;
+using DocuSearch.Services.Rag;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -1167,6 +1168,222 @@ if (args.Contains("--rag"))
         var restored = EmbeddingIndexer.FromBytes(EmbeddingIndexer.ToBytes(vector));
         Assert(restored.SequenceEqual(vector));
     }));
+
+    // --- Pipeline por fragmentos (Services/Rag) ---
+    RagDocument RagDoc(params string[] pages) => new("doc-1", "sql", "Documento", string.Join("\n", pages),
+        pages.Select((text, index) => new RagPage(index + 1, text)).ToList(),
+        new Dictionary<string, string> { ["code"] = "DOC-1" });
+    IOptions<RagOptions> RagSettings(Action<RagOptions>? configure = null)
+    {
+        var value = new RagOptions { MaxTokens = 64, OverlapTokens = 16 };
+        configure?.Invoke(value);
+        return Options.Create(value);
+    }
+    string Words(int count, string prefix = "palabra") => string.Join(' ', Enumerable.Range(1, count).Select(i => $"{prefix}{i}"));
+    int WordCount(string text) => text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+    void AssertConsecutive(IReadOnlyList<RagChunk> chunks)
+    {
+        Assert(chunks.Select(chunk => chunk.ChunkIndex).SequenceEqual(Enumerable.Range(0, chunks.Count)), "Índices no consecutivos");
+        Assert(chunks.Select(chunk => chunk.Id).Distinct().Count() == chunks.Count, "IDs de fragmento repetidos");
+    }
+    RagChunk Chunk(int index, string text) => new($"doc-1:{index}", "doc-1", "DOC-1", "sql", 1, index, 0, text.Length, text, "");
+
+    await Check("RAG chunks: el fijo respeta tamaño, offsets y numeración entre páginas", async () =>
+    {
+        var document = RagDoc(Words(200), Words(100, "otra"));
+        var chunks = await new FixedRagChunker(RagSettings()).ChunkAsync(document);
+        AssertConsecutive(chunks);
+        Assert(chunks.All(chunk => WordCount(chunk.Text) <= 64));
+        Assert(chunks.All(chunk => document.Pages[chunk.PageNumber - 1].Text[chunk.StartOffset..chunk.EndOffset] == chunk.Text));
+        Assert(chunks.Any(chunk => chunk.PageNumber == 2));
+        // Solape de 16 palabras: el fragmento 1 empieza en la palabra 49.
+        Assert(chunks[1].Text.StartsWith("palabra49 "));
+    });
+    await Check("RAG chunks: el semántico no repite IDs cuando una página cae al fijo", async () =>
+    {
+        var embedder = new FakeRagEmbedder(_ => [1f, 0f]);
+        var chunker = new SemanticRagChunker(RagSettings(), embedder, new FixedRagChunker(RagSettings()));
+        var chunks = await chunker.ChunkAsync(RagDoc("Primera frase. Segunda frase.", ".....", "Tercera frase."));
+        AssertConsecutive(chunks);
+        Assert(chunks.Count == 3 && chunks[1].PageNumber == 2 && chunks[2].PageNumber == 3);
+    });
+    await Check("RAG chunks: el semántico parte oraciones mayores que MaxTokens", async () =>
+    {
+        var embedder = new FakeRagEmbedder(_ => [1f, 0f]);
+        var chunker = new SemanticRagChunker(RagSettings(), embedder, new FixedRagChunker(RagSettings()));
+        var chunks = await chunker.ChunkAsync(RagDoc(Words(150)));
+        AssertConsecutive(chunks);
+        Assert(chunks.Count == 3 && chunks.All(chunk => WordCount(chunk.Text) <= 64));
+        Assert(chunks.Sum(chunk => WordCount(chunk.Text)) == 150);
+    });
+    await Check("RAG chunks: el semántico corta por cambio de tema y calcula embeddings por lote", async () =>
+    {
+        var embedder = new FakeRagEmbedder(text => text.Contains("gato") ? [1f, 0f] : [0f, 1f]);
+        var chunker = new SemanticRagChunker(RagSettings(), embedder, new FixedRagChunker(RagSettings()));
+        var chunks = await chunker.ChunkAsync(RagDoc("El gato duerme. El gato come. El perro ladra."));
+        Assert(chunks.Count == 2 && chunks[1].Text == "El perro ladra.");
+        Assert(embedder.BatchCalls == 1 && embedder.SingleCalls == 0);
+    });
+    await Check("RAG chunks: si fallan los embeddings el semántico usa el fijo sin romper", async () =>
+    {
+        var embedder = new FakeRagEmbedder(_ => throw new HttpRequestException("caído"));
+        var chunker = new SemanticRagChunker(RagSettings(), embedder, new FixedRagChunker(RagSettings()));
+        var chunks = await chunker.ChunkAsync(RagDoc(Words(100), "Otra página."));
+        AssertConsecutive(chunks);
+        Assert(chunks.Count == 3);
+    });
+    await Check("RAG BM25: el término raro pesa más que el presente en todos", () => Sync(() =>
+    {
+        string[] texts = ["comun raro", "comun", "comun otro"];
+        var rare = HybridRagRetriever.Bm25Scores(["raro"], texts);
+        var common = HybridRagRetriever.Bm25Scores(["comun"], texts);
+        Assert(rare[0] > common[0], "IDF invertido");
+        Assert(rare[1] == 0 && rare[2] == 0);
+        var both = HybridRagRetriever.Bm25Scores(["comun", "raro"], texts);
+        Assert(both[0] > both[1] && both[0] > both[2]);
+        Assert(HybridRagRetriever.Bm25Scores([], texts).All(score => score == 0));
+    }));
+    await Check("RAG retriever: el reranker recibe el pool completo y el corte a TopK es al final", async () =>
+    {
+        var candidates = Enumerable.Range(0, 30)
+            .Select(i => new RagScoredChunk(Chunk(i, $"texto {i}"), 1 - i * 0.01)).ToList();
+        var reranker = new ReversingReranker();
+        var retriever = new HybridRagRetriever(new FakeRagStore(candidates),
+            RagSettings(o => { o.TopK = 8; o.RerankCandidates = 10; o.CandidateK = 30; }), reranker);
+        var hits = await retriever.RetrieveAsync("consulta", [1f], ["doc-1"]);
+        Assert(reranker.Received == 10, $"El reranker recibió {reranker.Received}");
+        Assert(hits.Count == 8);
+        // El décimo candidato de la fusión (índice 9) sube al primer puesto tras el reranking.
+        Assert(hits[0].Chunk.ChunkIndex == 9);
+    });
+    await Check("RAG retriever: el pool de reranking nunca es menor que TopK", async () =>
+    {
+        var candidates = Enumerable.Range(0, 30)
+            .Select(i => new RagScoredChunk(Chunk(i, $"texto {i}"), 1 - i * 0.01)).ToList();
+        var reranker = new ReversingReranker();
+        var retriever = new HybridRagRetriever(new FakeRagStore(candidates),
+            RagSettings(o => { o.TopK = 8; o.RerankCandidates = 3; }), reranker);
+        var hits = await retriever.RetrieveAsync("consulta", [1f], ["doc-1"]);
+        Assert(reranker.Received == 8 && hits.Count == 8);
+        Assert(HybridRagRetriever.RerankPoolSize(100, 8) == CrossEncoderRagReranker.MaxCandidates);
+    });
+    await Check("RAG reranker: los logits se normalizan a [0, 1] conservando el orden", () => Sync(() =>
+    {
+        var logits = CrossEncoderRagReranker.NormalizeScores([4.1, -10.8, 0.3]);
+        Assert(logits.All(score => score is >= 0 and <= 1));
+        Assert(logits[0] > logits[2] && logits[2] > logits[1]);
+        var probabilities = CrossEncoderRagReranker.NormalizeScores([0.2, 0.9]);
+        Assert(probabilities.SequenceEqual([0.2, 0.9]), "Los scores ya normalizados no deben cambiar");
+        Assert(CrossEncoderRagReranker.NormalizeScores([double.NaN, 1.5])[0] == 0);
+    }));
+    await Check("RAG ingesta: reemplaza de forma atómica, guarda el modelo y vacía si no hay texto", async () =>
+    {
+        var store = new RecordingRagStore();
+        var embedder = new FakeRagEmbedder(_ => [1f, 0f]);
+        var ingestion = new RagIngestionService(RagSettings(), new FixedRagChunker(RagSettings()),
+            new SemanticRagChunker(RagSettings(), embedder, new FixedRagChunker(RagSettings())),
+            embedder, store, null!, Microsoft.Extensions.Logging.Abstractions.NullLogger<RagIngestionService>.Instance);
+        var result = await ingestion.IngestAsync([RagDoc(Words(100))]);
+        Assert(result == (1, 2) && store.Replaced.Count == 1);
+        Assert(store.Replaced[0].Chunks.All(item => item.Model == "fake"));
+        await ingestion.IngestAsync([RagDoc("   ")]);
+        Assert(store.Replaced.Count == 2 && store.Replaced[1].DocumentId == "doc-1" && store.Replaced[1].Chunks.Count == 0,
+            "Un documento sin texto debe dejar el índice vacío, no conservar fragmentos viejos");
+    });
+    await Check("RAG store: ignora fragmentos de otro modelo o dimensiones", () => Sync(() =>
+    {
+        var record = new RagChunkRecord { Model = "bge-m3", Dimensions = 1024 };
+        Assert(SqlRagVectorStore.IsCompatible(record, 1024, "bge-m3"));
+        Assert(SqlRagVectorStore.IsCompatible(record, 1024, "BGE-M3"));
+        Assert(!SqlRagVectorStore.IsCompatible(record, 768, "bge-m3"));
+        Assert(!SqlRagVectorStore.IsCompatible(record, 1024, "nomic-embed-text"));
+        Assert(SqlRagVectorStore.IsCompatible(new RagChunkRecord { Model = "", Dimensions = 1024 }, 1024, "bge-m3"),
+            "Los registros anteriores sin modelo se aceptan hasta reindexar");
+    }));
+    await Check("RAG embedder: la caché LRU desaloja el menos usado", () => Sync(() =>
+    {
+        var cache = new LruCache<string, int>(2);
+        cache.Set("a", 1);
+        cache.Set("b", 2);
+        Assert(cache.TryGet("a", out _));
+        cache.Set("c", 3);
+        Assert(cache.Count == 2 && cache.TryGet("a", out var a) && a == 1 && cache.TryGet("c", out _));
+        Assert(!cache.TryGet("b", out _), "Debía desalojarse «b»");
+    }));
+    await Check("Pinecone: borra por prefijo recorriendo todas las páginas del listado", async () =>
+    {
+        var deleted = new List<string>();
+        var listed = new List<string>();
+        var handler = new TestHttpHandler(async (request, _) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            string body;
+            if (path.EndsWith("/indexes/rag", StringComparison.Ordinal))
+                body = """{"dimension":2,"metric":"cosine","host":"idx.test","status":{"ready":true}}""";
+            else if (path == "/vectors/list")
+            {
+                var query = request.RequestUri.Query;
+                listed.Add(query);
+                body = query.Contains("paginationToken=t2")
+                    ? """{"vectors":[{"id":"rag:doc-1:2"}]}"""
+                    : """{"vectors":[{"id":"rag:doc-1:0"},{"id":"rag:doc-1:1"}],"pagination":{"next":"t2"}}""";
+            }
+            else if (path == "/vectors/delete")
+            {
+                using var json = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+                deleted.AddRange(json.RootElement.GetProperty("ids").EnumerateArray().Select(id => id.GetString()!));
+                body = "";
+            }
+            else return new HttpResponseMessage(HttpStatusCode.NotFound);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) };
+        });
+        var client = new PineconeClient(new HttpClient(handler) { BaseAddress = new Uri("https://api.test/") },
+            Options.Create(new PineconeOptions { Enabled = true, ApiKey = "k", IndexName = "rag", Dimension = 2 }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PineconeClient>.Instance);
+        var count = await client.DeleteByPrefixAsync(PineconeRagVectorStore.DocumentPrefix("doc-1"));
+        Assert(count == 3 && deleted.SequenceEqual(["rag:doc-1:0", "rag:doc-1:1", "rag:doc-1:2"]));
+        Assert(listed.Count == 2 && listed.All(query => Uri.UnescapeDataString(query).Contains("prefix=rag:doc-1:")));
+        await ThrowsAsync<ArgumentException>(() => client.DeleteByPrefixAsync(""));
+    });
+    await Check("RAG eval: detecta preguntas que revelan el código o copian el texto", () => Sync(() =>
+    {
+        const string reference = "Los colaboradores podrán optar por el esquema de 3 días presenciales en oficina";
+        Assert(RagEvaluationService.LeakReason("¿Qué dice RH-2025-REG-01?", "RH-2025-REG-01", reference) is not null);
+        Assert(RagEvaluationService.LeakReason(
+            "Que se dice sobre: podrán optar por el esquema de 3 días?", "X", reference) is not null);
+        Assert(RagEvaluationService.LeakReason("¿Cuántos días se puede trabajar desde casa?", "X", reference) is null);
+    }));
+    await Check("RAG eval: el acierto es por documento y página, con chunk opcional y rango para MRR", () => Sync(() =>
+    {
+        RagCitation Source(string code, int page, int chunk) => new(code, "t", page, chunk, 0.5, "");
+        IReadOnlyList<RagCitation> sources = [Source("A", 1, 0), Source("B", 2, 7), Source("B", 3, 8)];
+        Assert(RagEvaluationService.FirstMatchRank(sources, new RagEvalCase("1", "q", "b", "B", 2)) == 2);
+        Assert(RagEvaluationService.FirstMatchRank(sources, new RagEvalCase("2", "q", "b", "b", 3, 8)) == 3);
+        Assert(RagEvaluationService.FirstMatchRank(sources, new RagEvalCase("3", "q", "b", "B", 3, 1)) == 0);
+        Assert(RagEvaluationService.FirstMatchRank(sources, new RagEvalCase("4", "q", "c", "C", 1)) == 0);
+    }));
+    await Check("RAG eval: el set de preguntas es válido, cubre el seed y no filtra la respuesta", async () =>
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "eval", "rag_questions.json")))
+            directory = directory.Parent;
+        Assert(directory is not null, "No se encontró eval/rag_questions.json");
+        var cases = JsonSerializer.Deserialize<List<RagEvalCase>>(
+            await File.ReadAllTextAsync(Path.Combine(directory!.FullName, "eval", "rag_questions.json")),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        Assert(cases.Count >= 10 && cases.Select(item => item.Id).Distinct().Count() == cases.Count);
+        var pages = seed.Documents.SelectMany(document => document.Pages.Select(page => (document, page))).ToList();
+        foreach (var item in cases)
+        {
+            var match = pages.FirstOrDefault(pair => pair.document.Id == item.ExpectedDocumentId && pair.page.PageNumber == item.ExpectedPage);
+            Assert(match.document is not null, $"{item.Id}: página inexistente en el seed");
+            Assert(match.document!.InternalCode == item.ExpectedCode, $"{item.Id}: código no coincide");
+            Assert(RagEvaluationService.LeakReason(item.Question, item.ExpectedCode, match.page.ExtractedText) is null,
+                $"{item.Id}: la pregunta revela la respuesta");
+        }
+        Assert(cases.Select(item => item.ExpectedDocumentId).Distinct().Count() == seed.Documents.Count,
+            "El set debe cubrir todos los documentos del seed");
+    });
 }
 
 if (args.Contains("--database"))
@@ -1384,6 +1601,67 @@ internal sealed class TestFactory(DbContextOptions<AppDbContext> options) : IDbC
 }
 
 internal sealed class TestDbException : System.Data.Common.DbException;
+
+internal sealed class FakeRagEmbedder(Func<string, float[]> embed) : IRagEmbedder
+{
+    public int BatchCalls { get; private set; }
+    public int SingleCalls { get; private set; }
+    public bool Enabled => true;
+    public string Model => "fake";
+    public Task<float[]> EmbedAsync(string text, CancellationToken cancellationToken = default)
+    {
+        SingleCalls++;
+        return Task.FromResult(embed(text));
+    }
+    public Task<IReadOnlyList<float[]>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default)
+    {
+        BatchCalls++;
+        return Task.FromResult<IReadOnlyList<float[]>>(texts.Select(embed).ToList());
+    }
+}
+
+internal sealed class FakeRagStore(IReadOnlyList<RagScoredChunk> results) : IRagVectorStore
+{
+    public string Name => "fake";
+    public Task UpsertAsync(IReadOnlyList<RagChunkVector> chunks, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task ReplaceDocumentAsync(string documentId, IReadOnlyList<RagChunkVector> chunks,
+        CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task<IReadOnlyList<RagScoredChunk>> QueryAsync(float[] vector, IReadOnlyCollection<string> documentIds,
+        int topK, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<RagScoredChunk>>(results.Take(topK).ToList());
+    public Task DeleteDocumentAsync(string documentId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+}
+
+internal sealed class RecordingRagStore : IRagVectorStore
+{
+    public List<(string DocumentId, IReadOnlyList<RagChunkVector> Chunks)> Replaced { get; } = [];
+    public string Name => "recording";
+    public Task UpsertAsync(IReadOnlyList<RagChunkVector> chunks, CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("La ingesta debe usar ReplaceDocumentAsync.");
+    public Task ReplaceDocumentAsync(string documentId, IReadOnlyList<RagChunkVector> chunks,
+        CancellationToken cancellationToken = default)
+    {
+        Replaced.Add((documentId, chunks));
+        return Task.CompletedTask;
+    }
+    public Task<IReadOnlyList<RagScoredChunk>> QueryAsync(float[] vector, IReadOnlyCollection<string> documentIds,
+        int topK, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<RagScoredChunk>>([]);
+    public Task DeleteDocumentAsync(string documentId, CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("La ingesta no debe borrar por separado.");
+}
+
+/// <summary>Invierte el orden recibido para comprobar qué candidatos llegan al reranker.</summary>
+internal sealed class ReversingReranker : IRagReranker
+{
+    public int Received { get; private set; }
+    public Task<IReadOnlyList<RagHit>> RerankAsync(string query, IReadOnlyList<RagHit> candidates,
+        CancellationToken cancellationToken = default)
+    {
+        Received = candidates.Count;
+        return Task.FromResult<IReadOnlyList<RagHit>>(candidates.Reverse()
+            .Select((hit, index) => new RagHit(hit.Chunk, 1 - index * 0.01)).ToList());
+    }
+}
 internal sealed class TestHttpHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request, cancellationToken);

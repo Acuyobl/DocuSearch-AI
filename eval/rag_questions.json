@@ -1,242 +1,100 @@
 [
   {
-    "id": "rag-01",
-    "question": "Que se dice en REG-2026-E7018F24E848, pagina 1, sobre: arXiv:1801.02804v1 [quant-ph] 9 Jan 2018 Spontaneous emission of?",
-    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
-    "expectedCode": "REG-2026-E7018F24E848",
-    "expectedPage": 1,
-    "expectedChunkIndex": 0
+    "id": "seed-01",
+    "question": "¿Qué proveedor firmó el acuerdo marco de nube con la organización y en qué fecha?",
+    "expectedDocumentId": "doc-001",
+    "expectedCode": "CNT-2025-0892",
+    "expectedPage": 1
   },
   {
-    "id": "rag-02",
-    "question": "Que se dice en REG-2026-E7018F24E848, pagina 1, sobre: initially in an excited state relaxed to its?",
-    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
-    "expectedCode": "REG-2026-E7018F24E848",
-    "expectedPage": 1,
-    "expectedChunkIndex": 1
+    "id": "seed-02",
+    "question": "¿Cuánto cuesta al año el contrato con el proveedor cloud y con qué periodicidad se paga?",
+    "expectedDocumentId": "doc-001",
+    "expectedCode": "CNT-2025-0892",
+    "expectedPage": 4
   },
   {
-    "id": "rag-03",
-    "question": "Que se dice en REG-2026-E7018F24E848, pagina 2, sobre: 2 ! \" ## $ % & '?",
-    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
-    "expectedCode": "REG-2026-E7018F24E848",
-    "expectedPage": 2,
-    "expectedChunkIndex": 2
+    "id": "seed-03",
+    "question": "¿Qué porcentaje de disponibilidad mensual se compromete a cumplir el proveedor de infraestructura?",
+    "expectedDocumentId": "doc-001",
+    "expectedCode": "CNT-2025-0892",
+    "expectedPage": 4
   },
   {
-    "id": "rag-04",
-    "question": "Que se dice en REG-2026-E7018F24E848, pagina 2, sobre: mn dk a mnkamnk, (6a) Np = pz?",
-    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
-    "expectedCode": "REG-2026-E7018F24E848",
-    "expectedPage": 2,
-    "expectedChunkIndex": 3
+    "id": "seed-04",
+    "question": "¿Cómo se protegen los datos almacenados y los que viajan por la red según el acuerdo con el proveedor?",
+    "expectedDocumentId": "doc-001",
+    "expectedCode": "CNT-2025-0892",
+    "expectedPage": 12
   },
   {
-    "id": "rag-05",
-    "question": "Que se dice en REG-2026-E7018F24E848, pagina 3, sobre: 3 Since the photons emission transform the external?",
-    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
-    "expectedCode": "REG-2026-E7018F24E848",
-    "expectedPage": 3,
-    "expectedChunkIndex": 4
+    "id": "seed-05",
+    "question": "¿Qué órgano dio el visto bueno a la política corporativa de ciberseguridad y cuándo?",
+    "expectedDocumentId": "doc-002",
+    "expectedCode": "POL-2025-0012",
+    "expectedPage": 1
   },
   {
-    "id": "rag-06",
-    "question": "Que se dice en REG-2026-E7018F24E848, pagina 3, sobre: initially at rest R = mn 2d22mn sin2?",
-    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
-    "expectedCode": "REG-2026-E7018F24E848",
-    "expectedPage": 3,
-    "expectedChunkIndex": 5
+    "id": "seed-06",
+    "question": "¿Cada cuánto hay que renovar la clave de acceso y cuántos caracteres debe tener como mínimo?",
+    "expectedDocumentId": "doc-002",
+    "expectedCode": "POL-2025-0012",
+    "expectedPage": 8
   },
   {
-    "id": "rag-07",
-    "question": "Que se dice en REG-2026-E7018F24E848, pagina 4, sobre: 4 B. the TLS initially moving When the?",
-    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
-    "expectedCode": "REG-2026-E7018F24E848",
-    "expectedPage": 4,
-    "expectedChunkIndex": 6
+    "id": "seed-07",
+    "question": "¿Es obligatorio el doble factor de autenticación para el personal?",
+    "expectedDocumentId": "doc-002",
+    "expectedCode": "POL-2025-0012",
+    "expectedPage": 8
   },
   {
-    "id": "rag-08",
-    "question": "Que se dice en REG-2026-E7018F24E848, pagina 4, sobre: rate and the frequency of the emitted photon?",
-    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
-    "expectedCode": "REG-2026-E7018F24E848",
-    "expectedPage": 4,
-    "expectedChunkIndex": 7
+    "id": "seed-08",
+    "question": "¿Quiénes pueden consultar el informe de resultados del cierre de 2024?",
+    "expectedDocumentId": "doc-003",
+    "expectedCode": "FIN-2024-Q4-01",
+    "expectedPage": 1
   },
   {
-    "id": "rag-09",
-    "question": "Que se dice en REG-2026-E7018F24E848, pagina 5, sobre: 5 [7] L. Zhou, H. Dong, Y.-x. Liu?",
-    "expectedDocumentId": "5cc053b142af4d1d9cbb1212a61e3e1d",
-    "expectedCode": "REG-2026-E7018F24E848",
-    "expectedPage": 5,
-    "expectedChunkIndex": 8
+    "id": "seed-09",
+    "question": "¿Cuánto se facturó en el último trimestre del año pasado y qué margen EBITDA se obtuvo?",
+    "expectedDocumentId": "doc-003",
+    "expectedCode": "FIN-2024-Q4-01",
+    "expectedPage": 15
   },
   {
-    "id": "rag-10",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 1, sobre: Revista Peruana de Epidemiologia E-ISSN: 1609-7211 revista@rpe.epiredperu.net Sociedad?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 1,
-    "expectedChunkIndex": 0
+    "id": "seed-10",
+    "question": "¿Qué presupuesto se reservó para proyectos de inteligencia artificial?",
+    "expectedDocumentId": "doc-003",
+    "expectedCode": "FIN-2024-Q4-01",
+    "expectedPage": 15
   },
   {
-    "id": "rag-11",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 2, sobre: ARTICULOS ORIGINALES Resiliencia y apoyo social frente a?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 2,
-    "expectedChunkIndex": 1
+    "id": "seed-11",
+    "question": "¿Desde cuándo rigen las normas laborales internas y a quién se aplican?",
+    "expectedDocumentId": "doc-004",
+    "expectedCode": "RH-2025-REG-01",
+    "expectedPage": 1
   },
   {
-    "id": "rag-12",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 2, sobre: (RS) and the Edinburgh Postnatal Depression Scale (EPDS)?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 2,
-    "expectedChunkIndex": 2
+    "id": "seed-12",
+    "question": "¿Cuántos días a la semana puede un empleado trabajar desde casa?",
+    "expectedDocumentId": "doc-004",
+    "expectedCode": "RH-2025-REG-01",
+    "expectedPage": 5
   },
   {
-    "id": "rag-13",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 3, sobre: Lam N,et al. Resiliencia y apoyo social frente?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 3,
-    "expectedChunkIndex": 3
+    "id": "seed-13",
+    "question": "¿Quién tiene que autorizar que un trabajador combine oficina y trabajo en remoto?",
+    "expectedDocumentId": "doc-004",
+    "expectedCode": "RH-2025-REG-01",
+    "expectedPage": 5
   },
   {
-    "id": "rag-14",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 3, sobre: no planificados.9- 11 Se ha reportado asociacion significativa?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 3,
-    "expectedChunkIndex": 4
-  },
-  {
-    "id": "rag-15",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 4, sobre: Lam N, et al. Resiliencia y apoyo social?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 4,
-    "expectedChunkIndex": 5
-  },
-  {
-    "id": "rag-16",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 4, sobre: utilizo el software estadistico SPSS-15. Para las variables?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 4,
-    "expectedChunkIndex": 6
-  },
-  {
-    "id": "rag-17",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 5, sobre: Lam N, et al. Resiliencia y apoyo social?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 5,
-    "expectedChunkIndex": 7
-  },
-  {
-    "id": "rag-18",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 5, sobre: 28.72 14.27 14.74 12.56 <0.001 <0.001 <0.001 <0.001?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 5,
-    "expectedChunkIndex": 8
-  },
-  {
-    "id": "rag-19",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 6, sobre: Lam N, et al. Resiliencia y apoyo social?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 6,
-    "expectedChunkIndex": 9
-  },
-  {
-    "id": "rag-20",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 6, sobre: se informo a cada gestante de la anonimidad?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 6,
-    "expectedChunkIndex": 10
-  },
-  {
-    "id": "rag-21",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 7, sobre: Lam N, et al. Resiliencia y apoyo social?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 7,
-    "expectedChunkIndex": 11
-  },
-  {
-    "id": "rag-22",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 7, sobre: estudio. Aquel, realizado en los Estados Unidos, con?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 7,
-    "expectedChunkIndex": 12
-  },
-  {
-    "id": "rag-23",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 8, sobre: Lam N, et al. Resiliencia y apoyo social?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 8,
-    "expectedChunkIndex": 13
-  },
-  {
-    "id": "rag-24",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 8, sobre: U.S. women. Arch Womens Ment Health. 2008;11(1):19-26. Epub?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 8,
-    "expectedChunkIndex": 14
-  },
-  {
-    "id": "rag-25",
-    "question": "Que se dice en CNT-2026-89D4E4BF8F53, pagina 9, sobre: Lam N, et al. Resiliencia y apoyo social?",
-    "expectedDocumentId": "ab9ca0d543e74d36bc727ba25465c6f4",
-    "expectedCode": "CNT-2026-89D4E4BF8F53",
-    "expectedPage": 9,
-    "expectedChunkIndex": 15
-  },
-  {
-    "id": "rag-26",
-    "question": "Que se dice en DIC-2026-FFD43C918510, pagina 1, sobre: Acreditacion de aprendizaje de una institucion educativa basica?",
-    "expectedDocumentId": "c35ff69bb26b4ffb87aaa453774b8316",
-    "expectedCode": "DIC-2026-FFD43C918510",
-    "expectedPage": 1,
-    "expectedChunkIndex": 0
-  },
-  {
-    "id": "rag-27",
-    "question": "Que se dice en DIC-2026-FFD43C918510, pagina 2, sobre: 2 identify significant barriers to accreditation, such as?",
-    "expectedDocumentId": "c35ff69bb26b4ffb87aaa453774b8316",
-    "expectedCode": "DIC-2026-FFD43C918510",
-    "expectedPage": 2,
-    "expectedChunkIndex": 1
-  },
-  {
-    "id": "rag-28",
-    "question": "Que se dice en DIC-2026-FFD43C918510, pagina 2, sobre: competencias necesarias para participar en los procesos de?",
-    "expectedDocumentId": "c35ff69bb26b4ffb87aaa453774b8316",
-    "expectedCode": "DIC-2026-FFD43C918510",
-    "expectedPage": 2,
-    "expectedChunkIndex": 2
-  },
-  {
-    "id": "rag-29",
-    "question": "Que se dice en DIC-2026-FFD43C918510, pagina 3, sobre: 3 y de mejora continua (Ortiz-Herrera et al?",
-    "expectedDocumentId": "c35ff69bb26b4ffb87aaa453774b8316",
-    "expectedCode": "DIC-2026-FFD43C918510",
-    "expectedPage": 3,
-    "expectedChunkIndex": 3
-  },
-  {
-    "id": "rag-30",
-    "question": "Que se dice en DIC-2026-FFD43C918510, pagina 4, sobre: 4 Resultados Tabla 1 Muestra final seleccionada Ord?",
-    "expectedDocumentId": "c35ff69bb26b4ffb87aaa453774b8316",
-    "expectedCode": "DIC-2026-FFD43C918510",
-    "expectedPage": 4,
-    "expectedChunkIndex": 4
+    "id": "seed-14",
+    "question": "¿Qué firma externa revisó los sistemas tecnológicos y en qué fecha emitió su informe?",
+    "expectedDocumentId": "doc-005",
+    "expectedCode": "AUD-2025-DT-04",
+    "expectedPage": 1
   }
 ]

@@ -15,6 +15,10 @@ public sealed class PineconeSyncService(
 {
     public bool Enabled => client.Enabled;
 
+    /// <summary>Borra los vectores de página («{documentId}:{página}») de un expediente eliminado.</summary>
+    public Task<int> DeleteDocumentAsync(string documentId, CancellationToken cancellationToken = default) =>
+        Enabled ? client.DeleteByPrefixAsync($"{documentId}:", cancellationToken) : Task.FromResult(0);
+
     public async Task<int> SyncDocumentAsync(string documentId, CancellationToken cancellationToken = default)
     {
         if (!Enabled) return 0;

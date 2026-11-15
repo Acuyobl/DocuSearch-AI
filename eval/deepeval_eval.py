@@ -1,9 +1,14 @@
-"""EvaluaciÃ³n DeepEval del pipeline RAG.
+"""Evaluación DeepEval del pipeline RAG.
 
-Juez local Ollama (por defecto) o OpenCode 2:
+Juez local Ollama (por defecto), OpenCode 2 o DeepSeek:
   python eval/deepeval_eval.py eval/export.json
   JUDGE=opencode OPENCODE_PASSWORD=... python eval/deepeval_eval.py eval/export.json
+  JUDGE=deepseek ALLOW_EXTERNAL_JUDGE=1 DEEPSEEK_API_KEY=... python eval/deepeval_eval.py eval/export.json
   EVAL_LIMIT=2 ... (para prueba)
+
+El juez DeepSeek envía preguntas, respuestas y contextos (texto de los expedientes)
+a una API externa. Por eso exige ALLOW_EXTERNAL_JUDGE=1 y debe usarse solo con
+documentos de prueba, nunca con expedientes reales.
 """
 from __future__ import annotations
 
@@ -40,7 +45,7 @@ class OllamaJudge(DeepEvalBaseLLM):
     def generate(self, prompt: str, schema=None, **kwargs) -> str:
         if schema is not None:
             try:
-                prompt += ("\n\nDevuelve SOLO un objeto JSON vÃ¡lido que cumpla este esquema "
+                prompt += ("\n\nDevuelve SOLO un objeto JSON válido que cumpla este esquema "
                            "(sin markdown):\n" + json.dumps(schema.model_json_schema(), ensure_ascii=False))
             except Exception:
                 pass
@@ -82,7 +87,7 @@ class OpenCodeJudge(DeepEvalBaseLLM):
     def generate(self, prompt: str, schema=None, **kwargs) -> str:
         if schema is not None:
             try:
-                prompt += ("\n\nDevuelve SOLO un objeto JSON vÃ¡lido que cumpla este esquema "
+                prompt += ("\n\nDevuelve SOLO un objeto JSON válido que cumpla este esquema "
                            "(sin markdown):\n" + json.dumps(schema.model_json_schema(), ensure_ascii=False))
             except Exception:
                 pass
@@ -93,7 +98,7 @@ class OpenCodeJudge(DeepEvalBaseLLM):
         })
         session_id = (session.get("data") or {}).get("id", "")
         if not session_id:
-            raise RuntimeError("OpenCode no devolviÃ³ sesiÃ³n")
+            raise RuntimeError("OpenCode no devolvió sesión")
         try:
             self._request("POST", f"/api/session/{session_id}/prompt", {"text": prompt})
             deadline = time.time() + 300
@@ -111,7 +116,7 @@ class OpenCodeJudge(DeepEvalBaseLLM):
                 finished = bool(last.get("finish")) or bool((last.get("time") or {}).get("completed"))
                 if answer and finished:
                     return answer
-            raise TimeoutError("OpenCode judge agotÃ³ el tiempo")
+            raise TimeoutError("OpenCode judge agotó el tiempo")
         finally:
             try:
                 self._request("DELETE", f"/api/session/{session_id}")
@@ -168,9 +173,14 @@ def main() -> int:
     if limit > 0:
         cases = cases[:limit]
     if os.getenv("JUDGE", "ollama").lower() == "deepseek":
+        if os.getenv("ALLOW_EXTERNAL_JUDGE") != "1":
+            raise SystemExit("JUDGE=deepseek envía el texto de los expedientes a una API externa. "
+                             "Define ALLOW_EXTERNAL_JUDGE=1 para confirmarlo (solo con datos de prueba).")
         api_key = os.getenv("DEEPSEEK_API_KEY", "")
         if not api_key:
             raise SystemExit("DEEPSEEK_API_KEY no está definida")
+        print(f"AVISO: {len(cases)} casos (preguntas, respuestas y contextos) se enviarán a "
+              f"{os.getenv('DEEPSEEK_URL', 'https://api.deepseek.com')}.", file=sys.stderr, flush=True)
         judge = DeepSeekJudge(api_key, os.getenv("DEEPSEEK_MODEL", "deepseek-chat"))
     elif os.getenv("JUDGE", "ollama").lower() == "opencode":
         judge = OpenCodeJudge(

@@ -105,17 +105,21 @@
                 var documents = filter.Apply(State.Data!.Documents).ToList();
                 var hits = await Retrieval.RetrieveAsync(query, queryVector,
                     documents.Select(document => document.Id).ToList());
-                results = hits.Select(hit =>
+                // Sin candidatos (p. ej. expedientes aún sin indexar por fragmentos) se usa el índice anterior.
+                if (hits.Count > 0)
                 {
-                    var document = documents.FirstOrDefault(item => item.Id == hit.Chunk.DocumentId);
-                    if (document is null || document.Pages.All(page => page.PageNumber != hit.Chunk.PageNumber)) return null;
-                    return new SearchHit(document, hit.Chunk.PageNumber, hit.Chunk.Text,
-                        Math.Clamp((int)Math.Round(hit.Score * 100), 0, 100));
-                }).Where(hit => hit is not null && hit.Score >= Math.Clamp(minimum, 1, 100))
-                    .Select(hit => hit!).ToList();
-                elapsed = timer.ElapsedMilliseconds;
-                limit = 20;
-                return;
+                    results = hits.Select(hit =>
+                    {
+                        var document = documents.FirstOrDefault(item => item.Id == hit.Chunk.DocumentId);
+                        if (document is null || document.Pages.All(page => page.PageNumber != hit.Chunk.PageNumber)) return null;
+                        return new SearchHit(document, hit.Chunk.PageNumber, hit.Chunk.Text,
+                            Math.Clamp((int)Math.Round(hit.Score * 100), 0, 100));
+                    }).Where(hit => hit is not null && hit.Score >= Math.Clamp(minimum, 1, 100))
+                        .Select(hit => hit!).ToList();
+                    elapsed = timer.ElapsedMilliseconds;
+                    limit = 20;
+                    return;
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

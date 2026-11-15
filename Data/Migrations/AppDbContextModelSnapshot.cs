@@ -444,9 +444,16 @@ namespace DocuSearch.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
+
+            modelBuilder.Entity("DocuSearch.Models.RagChunkRecord", b =>
+                {
+                    b.HasOne("DocuSearch.Models.DocumentItem", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
 #pragma warning restore 612, 618
         }
     }
 }
-
-

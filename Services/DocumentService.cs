@@ -253,11 +253,30 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
         await TryIndexRagAsync(edited.Id);
     }
 
-    public Task DeleteAsync(string id) => MutateDocumentAsync(id, "DELETE", async (db, actor, document) =>
+    public async Task DeleteAsync(string id)
     {
-        await RequireAsync(db, actor, Permissions.CanAdmin(actor), "DELETE");
-        db.Documents.Remove(document);
-    });
+        await MutateDocumentAsync(id, "DELETE", async (db, actor, document) =>
+        {
+            await RequireAsync(db, actor, Permissions.CanAdmin(actor), "DELETE");
+            db.Documents.Remove(document);
+        });
+        // SQL ya borró páginas indexadas y fragmentos en cascada; faltan los vectores externos.
+        await TryPurgeExternalVectorsAsync(id);
+    }
+
+    private async Task TryPurgeExternalVectorsAsync(string documentId)
+    {
+        try
+        {
+            if (rag is not null) await rag.RemoveDocumentAsync(documentId);
+            if (pinecone is { Enabled: true }) await pinecone.DeleteDocumentAsync(documentId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger?.LogWarning("El expediente {DocumentId} se borró, pero quedaron vectores externos ({Error}). " +
+                "Ejecuta --rag-pinecone-sync.", documentId, ex.GetType().Name);
+        }
+    }
 
     public async Task ReprocessAsync(string id)
     {

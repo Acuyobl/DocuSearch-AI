@@ -13,15 +13,24 @@ public sealed class RagIngestionService(
     IRagEmbedder embedder,
     IRagVectorStore vectorStore,
     IDbContextFactory<AppDbContext> factory,
-    ILogger<RagIngestionService> logger)
+    ILogger<RagIngestionService> logger,
+    IOptions<EmbeddingOptions>? embeddingOptions = null)
 {
     private readonly RagOptions settings = options.Value;
+    private readonly int maxEmbeddingChars = Math.Max(100, embeddingOptions?.Value.MaxChars ?? 8000);
 
     public async Task<(int Documents, int Chunks)> IngestAsync(IRagLoader loader,
         CancellationToken cancellationToken = default)
     {
         if (!embedder.Enabled) throw new InvalidOperationException("Los embeddings están desactivados; no se puede ingerir.");
-        var documents = await loader.LoadAsync(cancellationToken);
+        return await IngestAsync(await loader.LoadAsync(cancellationToken), cancellationToken);
+    }
+
+    /// <summary>Ingiere documentos ya cargados (evita leer dos veces la fuente).</summary>
+    public async Task<(int Documents, int Chunks)> IngestAsync(IReadOnlyList<RagDocument> documents,
+        CancellationToken cancellationToken = default)
+    {
+        if (!embedder.Enabled) throw new InvalidOperationException("Los embeddings están desactivados; no se puede ingerir.");
         var totalChunks = 0;
         foreach (var document in documents)
         {
@@ -59,13 +68,31 @@ public sealed class RagIngestionService(
         var chunks = string.Equals(settings.ChunkingStrategy, "semantic", StringComparison.OrdinalIgnoreCase)
             ? await semanticChunker.ChunkAsync(document, cancellationToken)
             : await fixedChunker.ChunkAsync(document, cancellationToken);
-        if (chunks.Count == 0) return 0;
+        if (chunks.Count == 0)
+        {
+            // Sin texto (p. ej. reproceso de un escaneado): se eliminan los fragmentos anteriores.
+            await vectorStore.ReplaceDocumentAsync(document.SourceId, [], cancellationToken);
+            return 0;
+        }
+        var truncated = chunks.Count(chunk => chunk.Text.Length > maxEmbeddingChars);
+        if (truncated > 0)
+            logger.LogWarning("RAG: {Truncated} de {Chunks} fragmentos de {Source} superan Embeddings:MaxChars ({MaxChars}); " +
+                "su vector no cubrirá el texto completo. Sube MaxChars o baja Rag:MaxTokens.",
+                truncated, chunks.Count, document.SourceId, maxEmbeddingChars);
         var vectors = await embedder.EmbedBatchAsync(chunks.Select(chunk => chunk.Text).ToList(), cancellationToken);
-        var items = chunks.Zip(vectors, (chunk, vector) => new RagChunkVector(chunk, vector)).ToList();
-        await vectorStore.DeleteDocumentAsync(document.SourceId, cancellationToken);
-        await vectorStore.UpsertAsync(items, cancellationToken);
+        if (vectors.Count != chunks.Count)
+            throw new InvalidOperationException($"El embedder devolvió {vectors.Count} vectores para {chunks.Count} fragmentos.");
+        var items = chunks.Zip(vectors, (chunk, vector) => new RagChunkVector(chunk, vector, embedder.Model)).ToList();
+        await vectorStore.ReplaceDocumentAsync(document.SourceId, items, cancellationToken);
         logger.LogInformation("RAG: {Chunks} fragmentos indexados para {Source} ({Type}).",
             items.Count, document.SourceId, document.SourceType);
         return items.Count;
     }
+
+    /// <summary>
+    /// Elimina los fragmentos de un expediente borrado. En SQL ya los quita la FK en
+    /// cascada; esto cubre además los vectores externos (Pinecone).
+    /// </summary>
+    public Task RemoveDocumentAsync(string documentId, CancellationToken cancellationToken = default) =>
+        vectorStore.DeleteDocumentAsync(documentId, cancellationToken);
 }

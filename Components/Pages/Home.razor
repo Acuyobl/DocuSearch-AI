@@ -24,7 +24,16 @@
     <header class="topbar">
         <a class="brand" href="/"><span class="brand-mark"><AppIcon Name="document" /></span><span><strong>DocuSearch <em>AI</em><span class="edition">Enterprise · .NET</span></strong><small><span class="status-dot"></span> Extracción PDF &amp; búsqueda documental local</small></span></a>
         <div class="toolbar">
-            <button class="icon-button theme-button" title="Cambiar tema" aria-label="Cambiar tema" @onclick="ToggleTheme"><AppIcon Name="theme" /></button>
+            <span class="appearance">
+                <button class="icon-button theme-button" title="Modo claro u oscuro" aria-label="Alternar modo claro u oscuro" @onclick="ToggleTheme"><AppIcon Name="theme" /></button>
+                <span class="palette-switch" role="radiogroup" aria-label="Tema de color">
+                    @foreach (var (key, label) in Palettes)
+                    {
+                        <button role="radio" aria-checked="@(palette == key ? "true" : "false")" title="Tema @label"
+                                @onclick="() => SetPalette(key)"><span class="palette-swatch @key"></span><span class="palette-label">@label</span></button>
+                    }
+                </span>
+            </span>
             @if (State.Data is { } sessionUser)
             {
                 <span class="profile @sessionUser.Actor.Role" title="@sessionUser.Actor.Email"><span><AppIcon Name="user" /> @sessionUser.Actor.Name</span><small>@Catalog.RoleLabel(sessionUser.Actor.Role)</small></span>
@@ -170,6 +179,26 @@
     private async Task ToggleTheme()
     {
         try { await JS.InvokeVoidAsync("docusearch.toggleTheme"); }
+        catch (JSDisconnectedException) { }
+        catch (JSException) { }
+    }
+    /// <summary>Paletas disponibles; «original» es siempre la primera y la de respaldo.</summary>
+    private static readonly (string Key, string Label)[] Palettes = [("original", "Original"), ("esmeralda", "Esmeralda")];
+    private string palette = "original";
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            palette = await JS.InvokeAsync<string>("docusearch.getPalette");
+            StateHasChanged();
+        }
+        catch (JSDisconnectedException) { }
+        catch (JSException) { }
+    }
+    private async Task SetPalette(string key)
+    {
+        try { palette = await JS.InvokeAsync<string>("docusearch.setPalette", key); }
         catch (JSDisconnectedException) { }
         catch (JSException) { }
     }

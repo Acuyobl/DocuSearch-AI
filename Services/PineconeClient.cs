@@ -138,17 +138,69 @@ public sealed class PineconeClient(HttpClient http, IOptions<PineconeOptions> op
         return result;
     }
 
-    private async Task<JsonDocument> SendDataAsync(HttpMethod method, string path, object payload,
+    /// <summary>
+    /// Lista los IDs con un prefijo dado (p. ej. «rag:{documentId}:»). Requiere índice
+    /// serverless: los índices por pods no admiten /vectors/list.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> ListIdsAsync(string prefix, CancellationToken cancellationToken = default)
+    {
+        if (!Enabled) return [];
+        var ids = new List<string>();
+        string? next = null;
+        do
+        {
+            var query = $"/vectors/list?namespace={Uri.EscapeDataString(settings.Namespace)}" +
+                $"&prefix={Uri.EscapeDataString(prefix)}&limit=100" +
+                (next is null ? "" : $"&paginationToken={Uri.EscapeDataString(next)}");
+            using var response = await SendDataAsync(HttpMethod.Get, query, null, cancellationToken);
+            var root = response.RootElement;
+            if (root.TryGetProperty("vectors", out var vectors) && vectors.ValueKind == JsonValueKind.Array)
+                ids.AddRange(vectors.EnumerateArray()
+                    .Select(vector => vector.TryGetProperty("id", out var id) ? id.GetString() : null)
+                    .Where(id => !string.IsNullOrEmpty(id))
+                    .Select(id => id!));
+            next = root.TryGetProperty("pagination", out var pagination) &&
+                   pagination.TryGetProperty("next", out var nextElement)
+                ? nextElement.GetString()
+                : null;
+        } while (!string.IsNullOrEmpty(next));
+        return ids;
+    }
+
+    /// <summary>Borra vectores por ID en lotes de 1000 (límite de la API).</summary>
+    public async Task<int> DeleteIdsAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default)
+    {
+        if (!Enabled || ids.Count == 0) return 0;
+        foreach (var batch in ids.Distinct(StringComparer.Ordinal).Chunk(1000))
+        {
+            var payload = new Dictionary<string, object?> { ["ids"] = batch, ["namespace"] = settings.Namespace };
+            using var _ = await SendDataAsync(HttpMethod.Post, "/vectors/delete", payload, cancellationToken);
+        }
+        logger.LogInformation("Pinecone: {Count} vectores eliminados de {Index}.", ids.Count, settings.IndexName);
+        return ids.Count;
+    }
+
+    /// <summary>Borra todos los vectores cuyo ID empieza por el prefijo.</summary>
+    public async Task<int> DeleteByPrefixAsync(string prefix, CancellationToken cancellationToken = default)
+    {
+        if (!Enabled) return 0;
+        if (string.IsNullOrWhiteSpace(prefix))
+            throw new ArgumentException("El prefijo no puede estar vacío: borraría el namespace completo.", nameof(prefix));
+        return await DeleteIdsAsync(await ListIdsAsync(prefix, cancellationToken), cancellationToken);
+    }
+
+    private async Task<JsonDocument> SendDataAsync(HttpMethod method, string path, object? payload,
         CancellationToken cancellationToken)
     {
         var indexHost = await EnsureReadyAsync(cancellationToken);
         using var request = new HttpRequestMessage(method, $"https://{indexHost}{path}");
-        request.Content = JsonContent.Create(payload);
+        if (payload is not null) request.Content = JsonContent.Create(payload);
         AddHeaders(request);
         using var response = await http.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException($"Pinecone respondió HTTP {(int)response.StatusCode} en {path}.");
-        return JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        return JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "{}" : body);
     }
 
     private async Task<string> EnsureReadyAsync(CancellationToken cancellationToken)

@@ -45,7 +45,8 @@ public sealed record RagChunk(
     string Text,
     string Hash);
 
-public sealed record RagChunkVector(RagChunk Chunk, float[] Vector);
+/// <param name="Model">Modelo de embeddings que generó el vector; se persiste para detectar cambios de modelo.</param>
+public sealed record RagChunkVector(RagChunk Chunk, float[] Vector, string Model = "");
 
 public sealed record RagScoredChunk(RagChunk Chunk, double Score);
 
@@ -71,12 +72,21 @@ public interface IRagEmbedder
     string Model { get; }
     Task<float[]> EmbedAsync(string text, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<float[]>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default);
+    /// <summary>Embedding de un texto efímero que no merece ocupar la caché (p. ej. consulta + fragmento).</summary>
+    Task<float[]> EmbedUncachedAsync(string text, CancellationToken cancellationToken = default) =>
+        EmbedAsync(text, cancellationToken);
 }
 
 public interface IRagVectorStore
 {
     string Name { get; }
     Task UpsertAsync(IReadOnlyList<RagChunkVector> chunks, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Sustituye de forma atómica todos los fragmentos de un documento. Con una lista
+    /// vacía deja el documento sin fragmentos (p. ej. tras un reproceso sin texto).
+    /// </summary>
+    Task ReplaceDocumentAsync(string documentId, IReadOnlyList<RagChunkVector> chunks,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RagScoredChunk>> QueryAsync(float[] vector, IReadOnlyCollection<string> documentIds,
         int topK, CancellationToken cancellationToken = default);
     Task DeleteDocumentAsync(string documentId, CancellationToken cancellationToken = default);

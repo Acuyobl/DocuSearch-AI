@@ -169,14 +169,23 @@ else
                 try
                 {
                     var rag = await Rag.QueryAsync(text);
-                    var sources = rag.Sources
-                        .Select(citation => State.Data!.Documents.FirstOrDefault(document =>
-                            document.InternalCode.Equals(citation.DocumentCode, StringComparison.OrdinalIgnoreCase)) is { } document
-                            ? new SearchHit(document, citation.PageNumber, citation.Text,
-                                (int)Math.Round(citation.Score * 100))
-                            : null)
-                        .Where(source => source is not null).Select(source => source!).ToList();
-                    answer = new AgentAnswer(rag.Answer, sources, rag.Engine);
+                    if (rag.Engine == RagQueryService.NoCoverageEngine)
+                    {
+                        // El índice por fragmentos no cubre la consulta (p. ej. expedientes sin
+                        // reindexar): se responde con el RAG anterior en lugar de «sin fuentes».
+                        answer = await Agent.AskAsync(text);
+                    }
+                    else
+                    {
+                        var sources = rag.Sources
+                            .Select(citation => State.Data!.Documents.FirstOrDefault(document =>
+                                document.InternalCode.Equals(citation.DocumentCode, StringComparison.OrdinalIgnoreCase)) is { } document
+                                ? new SearchHit(document, citation.PageNumber, citation.Text,
+                                    Math.Clamp((int)Math.Round(citation.Score * 100), 0, 100))
+                                : null)
+                            .Where(source => source is not null).Select(source => source!).ToList();
+                        answer = new AgentAnswer(rag.Answer, sources, rag.Engine);
+                    }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
                 {
