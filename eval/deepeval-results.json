@@ -1,0 +1,17 @@
+{
+  "suite": "DeepEval",
+  "judge": "deepseek-chat",
+  "cases": 30,
+  "metrics": {
+    "contextRecall": 0.876,
+    "contextPrecision": 0.770,
+    "faithfulness": 0.972,
+    "answerRelevancy": 0.311
+  },
+  "thresholds": {
+    "contextRecall": 0.8,
+    "faithfulness": 0.9
+  },
+  "passed": true,
+  "notes": "Respuestas extractivas del pipeline; exportación con Rag__Rerank=false. El cross-encoder se evalúa por separado con el evaluador proxy de 30 casos."
+}

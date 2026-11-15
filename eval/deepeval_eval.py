@@ -1,4 +1,4 @@
-﻿"""EvaluaciÃ³n DeepEval del pipeline RAG.
+"""EvaluaciÃ³n DeepEval del pipeline RAG.
 
 Juez local Ollama (por defecto) o OpenCode 2:
   python eval/deepeval_eval.py eval/export.json
@@ -122,13 +122,57 @@ class OpenCodeJudge(DeepEvalBaseLLM):
         return await asyncio.to_thread(self.generate, prompt, **kwargs)
 
 
+class DeepSeekJudge(DeepEvalBaseLLM):
+    def __init__(self, api_key: str, model: str = "deepseek-chat") -> None:
+        self.api_key = api_key
+        self.model_name = model
+        self.base_url = os.getenv("DEEPSEEK_URL", "https://api.deepseek.com")
+        super().__init__(model=model)
+
+    def load_model(self):
+        return self.model_name
+
+    def get_model_name(self) -> str:
+        return self.model_name
+
+    def generate(self, prompt: str, schema=None, **kwargs) -> str:
+        if schema is not None:
+            try:
+                prompt += ("\n\nDevuelve SOLO un objeto JSON válido que cumpla este esquema "
+                           "(sin markdown):\n" + json.dumps(schema.model_json_schema(), ensure_ascii=False))
+            except Exception:
+                pass
+        payload = json.dumps({
+            "model": self.model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+            "max_tokens": 4096,
+            **({"response_format": {"type": "json_object"}} if schema is not None else {}),
+        }).encode("utf-8")
+        request = urllib.request.Request(f"{self.base_url}/chat/completions", data=payload,
+                                         headers={"Content-Type": "application/json",
+                                                  "Authorization": f"Bearer {self.api_key}"},
+                                         method="POST")
+        with urllib.request.urlopen(request, timeout=300) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        return data["choices"][0]["message"]["content"]
+
+    async def a_generate(self, prompt: str, **kwargs) -> str:
+        return await asyncio.to_thread(self.generate, prompt, **kwargs)
+
+
 def main() -> int:
     path = sys.argv[1] if len(sys.argv) > 1 else "eval/export.json"
     limit = int(os.getenv("EVAL_LIMIT", "0"))
     cases = json.load(open(path, encoding="utf-8"))
     if limit > 0:
         cases = cases[:limit]
-    if os.getenv("JUDGE", "ollama").lower() == "opencode":
+    if os.getenv("JUDGE", "ollama").lower() == "deepseek":
+        api_key = os.getenv("DEEPSEEK_API_KEY", "")
+        if not api_key:
+            raise SystemExit("DEEPSEEK_API_KEY no está definida")
+        judge = DeepSeekJudge(api_key, os.getenv("DEEPSEEK_MODEL", "deepseek-chat"))
+    elif os.getenv("JUDGE", "ollama").lower() == "opencode":
         judge = OpenCodeJudge(
             os.getenv("OPENCODE_URL", "http://127.0.0.1:4097"),
             os.getenv("OPENCODE_PASSWORD", "DocuSearch-Local-2026"),
