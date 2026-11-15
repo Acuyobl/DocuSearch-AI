@@ -4,8 +4,9 @@
 
 | Archivo | Casos | Uso |
 |---|---:|---|
-| `eval/rag_questions.json` (por defecto) | 14 | Preguntas **parafraseadas** sobre los 5 documentos del seed. Mide recuperación real. |
-| `eval/rag_questions_current.json` | 30 | Set generado sobre los 6 expedientes actuales, sin códigos en la pregunta. Referencia actual del corpus. |
+| `eval/rag_questions.json` (por defecto) | 30 | Set generado sobre los 6 expedientes actuales, sin códigos en la pregunta. Referencia actual del corpus. |
+| `eval/rag_questions_current.json` | 30 | Copia congelada del set real anterior. |
+| `eval/rag_questions_seed.json` | 14 | Fixture del seed que valida el test `--rag`. |
 | `eval/rag_questions_legacy.json` | 30 | Set anterior sobre 3 documentos subidos. Cada pregunta incluye el código del documento y el inicio literal del fragmento, así que **infla el recall**. Se conserva solo para comparar con resultados antiguos. |
 
 Formato de cada caso: `id`, `question`, `expectedDocumentId`, `expectedCode`, `expectedPage` y,

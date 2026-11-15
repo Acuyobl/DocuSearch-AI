@@ -1365,11 +1365,11 @@ if (args.Contains("--rag"))
     await Check("RAG eval: el set de preguntas es válido, cubre el seed y no filtra la respuesta", async () =>
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "eval", "rag_questions.json")))
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "eval", "rag_questions_seed.json")))
             directory = directory.Parent;
-        Assert(directory is not null, "No se encontró eval/rag_questions.json");
+        Assert(directory is not null, "No se encontró eval/rag_questions_seed.json");
         var cases = JsonSerializer.Deserialize<List<RagEvalCase>>(
-            await File.ReadAllTextAsync(Path.Combine(directory!.FullName, "eval", "rag_questions.json")),
+            await File.ReadAllTextAsync(Path.Combine(directory!.FullName, "eval", "rag_questions_seed.json")),
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
         Assert(cases.Count >= 10 && cases.Select(item => item.Id).Distinct().Count() == cases.Count);
         var pages = seed.Documents.SelectMany(document => document.Pages.Select(page => (document, page))).ToList();

@@ -1,0 +1,100 @@
+[
+  {
+    "id": "seed-01",
+    "question": "¿Qué proveedor firmó el acuerdo marco de nube con la organización y en qué fecha?",
+    "expectedDocumentId": "doc-001",
+    "expectedCode": "CNT-2025-0892",
+    "expectedPage": 1
+  },
+  {
+    "id": "seed-02",
+    "question": "¿Cuánto cuesta al año el contrato con el proveedor cloud y con qué periodicidad se paga?",
+    "expectedDocumentId": "doc-001",
+    "expectedCode": "CNT-2025-0892",
+    "expectedPage": 4
+  },
+  {
+    "id": "seed-03",
+    "question": "¿Qué porcentaje de disponibilidad mensual se compromete a cumplir el proveedor de infraestructura?",
+    "expectedDocumentId": "doc-001",
+    "expectedCode": "CNT-2025-0892",
+    "expectedPage": 4
+  },
+  {
+    "id": "seed-04",
+    "question": "¿Cómo se protegen los datos almacenados y los que viajan por la red según el acuerdo con el proveedor?",
+    "expectedDocumentId": "doc-001",
+    "expectedCode": "CNT-2025-0892",
+    "expectedPage": 12
+  },
+  {
+    "id": "seed-05",
+    "question": "¿Qué órgano dio el visto bueno a la política corporativa de ciberseguridad y cuándo?",
+    "expectedDocumentId": "doc-002",
+    "expectedCode": "POL-2025-0012",
+    "expectedPage": 1
+  },
+  {
+    "id": "seed-06",
+    "question": "¿Cada cuánto hay que renovar la clave de acceso y cuántos caracteres debe tener como mínimo?",
+    "expectedDocumentId": "doc-002",
+    "expectedCode": "POL-2025-0012",
+    "expectedPage": 8
+  },
+  {
+    "id": "seed-07",
+    "question": "¿Es obligatorio el doble factor de autenticación para el personal?",
+    "expectedDocumentId": "doc-002",
+    "expectedCode": "POL-2025-0012",
+    "expectedPage": 8
+  },
+  {
+    "id": "seed-08",
+    "question": "¿Quiénes pueden consultar el informe de resultados del cierre de 2024?",
+    "expectedDocumentId": "doc-003",
+    "expectedCode": "FIN-2024-Q4-01",
+    "expectedPage": 1
+  },
+  {
+    "id": "seed-09",
+    "question": "¿Cuánto se facturó en el último trimestre del año pasado y qué margen EBITDA se obtuvo?",
+    "expectedDocumentId": "doc-003",
+    "expectedCode": "FIN-2024-Q4-01",
+    "expectedPage": 15
+  },
+  {
+    "id": "seed-10",
+    "question": "¿Qué presupuesto se reservó para proyectos de inteligencia artificial?",
+    "expectedDocumentId": "doc-003",
+    "expectedCode": "FIN-2024-Q4-01",
+    "expectedPage": 15
+  },
+  {
+    "id": "seed-11",
+    "question": "¿Desde cuándo rigen las normas laborales internas y a quién se aplican?",
+    "expectedDocumentId": "doc-004",
+    "expectedCode": "RH-2025-REG-01",
+    "expectedPage": 1
+  },
+  {
+    "id": "seed-12",
+    "question": "¿Cuántos días a la semana puede un empleado trabajar desde casa?",
+    "expectedDocumentId": "doc-004",
+    "expectedCode": "RH-2025-REG-01",
+    "expectedPage": 5
+  },
+  {
+    "id": "seed-13",
+    "question": "¿Quién tiene que autorizar que un trabajador combine oficina y trabajo en remoto?",
+    "expectedDocumentId": "doc-004",
+    "expectedCode": "RH-2025-REG-01",
+    "expectedPage": 5
+  },
+  {
+    "id": "seed-14",
+    "question": "¿Qué firma externa revisó los sistemas tecnológicos y en qué fecha emitió su informe?",
+    "expectedDocumentId": "doc-005",
+    "expectedCode": "AUD-2025-DT-04",
+    "expectedPage": 1
+  }
+]
