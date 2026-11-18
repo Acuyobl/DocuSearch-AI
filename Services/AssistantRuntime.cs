@@ -16,6 +16,10 @@ public sealed class AssistantProfile
     public string Group { get; set; } = "Gratis";
     /// <summary>El proveedor local está configurado y conectado en OpenCode.</summary>
     public bool Available { get; set; } = true;
+    /// <summary>Precio del catálogo de OpenCode en USD por millón de tokens de entrada (0 = gratis o desconocido).</summary>
+    public decimal InputCostPerMillion { get; set; }
+    /// <summary>Precio en USD por millón de tokens de salida.</summary>
+    public decimal OutputCostPerMillion { get; set; }
 }
 
 public sealed class AssistantOptions
@@ -223,7 +227,9 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
                     ProviderId = provider.Id,
                     ModelId = model.Id,
                     Group = group,
-                    Available = isConnected
+                    Available = isConnected,
+                    InputCostPerMillion = model.InputCost,
+                    OutputCostPerMillion = model.OutputCost
                 });
             }
         }

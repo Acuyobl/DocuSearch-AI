@@ -1,5 +1,6 @@
 @inject WorkspaceState State
 @inject AgentObservability ObservabilityService
+@inject RagObservabilityService RagQuality
 @inject IConfiguration Configuration
 @inject IJSRuntime JS
 <div class="module-page">
@@ -10,7 +11,17 @@
         <button disabled="@State.Busy" @onclick="Purge"><AppIcon Name="delete" />Purgar trazas &gt; @retentionDays días</button>
     }
 </ModuleHeading>
-<section class="panel">
+<div class="segmented-control observability-tabs" role="tablist" aria-label="Secciones de observabilidad">
+    @foreach (var (key, label, icon) in Tabs)
+    {
+        <button type="button" role="tab" aria-selected="@(tab == key)" class="@(tab == key ? "active" : "")" @onclick="() => tab = key"><AppIcon Name="@icon" />@label</button>
+    }
+</div>
+@if (tab == "ai")
+{
+    <AiUsagePanel />
+}
+<section class="panel" hidden="@(tab != "traces")">
     <p>Últimas 500 consultas. Se registran al terminar, incluidas las fallidas. Sin preguntas, respuestas, nombres, códigos ni fragmentos. Los tokens son los reportados por Ollama; «—» significa que no están disponibles, no cero.</p>
     @if (traces.Count == 0)
     {
@@ -32,8 +43,131 @@
         </table></div>
     }
 </section>
+
+@if (tab == "routines")
+{
+    <RoutinesPanel />
+}
+
+<section class="panel" aria-labelledby="rag-quality-title" hidden="@(tab != "quality")">
+    <h2 id="rag-quality-title">Calidad del asistente (RAG)</h2>
+    <p>AG-06 Observador: agrega los eventos <code>RAG_QUERY</code> de la bitácora. Determinista, sin IA y sin servicios externos. Muestra cómo responde el asistente, no solo cuánto tarda.</p>
+    <div class="filters">
+        <label>Periodo
+            <select value="@days" @onchange="ChangeDays" disabled="@State.Busy">
+                <option value="7">Últimos 7 días</option>
+                <option value="30">Últimos 30 días</option>
+                <option value="90">Últimos 90 días</option>
+            </select>
+        </label>
+    </div>
+    @if (rag is null)
+    {
+        <p class="empty">Sin datos.</p>
+    }
+    else if (rag.Queries == 0)
+    {
+        <p class="empty">No hay consultas RAG en el periodo@(rag.Ignored > 0 ? $" ({rag.Ignored} eventos ilegibles ignorados)" : "").</p>
+    }
+    else
+    {
+        @if (rag.Truncated)
+        {
+            <div class="alert warning" role="status">Se analizan solo los @RagObservabilityService.MaxEvents eventos más recientes del periodo.</div>
+        }
+        <div class="metrics rag-metrics">
+            <div class="metric"><span>Consultas</span><strong>@rag.Queries.ToString("N0")</strong><small>@rag.Count(RagOutcome.Generated) generadas · @rag.Count(RagOutcome.Extractive) extractivas</small></div>
+            <div class="metric"><span>Sin cobertura</span><strong>@rag.Rate(RagOutcome.NoCoverage).ToString("P0")</strong><small>@rag.Count(RagOutcome.NoCoverage) consultas sin fuentes en el índice</small></div>
+            <div class="metric"><span>Baja confianza</span><strong>@rag.LowConfidenceRate.ToString("P0")</strong><small>mejor fuente &lt; @RagObservatory.LowConfidenceThreshold.ToString("0.0#", CultureInfo.InvariantCulture)</small></div>
+            <div class="metric"><span>Rechazadas por AG-02</span><strong>@rag.Rate(RagOutcome.VerificationFailed).ToString("P0")</strong><small>@rag.Count(RagOutcome.EngineFallback) fallos del motor (@rag.Rate(RagOutcome.EngineFallback).ToString("P0"))</small></div>
+        </div>
+        @if (rag.Count(RagObservatory.LegacyOutcome) > 0)
+        {
+            <p><small>@rag.Count(RagObservatory.LegacyOutcome) consultas antiguas no distinguen entre respuesta generada, extractiva o fallo del motor.</small></p>
+        }
+
+        <h3>Consultas por día (UTC)</h3>
+        <div class="rag-bars" role="list">
+            @{ var max = Math.Max(1, rag.Daily.Max(day => day.Queries)); }
+            @foreach (var day in rag.Daily)
+            {
+                <div class="rag-bar" role="listitem" title="@day.Queries consultas · @day.NoCoverage sin cobertura · @day.LowConfidence baja confianza">
+                    <span>@day.Day.ToString("dd/MM")</span>
+                    <span class="rag-bar-track">
+                        <span class="rag-bar-fill" style="width:@Pct(day.Queries - day.NoCoverage - day.LowConfidence, max)"></span>
+                        <span class="rag-bar-fill gap" style="width:@Pct(day.NoCoverage + day.LowConfidence, max)"></span>
+                    </span>
+                    <span>@day.Queries · @(day.NoCoverage + day.LowConfidence) débiles</span>
+                </div>
+            }
+        </div>
+
+        <div class="grid two">
+            <div>
+                <h3>Latencia por motor</h3>
+                <div class="table-scroll"><table class="module-table">
+                    <thead><tr><th>Motor</th><th>Consultas</th><th>p50 (ms)</th><th>p95 (ms)</th></tr></thead>
+                    <tbody>@foreach (var engine in rag.Latency)
+                    {
+                        <tr><td>@engine.Engine</td><td>@engine.Queries</td><td>@engine.P50Ms.ToString("N0")</td><td>@engine.P95Ms.ToString("N0")</td></tr>
+                    }</tbody>
+                </table></div>
+            </div>
+            <div>
+                <h3>Expedientes más citados</h3>
+                @if (rag.TopDocuments.Count == 0)
+                {
+                    <p class="empty">Ninguna respuesta citó expedientes en el periodo.</p>
+                }
+                else
+                {
+                    <div class="table-scroll"><table class="module-table">
+                        <thead><tr><th>Código</th><th>Consultas que lo citan</th></tr></thead>
+                        <tbody>@foreach (var usage in rag.TopDocuments)
+                        {
+                            <tr><td>@usage.DocumentCode</td><td>@usage.Queries</td></tr>
+                        }</tbody>
+                    </table></div>
+                }
+                @if (rag.NeverCitedTotal > 0)
+                {
+                    <p><small>@rag.NeverCitedTotal expediente(s) nunca citados: @string.Join(", ", rag.NeverCited)@(rag.NeverCitedTotal > rag.NeverCited.Count ? "…" : "").</small></p>
+                }
+            </div>
+        </div>
+
+        <h3>Preguntas sin respuesta fiable</h3>
+        @if (rag.GapQuestionsTotal == 0)
+        {
+            <p class="empty">Todas las consultas del periodo tuvieron fuentes con confianza suficiente.</p>
+        }
+        else if (!rag.QuestionsVisible)
+        {
+            <p>@rag.GapQuestionsTotal pregunta(s) distintas sin cobertura o con baja confianza. El texto no se muestra porque <code>Rag:AuditContent</code> está desactivado; la bitácora solo guarda un hash.</p>
+        }
+        else
+        {
+            <p><small>@rag.GapQuestionsTotal pregunta(s) distintas; se muestran las @rag.Gaps.Count más frecuentes, truncadas. Indican contenido que los usuarios buscan y el índice no cubre bien.</small></p>
+            <div class="table-scroll"><table class="module-table">
+                <thead><tr><th>Pregunta</th><th>Veces</th><th>Motivo</th><th>Última vez</th></tr></thead>
+                <tbody>@foreach (var gap in rag.Gaps)
+                {
+                    <tr><td>@(gap.Question ?? "(sin texto auditado)")</td><td>@gap.Count</td><td><span class="badge warning">@gap.Reason</span></td><td>@gap.LastSeenUtc.ToLocalTime().ToString("dd/MM HH:mm")</td></tr>
+                }</tbody>
+            </table></div>
+        }
+    }
+</section>
 </div>
 @code {
+    private static readonly (string Key, string Label, string Icon)[] Tabs =
+    [
+        ("ai", "Consumo de IA", "reports"), ("traces", "Trazas", "observability"),
+        ("routines", "Rutinas", "refresh"), ("quality", "Calidad del asistente", "quality")
+    ];
+    private string tab = "ai";
+    private RagQualityReport? rag;
+    private int days = 7;
     private List<AgentTrace> traces = [];
     private int retentionDays = 90;
     private long P95 => traces.Select(t => t.DurationMs).Order().ElementAt((int)Math.Ceiling(traces.Count * .95) - 1);
@@ -42,7 +176,18 @@
         retentionDays = Configuration.GetValue("Observability:RetentionDays", 90);
         await Reload();
     }
-    private Task Reload() => State.RunAsync(async () => traces = await ObservabilityService.LoadAsync());
+    private Task Reload() => State.RunAsync(async () =>
+    {
+        traces = await ObservabilityService.LoadAsync();
+        rag = await RagQuality.LoadAsync(days);
+    });
+    private Task ChangeDays(ChangeEventArgs args)
+    {
+        days = int.TryParse(args.Value?.ToString(), out var value) && value is 7 or 30 or 90 ? value : 7;
+        return State.RunAsync(async () => rag = await RagQuality.LoadAsync(days));
+    }
+    private static string Pct(int value, int max) =>
+        (Math.Max(0, value) * 100.0 / max).ToString("0.#", CultureInfo.InvariantCulture) + "%";
     private Task Purge() => State.RunAsync(async () =>
     {
         if (!await JS.InvokeAsync<bool>("docusearch.confirm", $"¿Purgar las trazas anteriores a {retentionDays} días? Esta acción no se puede deshacer."))

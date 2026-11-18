@@ -75,7 +75,7 @@ public sealed class OllamaClient
         }
     }
 
-    public async Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources)
+    public async Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources, AnswerStyle style = AnswerStyle.Default)
     {
         if (!Enabled) throw new InvalidOperationException("La generación con Ollama está desactivada.");
         if (string.IsNullOrWhiteSpace(query) || query.Length > 2000)
@@ -91,7 +91,7 @@ public sealed class OllamaClient
             page = source.PageNumber,
             text = TextAnalysis.Truncate(source.Snippet, 1000)
         }).ToArray();
-        const string systemPrompt = AssistantPrompt.System;
+        var systemPrompt = AssistantPrompt.For(style);
         var response = settings.UseLangChain
             ? new ChatResponse(true, new ChatMessage(await LangChainRunner.RunAsync(settings, new
             {
@@ -103,7 +103,7 @@ public sealed class OllamaClient
             model = Model,
             stream = false,
             keep_alive = "5m",
-            options = new { temperature = 0, num_ctx = 8192, num_predict = 600 },
+            options = new { temperature = 0, num_ctx = 8192, num_predict = style == AnswerStyle.Default ? 600 : 1000 },
             format = new
             {
                 type = "object",

@@ -47,6 +47,7 @@ builder.Services.AddCascadingAuthenticationState();
 // El estado de autenticación del circuito interactivo procede de la cookie del handshake.
 builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
 builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<AssistantMemory>();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -83,11 +84,21 @@ builder.Services.AddAuthorization();
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection("Auth"));
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddSingleton<LoginAttemptLimiter>();
-builder.Services.AddDbContextFactory<AppDbContext>(options =>
+// Fábrica por ámbito: el interceptor de gobernanza necesita la sesión del circuito actual.
+builder.Services.AddScoped<GovernanceAuditInterceptor>();
+builder.Services.AddDbContextFactory<AppDbContext>((provider, options) =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Documents")
         ?? throw new InvalidOperationException("Falta ConnectionStrings:Documents."),
-        sql => sql.UseCompatibilityLevel(150)));
+        sql => sql.UseCompatibilityLevel(150))
+        .AddInterceptors(provider.GetRequiredService<GovernanceAuditInterceptor>()), ServiceLifetime.Scoped);
 builder.Services.AddScoped<LocalSession>();
+builder.Services.Configure<GovernanceOptions>(builder.Configuration.GetSection("Governance"));
+builder.Services.AddScoped<ApprovalService>();
+builder.Services.AddScoped<RoutineService>();
+builder.Services.AddHostedService<GovernanceScheduler>();
+builder.Services.Configure<AiGovernanceOptions>(builder.Configuration.GetSection("AiGovernance"));
+builder.Services.AddScoped<AiGovernanceService>();
+builder.Services.AddScoped<IAiGovernance>(provider => provider.GetRequiredService<AiGovernanceService>());
 builder.Services.AddSingleton<PdfProcessor>();
 builder.Services.AddScoped<DocumentService>();
 builder.Services.AddScoped<DocumentQualityService>();
@@ -140,6 +151,7 @@ builder.Services.AddScoped<RagIngestionService>();
 builder.Services.AddScoped<RagSourceStore>();
 builder.Services.AddScoped<RagQueryService>();
 builder.Services.AddScoped<RagEvaluationService>();
+builder.Services.AddScoped<RagObservabilityService>();
 builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection("Ollama"));
 builder.Services.AddHttpClient<OllamaClient>().ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
@@ -605,6 +617,9 @@ app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforge
     }
 
     var identity = new ClaimsIdentity(AuthService.BuildClaims(user), CookieAuthenticationDefaults.AuthenticationScheme);
+    // La IP de inicio de sesión acompaña a los eventos de la bitácora (el circuito Blazor no la expone).
+    if (context.Connection.RemoteIpAddress is { } remoteIp)
+        identity.AddClaim(new Claim(AuthService.IpClaim, remoteIp.ToString()));
     await context.SignInAsync(
         CookieAuthenticationDefaults.AuthenticationScheme,
         new ClaimsPrincipal(identity),
@@ -618,10 +633,13 @@ app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforge
     return Results.Redirect(target);
 }).RequireRateLimiting("login");
 
-app.MapGet("/account/logout", async (HttpContext context, IDbContextFactory<AppDbContext> factory) =>
+app.MapGet("/account/logout", async (HttpContext context, IDbContextFactory<AppDbContext> factory, AssistantMemory memory) =>
 {
     if (context.User.Identity?.IsAuthenticated == true)
     {
+        // La conversación del asistente y el estado del buscador mueren con la sesión.
+        if (context.User.FindFirstValue(ClaimTypes.NameIdentifier) is { } userId)
+            memory.ClearSession(userId, context.User.FindFirstValue(AuthService.SessionClaim));
         try
         {
             await using var db = await factory.CreateDbContextAsync();
@@ -751,6 +769,7 @@ app.MapPost("/api/rag/query", async (HttpContext context, LocalSession session, 
     }
 }).RequireAuthorization();
 
+app.MapGovernanceApi();
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();

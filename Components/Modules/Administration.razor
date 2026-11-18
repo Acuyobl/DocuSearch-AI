@@ -2,12 +2,13 @@
 @inject DocumentService Service
 @inject LegacyImport Importer
 @inject IJSRuntime JS
+@inject Microsoft.Extensions.Options.IOptions<GovernanceOptions> Governance
 @{ var snapshot = State.Data ?? throw new InvalidOperationException("No hay datos de administración cargados."); }
 <div class="module-page administration-page">
 <ModuleHeading Banner="true" Icon="rbac" Badge="Centro de Gobernanza Corporativa & Seguridad" Title="Administración de Usuarios, RBAC & Departamentos" Description="Gestión de perfiles locales, asignación de privilegios y límites de almacenamiento.">
 <div class="segmented-control admin-tabs">
-    @foreach (var tab in new[] { "Usuarios", "Departamentos", "Permisos", "Migración y datos" })
-    { <button aria-pressed="@(active == tab)" class="@(active == tab ? "active" : "")" @onclick="() => active = tab"><AppIcon Name="@(tab == "Usuarios" ? "rbac" : tab == "Departamentos" ? "management" : tab == "Permisos" ? "audit" : "storage")" />@(tab == "Permisos" ? "Matriz RBAC" : tab)</button> }
+    @foreach (var tab in new[] { "Usuarios", "Departamentos", "Permisos", "Gobernanza", "Migración y datos" })
+    { <button aria-pressed="@(active == tab)" class="@(active == tab ? "active" : "")" @onclick="() => active = tab"><AppIcon Name="@(tab == "Usuarios" ? "rbac" : tab == "Departamentos" ? "management" : tab == "Permisos" ? "audit" : tab == "Gobernanza" ? "lock" : "storage")" />@(tab == "Permisos" ? "Matriz RBAC" : tab)</button> }
 </div>
 </ModuleHeading>
 @if (active == "Usuarios")
@@ -39,6 +40,24 @@ else if (active == "Departamentos")
             </section>
         }
     </div>
+}
+else if (active == "Gobernanza")
+{
+    <section class="panel">
+        <h2><AppIcon Name="lock" />Gobernanza</h2>
+        <p>Configuración vigente (sección <code>Governance</code> de appsettings). Las piezas están repartidas en los módulos donde se trabaja:</p>
+        <div class="table-scroll"><table class="module-table">
+            <thead><tr><th>Pieza</th><th>Estado</th><th>Dónde se usa</th></tr></thead>
+            <tbody>
+                <tr><td>Bitácora de solo inserción con antes/después e IP</td><td><span class="badge success">Siempre activa</span></td><td><a href="/audit">Auditoría → Bitácora</a></td></tr>
+                <tr><td>Doble control de acciones sensibles</td><td><span class="badge @(Governance.Value.ApprovalsEnabled ? "success" : "")">@(Governance.Value.ApprovalsEnabled ? "Activo" : "Desactivado")</span></td><td><a href="/audit">Auditoría → Aprobaciones</a>; se solicita desde Documentos y Administración</td></tr>
+                <tr><td>Planificador de rutinas</td><td><span class="badge @(Governance.Value.SchedulerEnabled ? "success" : "")">@(Governance.Value.SchedulerEnabled ? $"Activo · cada {Governance.Value.SchedulerTickSeconds} s" : "Desactivado")</span></td><td><a href="/observability">Observabilidad → Rutinas</a></td></tr>
+            </tbody>
+        </table></div>
+        <h3>Acciones que requieren aprobación</h3>
+        <ul>@foreach (var action in Governance.Value.SensitiveActions) { <li>@SensitiveAction.Label(action) <code>@action</code></li> }</ul>
+        <p><small>Pide administración general y aprueba otra persona con rol de auditoría (o con administración general). Las solicitudes vencen a las @Governance.Value.ApprovalExpiryHours h. Con el doble control desactivado, las acciones se aplican directamente y solo quedan en la bitácora.</small></p>
+    </section>
 }
 else if (active == "Permisos")
 {
@@ -108,6 +127,8 @@ else
         ("Descargar Documentos Estrictamente Secretos", actor => Permissions.CanDownload(actor, new DocumentItem { Department = actor.Department, Confidentiality = "Estrictamente Secreto" })),
         ("Eliminación de Expedientes", Permissions.CanAdmin),
         ("Bitácora de Auditoría", Permissions.CanAudit),
+        ("Consumo de IA (ai:usage_read)", Permissions.CanReadAiUsage),
+        ("Presupuesto de IA (ai:budget_manage)", Permissions.CanManageAiBudget),
         ("Gestión de Usuarios, Roles & Departamentos", Permissions.CanAdmin)
     ];
     private string userSearch = "", roleFilter = "";
@@ -124,7 +145,13 @@ else
     private void EditUser(AppUser value) => editingUser = Copy(value);
     private void NewDepartment() { existingDepartment = false; editingDepartment = new(); }
     private void EditDepartment(DepartmentInfo value) { existingDepartment = true; editingDepartment = Copy(value); }
-    private Task SaveUser() => State.RunAsync(async () => { await Service.SaveUserAsync(editingUser!); editingUser = null; await State.RefreshAsync(); }, "Usuario guardado.");
+    private Task SaveUser() => State.RunAsync(async () =>
+    {
+        try { await Service.SaveUserAsync(editingUser!); }
+        catch (ApprovalPendingException) { editingUser = null; throw; }
+        editingUser = null;
+        await State.RefreshAsync();
+    }, "Usuario guardado.");
     private Task SaveDepartment() => State.RunAsync(async () => { await Service.SaveDepartmentAsync(editingDepartment!); editingDepartment = null; await State.RefreshAsync(); }, "Departamento guardado.");
     private Task ToggleUser(AppUser value) => State.RunAsync(async () =>
     {

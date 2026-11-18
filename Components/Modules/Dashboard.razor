@@ -1,34 +1,80 @@
 @inject WorkspaceState State
+@inject ApprovalService Approvals
+@inject RoutineService Routines
 <div class="module-page executive-dashboard">
-    <ModuleHeading Banner="true" Icon="dashboard" Badge="Plataforma Documental IDMS · Operación local" Title="Panel Ejecutivo de Control Documental" Description="Monitoreo de ingesta de expedientes, extracción de texto y trazabilidad de seguridad corporativa. Indicadores del catálogo autorizado para tu perfil.">
-        <a class="button" href="/search"><AppIcon Name="search" />Buscar documentos</a>
-        @if (Permissions.CanWrite(State.Data!.Actor)) { <button class="primary" @onclick="OnUpload"><AppIcon Name="upload" />Cargar PDF</button> }
-    </ModuleHeading>
+    <header class="dashboard-hero">
+        <div class="dashboard-hero-copy">
+            <span class="module-kicker"><AppIcon Name="dashboard" />@Today</span>
+            <h1>Hola, @FirstName</h1>
+            <p>Estado del repositorio documental, actividad de los agentes y uso del almacenamiento, con datos del catálogo autorizado para tu perfil (@Catalog.RoleLabel(Actor.Role)).</p>
+            <div class="dashboard-hero-actions">
+                <a class="button primary" href="/agent"><AppIcon Name="agent" />Preguntar al asistente</a>
+                <a class="button" href="/search"><AppIcon Name="search" />Buscar documentos</a>
+                @if (Permissions.CanWrite(Actor)) { <button @onclick="OnUpload"><AppIcon Name="upload" />Cargar PDF</button> }
+            </div>
+        </div>
+        <dl class="dashboard-hero-stats">
+            <div><dt>Expedientes</dt><dd>@Docs.Count.ToString("N0")</dd></div>
+            <div><dt>Páginas</dt><dd>@Pages.ToString("N0")</dd></div>
+            <div><dt>Áreas</dt><dd>@Docs.Select(d => d.Department).Distinct().Count()</dd></div>
+            <div><dt>Agentes activos</dt><dd>@AgentCatalog.Active.Count</dd></div>
+        </dl>
+    </header>
+
     <div class="metrics executive-metrics">
-        <article class="metric"><div><span>Total Expedientes</span><strong>@Docs.Count <small>(@Docs.Sum(d => d.PageCount) págs)</small></strong><small>Accesibles según RBAC</small></div><span class="kpi-icon"><AppIcon Name="document" /></span></article>
-        <article class="metric"><div><span>Extracción Completada</span><strong>@(Docs.Count == 0 ? 0 : 100 * Docs.Count(d => d.OcrStatus == "Completado") / Docs.Count)%</strong><small>@Docs.Count(d => d.OcrStatus == "Requiere OCR") requieren OCR de imágenes</small></div><span class="kpi-icon green"><AppIcon Name="check" /></span></article>
-        <article class="metric"><div><span>Páginas con Texto</span><strong>@Docs.Sum(d => d.Pages.Count(p => !string.IsNullOrWhiteSpace(p.ExtractedText)))</strong><small>Texto extraído o de referencia</small></div><span class="kpi-icon purple"><AppIcon Name="document" /></span></article>
-        <article class="metric"><div><span>Originales Almacenados</span><strong>@((Docs.Where(d => d.HasOriginal).Sum(d => d.FileSizeBytes) / 1048576d).ToString("N1")) <small>MB</small></strong><small>@Docs.Count(d => d.HasOriginal) PDF en SQL Server</small></div><span class="kpi-icon amber"><AppIcon Name="storage" /></span></article>
+        <article class="metric kpi-blue"><div><span>Total expedientes</span><strong>@Docs.Count <small>(@Pages págs)</small></strong><small>Accesibles según tu perfil</small></div><span class="kpi-icon"><AppIcon Name="document" /></span></article>
+        <article class="metric kpi-green"><div><span>Extracción completada</span><strong>@ExtractionRate%</strong><small>@Docs.Count(d => d.OcrStatus == "Requiere OCR") requieren OCR de imágenes</small></div><span class="kpi-icon green"><AppIcon Name="check" /></span></article>
+        <article class="metric kpi-purple"><div><span>Páginas con texto</span><strong>@TextPages.ToString("N0")</strong><small>@(Pages == 0 ? 0 : 100 * TextPages / Pages)% del total consultable</small></div><span class="kpi-icon purple"><AppIcon Name="quality" /></span></article>
+        <article class="metric kpi-amber"><div><span>Originales almacenados</span><strong>@((Docs.Where(d => d.HasOriginal).Sum(d => d.FileSizeBytes) / 1048576d).ToString("N1")) <small>MB</small></strong><small>@Docs.Count(d => d.HasOriginal) PDF en SQL Server</small></div><span class="kpi-icon amber"><AppIcon Name="storage" /></span></article>
     </div>
+
+    @if (Permissions.CanAudit(Actor))
+    {
+        <nav class="governance-strip" aria-label="Gobernanza">
+            <a href="/audit" class="@(pendingApprovals > 0 ? "attention" : "")"><span class="kpi-icon amber"><AppIcon Name="lock" /></span><span><strong>@pendingApprovals</strong><small>aprobaciones pendientes</small></span></a>
+            <a href="/audit"><span class="kpi-icon"><AppIcon Name="audit" /></span><span><strong>@Events24h</strong><small>eventos en la bitácora (24 h)</small></span></a>
+            <a href="/observability" class="@(failedRoutines > 0 ? "attention" : "")"><span class="kpi-icon green"><AppIcon Name="refresh" /></span><span><strong>@(lastRoutine ?? "—")</strong><small>@(failedRoutines > 0 ? $"{failedRoutines} rutina(s) con error" : "última rutina ejecutada")</small></span></a>
+        </nav>
+    }
+
+    <section class="panel agents-panel" aria-labelledby="agents-title">
+        <div class="section-heading">
+            <div><h2 id="agents-title"><AppIcon Name="spark" />Agentes en operación</h2><p>Automatizaciones activas en la plataforma y el módulo donde trabajan</p></div>
+            <span class="badge success"><span class="status-dot"></span>@AgentCatalog.Active.Count activos</span>
+        </div>
+        <div class="agent-grid">
+            @foreach (var agent in AgentCatalog.Active)
+            {
+                var open = AgentCatalog.CanOpen(Actor, agent.Module);
+                <a class="agent-card @(open ? "" : "locked")" href="@(open ? "/" + agent.Module : null)" aria-disabled="@(!open)">
+                    <span class="agent-card-head"><span class="agent-card-icon"><AppIcon Name="spark" /></span><code>@agent.Code</code><span class="agent-kind">@(agent.UsesLlm ? "IA generativa" : "Determinista")</span></span>
+                    <strong>@agent.Name</strong>
+                    <small>@agent.Description</small>
+                    <span class="agent-card-foot"><AppIcon Name="@agent.Module" />@agent.ModuleLabel @if (!open) { <em>· restringido</em> }</span>
+                </a>
+            }
+        </div>
+    </section>
+
     <div class="grid two">
-        <section class="panel"><div class="section-heading"><div><h2>Distribución por Departamentos</h2><p>Volumen de expedientes por área</p></div><span class="badge">@Docs.Select(d => d.Department).Distinct().Count() áreas</span></div>
+        <section class="panel"><div class="section-heading"><div><h2><AppIcon Name="rbac" />Distribución por departamento</h2><p>Volumen de expedientes por área</p></div><span class="badge">@Docs.Select(d => d.Department).Distinct().Count() áreas</span></div>
             @foreach (var group in Docs.GroupBy(d => d.Department).OrderByDescending(g => g.Count()))
             {
-                <div class="bar-row"><span>@group.Key</span><small>@group.Count() archivos (@Percent(group.Count())%)</small></div>
-                <progress value="@group.Count()" max="@Math.Max(1, Docs.Count)" aria-label="@group.Key"></progress>
+                <div class="dash-bar"><div class="dash-bar-label"><span>@group.Key</span><small>@group.Count() · @Percent(group.Count())%</small></div><span class="dash-bar-track"><span style="width:@Width(group.Count())"></span></span></div>
             }
             @if (Docs.Count == 0) { <p class="empty">No hay documentos accesibles.</p> }
         </section>
-        <section class="panel category-panel"><div class="section-heading"><div><h2><AppIcon Name="reports" />Documentos por Categoría</h2><p>Clasificación temática del catálogo</p></div><span class="badge">Taxonomía documental</span></div>
+        <section class="panel category-panel"><div class="section-heading"><div><h2><AppIcon Name="reports" />Documentos por categoría</h2><p>Clasificación temática del catálogo</p></div><span class="badge">Taxonomía</span></div>
             @foreach (var group in Docs.GroupBy(d => d.Category).OrderByDescending(g => g.Count()))
             {
-                <div class="bar-row"><span>@group.Key</span><small>@group.Count() docs (@Percent(group.Count())%)</small></div>
-                <progress value="@group.Count()" max="@Math.Max(1, Docs.Count)" aria-label="@group.Key"></progress>
+                <div class="dash-bar alt"><div class="dash-bar-label"><span>@group.Key</span><small>@group.Count() · @Percent(group.Count())%</small></div><span class="dash-bar-track"><span style="width:@Width(group.Count())"></span></span></div>
             }
+            @if (Docs.Count == 0) { <p class="empty">Sin categorías todavía.</p> }
         </section>
     </div>
+
     <div class="dashboard-lower">
-        <section class="panel"><h2><AppIcon Name="reports" />Tendencia de Ingesta</h2><p>Últimos meses con cargas registradas</p>
+        <section class="panel"><h2><AppIcon Name="reports" />Tendencia de ingesta</h2><p>Últimos meses con cargas registradas</p>
             <div class="ingestion-chart">
                 @foreach (var group in Ingestion)
                 {
@@ -37,7 +83,7 @@
             </div>
             <small>Fechas reales de carga; sin tendencias simuladas.</small>
         </section>
-        <section class="panel ranking-panel"><div class="section-heading"><div><h2><AppIcon Name="eye" />Documentos Más Consultados</h2><p>Expedientes con mayor actividad de lectura y descargas</p></div><a href="/management">Ver todos →</a></div>
+        <section class="panel ranking-panel"><div class="section-heading"><div><h2><AppIcon Name="eye" />Documentos más consultados</h2><p>Expedientes con mayor actividad de lectura y descargas</p></div><a href="/management">Ver todos →</a></div>
             @{ var rank = 0; }
             @foreach (var doc in Docs.OrderByDescending(d => d.ViewsCount + d.DownloadsCount).Take(5))
             {
@@ -46,21 +92,104 @@
             }
         </section>
     </div>
-    <section class="panel"><div class="section-heading"><div><h2><AppIcon Name="storage" />Almacenamiento por Departamento</h2><p>Uso de originales accesibles y cuotas asignadas</p></div><a href="/reports">Ver reportes →</a></div>
-        <div class="grid two">
+
+    <div class="grid two">
+        @if (Recent.Count > 0)
+        {
+            <section class="panel"><div class="section-heading"><div><h2><AppIcon Name="audit" />Actividad reciente</h2><p>Últimos eventos de la bitácora</p></div><a href="/audit">Ver auditoría →</a></div>
+                <ol class="activity-list">
+                    @foreach (var item in Recent)
+                    {
+                        <li class="@(item.Status == "EXITOSO" ? "" : "attention")">
+                            <span class="activity-dot"></span>
+                            <div><strong>@ActionLabel(item.Action)</strong><small>@item.UserName@(item.DocumentCode is { Length: > 0 } and not "SYSTEM" ? $" · {item.DocumentCode}" : "")</small></div>
+                            <time datetime="@item.TimestampUTC.ToString("O")">@Ago(item.TimestampUTC)</time>
+                        </li>
+                    }
+                </ol>
+            </section>
+        }
+        <section class="panel @(Recent.Count == 0 ? "span-two" : "")"><div class="section-heading"><div><h2><AppIcon Name="storage" />Almacenamiento por departamento</h2><p>Uso de originales accesibles y cuotas asignadas</p></div><a href="/reports">Ver reportes →</a></div>
             @foreach (var dept in State.Data!.Departments)
             {
                 var used = Docs.Where(d => d.Department == dept.Name && d.HasOriginal).Sum(d => d.FileSizeBytes) / 1048576d;
-                <div><div class="bar-row"><span>@dept.Name</span><small>@used.ToString("N1") / @dept.AllocatedStorageMB MB</small></div><progress value="@(used.ToString("0.###", CultureInfo.InvariantCulture))" max="@dept.AllocatedStorageMB" aria-label="@dept.Name"></progress></div>
+                var ratio = dept.AllocatedStorageMB <= 0 ? 0 : Math.Min(1, used / dept.AllocatedStorageMB);
+                <div class="dash-bar @(ratio >= .85 ? "warn" : "")"><div class="dash-bar-label"><span>@dept.Name</span><small>@used.ToString("N1") / @dept.AllocatedStorageMB MB</small></div><span class="dash-bar-track"><span style="width:@((ratio * 100).ToString("0.##", CultureInfo.InvariantCulture))%"></span></span></div>
             }
-        </div>
-        <small>Las cuotas se verifican globalmente en servidor. Las cifras visibles respetan tu perfil.</small>
-    </section>
+            <small>Las cuotas se verifican globalmente en servidor. Las cifras visibles respetan tu perfil.</small>
+        </section>
+    </div>
 </div>
 @code {
     [Parameter] public EventCallback<string> OnView { get; set; }
+    private int pendingApprovals;
+    private int failedRoutines;
+    private string? lastRoutine;
+    private int Events24h => State.Data!.Audit.Count(item => item.TimestampUTC >= DateTimeOffset.UtcNow.AddHours(-24));
+    protected override async Task OnInitializedAsync()
+    {
+        if (State.Data is null || !Permissions.CanAudit(Actor)) return;
+        try
+        {
+            pendingApprovals = await Approvals.PendingCountAsync();
+            var routines = await Routines.ListAsync(1);
+            failedRoutines = routines.Count(item => item.Routine.LastStatus == "ERROR");
+            var last = routines.Where(item => item.Routine.LastRunUtc is not null).MaxBy(item => item.Routine.LastRunUtc);
+            lastRoutine = last is null ? null : $"{last.Routine.Name} · {last.Routine.LastRunUtc!.Value.ToLocalTime():HH:mm}";
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException or System.Data.Common.DbException)
+        {
+            // El panel principal no depende de gobernanza: si falla, solo se omiten estas cifras.
+        }
+    }
     [Parameter] public EventCallback OnUpload { get; set; }
+    private AppUser Actor => State.Data!.Actor;
     private List<DocumentItem> Docs => State.Data!.Documents;
+    private int Pages => Docs.Sum(d => d.PageCount);
+    private int TextPages => Docs.Sum(d => d.Pages.Count(p => !string.IsNullOrWhiteSpace(p.ExtractedText)));
+    private int ExtractionRate => Docs.Count == 0 ? 0 : 100 * Docs.Count(d => d.OcrStatus == "Completado") / Docs.Count;
+    private string FirstName => Actor.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? Actor.Name;
+    private static string Today
+    {
+        get
+        {
+            var text = DateTime.Now.ToString("dddd, d 'de' MMMM 'de' yyyy", CultureInfo.GetCultureInfo("es-ES"));
+            return char.ToUpperInvariant(text[0]) + text[1..];
+        }
+    }
     private List<IGrouping<string, DocumentItem>> Ingestion => Docs.GroupBy(d => d.UploadDate.ToString("yyyy-MM")).OrderBy(g => g.Key).TakeLast(6).ToList();
+    private List<AuditEvent> Recent => State.Data!.Audit.Take(6).ToList();
     private int Percent(int count) => (int)Math.Round(100d * count / Math.Max(1, Docs.Count));
+    private string Width(int count)
+    {
+        var max = Math.Max(1, Docs.Count);
+        return (100d * count / max).ToString("0.##", CultureInfo.InvariantCulture) + "%";
+    }
+    private static string Ago(DateTimeOffset when)
+    {
+        var span = DateTimeOffset.UtcNow - when;
+        return span.TotalMinutes < 1 ? "ahora"
+            : span.TotalHours < 1 ? $"hace {(int)span.TotalMinutes} min"
+            : span.TotalDays < 1 ? $"hace {(int)span.TotalHours} h"
+            : when.ToLocalTime().ToString("dd/MM HH:mm");
+    }
+    private static string ActionLabel(string action) => action switch
+    {
+        "UPLOAD" => "Carga de expediente",
+        "UPDATE" => "Edición de metadatos",
+        "DELETE" => "Eliminación de expediente",
+        "REPROCESS" => "Reproceso de PDF",
+        "REINDEX" => "Reindexado",
+        "VIEW" => "Consulta de expediente",
+        "DOWNLOAD" => "Descarga de original",
+        "SEARCH" => "Búsqueda",
+        "AGENT_QUERY" or "RAG_QUERY" => "Consulta al asistente",
+        "LOGIN" => "Inicio de sesión",
+        "LOGOUT" => "Cierre de sesión",
+        "LOGIN_FAILED" => "Inicio de sesión fallido",
+        "ACCESS_DENIED" => "Acceso denegado",
+        "NOTE" => "Nota añadida",
+        "INTEGRITY_MISMATCH" => "Integridad alterada",
+        _ => action
+    };
 }

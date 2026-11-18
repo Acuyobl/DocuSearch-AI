@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace DocuSearch.Services;
 
 public sealed class AgentObservability(IDbContextFactory<AppDbContext> factory, LocalSession session,
-    ILogger<AgentObservability> logger)
+    ILogger<AgentObservability> logger, ApprovalService? approvals = null)
 {
     public async Task RecordAsync(AgentTrace trace)
     {
@@ -42,9 +42,13 @@ public sealed class AgentObservability(IDbContextFactory<AppDbContext> factory, 
         if (retentionDays < 1)
             throw new ValidationException("La retención debe ser de al menos 1 día.");
         await using var db = await factory.CreateDbContextAsync();
-        var actor = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == session.UserId && u.Status == "Activo");
+        var actorId = ApprovalContext.Current?.RequesterId ?? session.UserId;
+        var actor = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == actorId && u.Status == "Activo");
         if (actor is null || !Permissions.CanAdmin(actor))
             throw new UnauthorizedAccessException("Solo administración general puede purgar trazas de observabilidad.");
+        if (approvals is not null && approvals.Requires(SensitiveAction.PurgeTraces))
+            await approvals.RequestAsync(SensitiveAction.PurgeTraces, nameof(AgentTrace), "TRACES", $"trazas de más de {retentionDays} días",
+                new { days = retentionDays }, "Borrado definitivo de trazas de observabilidad antiguas.");
 
         var cutoff = DateTimeOffset.UtcNow.AddDays(-retentionDays);
         var deleted = await db.AgentTraces.Where(trace => trace.StartedUtc < cutoff).ExecuteDeleteAsync();
@@ -53,7 +57,8 @@ public sealed class AgentObservability(IDbContextFactory<AppDbContext> factory, 
             UserName = actor.Name,
             UserRole = actor.Role,
             Action = "PURGE_TRACES",
-            Details = $"Trazas anteriores a {cutoff:yyyy-MM-dd}: {deleted}.",
+            Details = $"Trazas anteriores a {cutoff:yyyy-MM-dd}: {deleted}." +
+                (ApprovalContext.Current is { } approved ? $" · Aprobado por {approved.ApproverName}." : ""),
             DocumentCode = "SYSTEM",
             Status = "EXITOSO"
         });
@@ -64,6 +69,7 @@ public sealed class AgentObservability(IDbContextFactory<AppDbContext> factory, 
     public static string ErrorCode(Exception exception) => exception switch
     {
         UnauthorizedAccessException => "access_denied",
+        AiQuotaExceededException => "ai_quota_exceeded",
         ValidationException => "invalid_input",
         DbException or DbUpdateException => "database",
         JsonException => "invalid_response",

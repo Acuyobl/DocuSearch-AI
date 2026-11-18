@@ -52,13 +52,21 @@
             @foreach (var entry in Menu)
             {
                 var allowed = Allowed(entry.Key);
-                <NavLink href="@(entry.Key == "dashboard" ? "/" : "/" + entry.Key)" Match="NavLinkMatch.All" class="@($"{(Current == entry.Key ? "active" : "")} {(!allowed ? "restricted" : "")}")" title="@entry.Label">
+                var agents = AgentCatalog.ForModule(entry.Key);
+                var agentTitle = agents.Count == 0 ? entry.Label
+                    : $"{entry.Label} · Agente{(agents.Count > 1 ? "s" : "")} activo{(agents.Count > 1 ? "s" : "")}: {string.Join(", ", agents.Select(agent => $"{agent.Code} {agent.Name}"))}";
+                <NavLink href="@(entry.Key == "dashboard" ? "/" : "/" + entry.Key)" Match="NavLinkMatch.All" class="@($"{(Current == entry.Key ? "active" : "")} {(!allowed ? "restricted" : "")} {(agents.Count > 0 ? "has-agent" : "")}")" title="@agentTitle">
                     <span class="nav-symbol"><AppIcon Name="@entry.Key" /></span><span class="nav-label">@entry.Label</span>
                     @if (!allowed) { <span class="nav-label restricted-label">Restringido</span> }
+                    else if (agents.Count > 0)
+                    {
+                        <span class="agent-mark" aria-label="@($"{agents.Count} agente(s) IA activo(s)")"><AppIcon Name="spark" />@if (agents.Count > 1) { <span class="agent-mark-count">@agents.Count</span> }</span>
+                    }
                 </NavLink>
             }
         </nav>
         <div class="sidebar-bottom">
+            <small class="agent-legend"><span class="agent-mark"><AppIcon Name="spark" /></span>Módulo con agente IA activo · @AgentCatalog.Active.Count agentes</small>
             <small><span class="status-dot"></span> Demostración local<br />Blazor · SQL Server Express</small>
         </div>
     </aside>

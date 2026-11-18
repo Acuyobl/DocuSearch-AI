@@ -1,0 +1,203 @@
+@inject AiGovernanceService Governance
+@inject WorkspaceState State
+
+<section class="panel ai-usage" aria-labelledby="ai-usage-title">
+    <div class="section-heading">
+        <div>
+            <h2 id="ai-usage-title"><AppIcon Name="reports" />Consumo de IA</h2>
+            <p>Una fila por llamada real a un motor generativo, con tokens, coste y latencia. Importes en USD (mes calendario UTC). Los motores locales cuestan 0.</p>
+        </div>
+        @if (periods.Count > 0)
+        {
+            <label>Periodo
+                <select value="@period" @onchange="ChangePeriod" disabled="@State.Busy">
+                    @foreach (var item in periods) { <option value="@item">@item</option> }
+                </select>
+            </label>
+        }
+    </div>
+
+    @if (report is { } r)
+    {
+        var budget = r.Policy?.MonthlyBudgetMicroUsd ?? 0;
+        <div class="metrics rag-metrics">
+            <div class="metric"><span>Gasto del mes</span><strong>@AiBudgetMath.FormatMicroUsd(r.SpentMicroUsd)</strong><small>Previsión de cierre: @AiBudgetMath.FormatMicroUsd(r.ForecastMicroUsd)</small></div>
+            <div class="metric"><span>Presupuesto</span><strong>@(budget > 0 ? AiBudgetMath.FormatMicroUsd(budget) : "Sin límite")</strong>
+                <small>@(r.PercentUsed is { } used ? $"{used:0.#} % usado · aviso al {r.Policy!.AlertPercent} %{(r.Policy.HardStop ? " · corte activo" : "")}" : QuotaText(r))</small></div>
+            <div class="metric"><span>Llamadas</span><strong>@r.Calls.ToString("N0")</strong><small>@r.Errors con error</small></div>
+            <div class="metric"><span>Tokens</span><strong>@((r.TokensIn + r.TokensOut).ToString("N0"))</strong><small>@r.TokensIn.ToString("N0") entrada · @r.TokensOut.ToString("N0") salida@(r.HasEstimatedTokens ? " · algunos estimados" : "")</small></div>
+        </div>
+        @if (r.PercentUsed is { } percent)
+        {
+            <div class="dash-bar @(percent >= (r.Policy?.AlertPercent ?? 100) ? "warn" : "")" aria-label="Presupuesto usado">
+                <div class="dash-bar-label"><span>Presupuesto usado</span><small>@percent.ToString("0.#") %</small></div>
+                <span class="dash-bar-track"><span style="width:@(Math.Min(100, percent).ToString("0.#", CultureInfo.InvariantCulture))%"></span></span>
+            </div>
+        }
+
+        <div class="grid two">
+            <div>
+                <h3>Consumo por función</h3>
+                @if (r.Features.Count == 0)
+                {
+                    <p class="empty">Sin llamadas en @r.Period.</p>
+                }
+                else
+                {
+                    <div class="table-scroll"><table class="module-table">
+                        <thead><tr><th>Función</th><th>Llamadas</th><th>Tokens</th><th>Coste</th></tr></thead>
+                        <tbody>@foreach (var item in r.Features)
+                        {
+                            <tr><td>@FeatureLabel(item.Feature)</td><td>@item.Calls</td><td>@((item.TokensIn + item.TokensOut).ToString("N0"))</td><td>@AiBudgetMath.FormatMicroUsd(item.CostMicroUsd)</td></tr>
+                        }</tbody>
+                    </table></div>
+                }
+            </div>
+            <div>
+                <h3>Consumo por modelo</h3>
+                @if (r.Models.Count == 0)
+                {
+                    <p class="empty">Sin llamadas en @r.Period.</p>
+                }
+                else
+                {
+                    <div class="table-scroll"><table class="module-table">
+                        <thead><tr><th>Proveedor / modelo</th><th>Llamadas</th><th>Tokens</th><th>Coste</th></tr></thead>
+                        <tbody>@foreach (var item in r.Models)
+                        {
+                            <tr><td>@item.Provider<small>@item.Model</small></td><td>@item.Calls</td><td>@((item.TokensIn + item.TokensOut).ToString("N0"))</td><td>@AiBudgetMath.FormatMicroUsd(item.CostMicroUsd)</td></tr>
+                        }</tbody>
+                    </table></div>
+                }
+            </div>
+        </div>
+
+        <h3>Incidentes de presupuesto</h3>
+        @if (r.Incidents.Count == 0)
+        {
+            <p class="empty">Sin incidentes en @r.Period.</p>
+        }
+        else
+        {
+            <div class="table-scroll"><table class="module-table">
+                <thead><tr><th>Tipo</th><th>Detalle</th><th>Veces</th><th>Gasto / límite</th><th>Primera · última</th></tr></thead>
+                <tbody>@foreach (var incident in r.Incidents)
+                {
+                    <tr><td><span class="badge @(incident.Kind == AiBudgetIncident.Warning ? "warning" : "danger")">@IncidentLabel(incident.Kind)</span></td>
+                        <td>@incident.Detail@if (incident.LastFeature is { } feature) { <small>Última función: @FeatureLabel(feature)</small> }</td>
+                        <td>@incident.Occurrences</td>
+                        <td>@AiBudgetMath.FormatMicroUsd(incident.SpentMicroUsd)@(incident.LimitMicroUsd > 0 ? $" / {AiBudgetMath.FormatMicroUsd(incident.LimitMicroUsd)}" : "")</td>
+                        <td>@incident.FirstUtc.ToLocalTime().ToString("dd/MM HH:mm") · @incident.LastUtc.ToLocalTime().ToString("dd/MM HH:mm")</td></tr>
+                }</tbody>
+            </table></div>
+        }
+
+        <details class="ai-usage-recent">
+            <summary>Últimas llamadas (@r.Recent.Count)</summary>
+            @if (r.Recent.Count == 0)
+            {
+                <p class="empty">Sin llamadas en @r.Period.</p>
+            }
+            else
+            {
+                <div class="table-scroll"><table class="module-table">
+                    <thead><tr><th>Fecha</th><th>Función</th><th>Modelo</th><th>Tokens</th><th>Coste</th><th>Latencia</th><th>Estado</th><th>Usuario</th></tr></thead>
+                    <tbody>@foreach (var row in r.Recent)
+                    {
+                        <tr><td>@row.CreatedUtc.ToLocalTime().ToString("dd/MM HH:mm:ss")</td><td>@FeatureLabel(row.Feature)<small>@row.PromptTemplateKey · v@row.PromptVersion</small></td>
+                            <td>@row.Provider<small>@row.Model</small></td>
+                            <td>@((row.TokensIn + row.TokensOut).ToString("N0"))@(row.TokensEstimated ? " (est.)" : "")</td>
+                            <td>@AiBudgetMath.FormatMicroUsd(row.CostMicroUsd)</td><td>@row.LatencyMs.ToString("N0") ms</td>
+                            <td><span class="badge @(row.Status == "ok" ? "success" : "danger")">@row.Status</span>@if (row.ErrorCode is { } errorCode) { <small>@errorCode</small> }</td>
+                            <td>@UserName(row.UserId)</td></tr>
+                    }</tbody>
+                </table></div>
+            }
+        </details>
+
+        @if (CanManage)
+        {
+            <form class="ai-budget-form" @onsubmit="Save" @onsubmit:preventDefault>
+                <h3>Presupuesto mensual</h3>
+                <div class="filters">
+                    <label>Presupuesto (USD, 0 = sin límite)<input type="number" min="0" step="0.01" @bind="budgetUsd" /></label>
+                    <label>Aviso al (%)<input type="number" min="1" max="100" @bind="alertPercent" /></label>
+                    <label>Cuota de tokens (0 = sin cuota)<input type="number" min="0" step="1000" @bind="tokenQuota" /></label>
+                    <label class="inline"><input type="checkbox" @bind="hardStop" /> Bloquear al alcanzar el presupuesto</label>
+                </div>
+                <small>Con presupuesto 0 rige la cuota de tokens. Al cruzar el aviso se registra un incidente y la respuesta continúa; con el bloqueo activo, al alcanzar el límite el asistente responde sin modelo (extractivo) y el Catalogador no se ejecuta.</small>
+                <div><button class="primary" disabled="@State.Busy"><AppIcon Name="check" />Guardar presupuesto</button></div>
+            </form>
+        }
+    }
+</section>
+
+@code {
+    private AiUsageReport? report;
+    private List<string> periods = [];
+    private string period = "";
+    private decimal budgetUsd;
+    private int alertPercent = 80;
+    private bool hardStop;
+    private long tokenQuota;
+
+    private bool CanManage => State.Data is { } snapshot && Permissions.CanManageAiBudget(snapshot.Actor);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await State.RunAsync(async () =>
+        {
+            periods = await Governance.PeriodsAsync();
+            period = periods.FirstOrDefault() ?? AiBudgetMath.CurrentPeriod(DateTimeOffset.UtcNow);
+            await LoadAsync();
+        });
+    }
+
+    private async Task LoadAsync()
+    {
+        report = await Governance.GetUsageAsync(period);
+        var policy = report.Policy;
+        budgetUsd = (policy?.MonthlyBudgetMicroUsd ?? 0) / (decimal)AiBudgetMath.MicroPerUsd;
+        alertPercent = policy?.AlertPercent ?? 80;
+        hardStop = policy?.HardStop ?? false;
+        tokenQuota = policy?.MonthlyTokenQuota ?? 0;
+    }
+
+    private Task ChangePeriod(ChangeEventArgs args)
+    {
+        period = args.Value?.ToString() ?? period;
+        return State.RunAsync(LoadAsync);
+    }
+
+    private Task Save() => State.RunAsync(async () =>
+    {
+        await Governance.UpdateBudgetAsync(AiBudgetMath.ToMicroUsd(budgetUsd), alertPercent, hardStop, tokenQuota);
+        await LoadAsync();
+    }, "Presupuesto de IA guardado.");
+
+    private string QuotaText(AiUsageReport r) => r.Policy is { MonthlyTokenQuota: > 0 } policy
+        ? $"Cuota: {(r.TokensIn + r.TokensOut):N0} de {policy.MonthlyTokenQuota:N0} tokens"
+        : "Sin presupuesto ni cuota";
+
+    private string UserName(string? id) => id is null ? "Sistema"
+        : State.Data?.Users.FirstOrDefault(user => user.Id == id)?.Name ?? id;
+
+    /// <summary>Etiquetas de función; una desconocida se muestra tal cual.</summary>
+    private static string FeatureLabel(string feature) => feature switch
+    {
+        "assistant_rag" => "Asistente · preguntas",
+        "assistant_summary" => "Asistente · resúmenes",
+        "assistant_analysis" => "Asistente · análisis",
+        "assistant_legacy" => "Asistente · vía anterior",
+        "catalog_suggestion" => "Catalogador AG-01",
+        _ => feature
+    };
+
+    private static string IncidentLabel(string kind) => kind switch
+    {
+        AiBudgetIncident.Warning => "Aviso",
+        AiBudgetIncident.HardStop => "Corte por presupuesto",
+        AiBudgetIncident.QuotaExceeded => "Cuota agotada",
+        _ => kind
+    };
+}

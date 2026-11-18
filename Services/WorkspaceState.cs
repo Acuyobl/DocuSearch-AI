@@ -31,6 +31,11 @@ public sealed class WorkspaceState(DocumentService service, ILogger<WorkspaceSta
             await operation();
             Notice = success;
         }
+        catch (ApprovalPendingException pending)
+        {
+            // Doble control: no es un error, la acción quedó en cola sin aplicarse.
+            Notice = pending.Message;
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "La operación documental no pudo completarse.");

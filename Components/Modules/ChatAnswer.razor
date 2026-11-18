@@ -1,0 +1,154 @@
+@* Respuesta del asistente renderizada por bloques. Nunca usa MarkupString: el texto de los
+   documentos y del modelo se pinta siempre como texto. *@
+<div class="answer-body">
+    @foreach (var block in blocks)
+    {
+        switch (block)
+        {
+            case AnswerHeading heading:
+                <h4 class="answer-heading">@Inline(heading.Content)</h4>
+                break;
+            case AnswerParagraph paragraph:
+                <p>@Inline(paragraph.Content)</p>
+                break;
+            case AnswerList { Ordered: true } list:
+                <ol>@foreach (var item in list.Items) { <li>@Inline(item)</li> }</ol>
+                break;
+            case AnswerList list:
+                <ul>@foreach (var item in list.Items) { <li>@Inline(item)</li> }</ul>
+                break;
+            case AnswerTable table:
+                <div class="answer-table">
+                    <table>
+                        <thead><tr>@foreach (var header in table.Headers) { <th scope="col">@header</th> }</tr></thead>
+                        <tbody>@foreach (var row in table.Rows) { <tr>@foreach (var cell in row) { <td>@Inline(cell)</td> }</tr> }</tbody>
+                    </table>
+                </div>
+                break;
+            case AnswerExcerpt excerpt:
+                <figure class="answer-excerpt">
+                    <figcaption>@Cite(new AnswerInline(AnswerInlineKind.Citation, $"{excerpt.Code} · p. {excerpt.Page}", excerpt.Code, excerpt.Page))</figcaption>
+                    <blockquote>@Inline(excerpt.Content)</blockquote>
+                </figure>
+                break;
+            case AnswerNote note:
+                <p class="answer-note"><AppIcon Name="audit" />@note.Text</p>
+                break;
+        }
+    }
+</div>
+
+@if (rows.Count > 0)
+{
+    <details class="answer-sources" open="@(rows.Count <= 4)">
+        <summary>Fuentes consultadas <span class="answer-count">@rows.Count</span></summary>
+        <div class="answer-table">
+            <table>
+                <thead><tr><th scope="col">#</th><th scope="col">Expediente</th><th scope="col">Título</th><th scope="col" class="numeric">Pág.</th><th scope="col" class="numeric">Relevancia</th><th scope="col"><span class="visually-hidden">Abrir</span></th></tr></thead>
+                <tbody>
+                @foreach (var row in rows.Take(MaxRows))
+                {
+                    <tr>
+                        <td class="numeric">@row.Number</td>
+                        <td><code>@row.Hit.Document.InternalCode</code></td>
+                        <td class="answer-title">@row.Hit.Document.Title</td>
+                        <td class="numeric">@row.Hit.PageNumber</td>
+                        <td class="numeric"><span class="answer-score" style="--score:@row.Hit.Score%">@row.Hit.Score%</span></td>
+                        <td><button class="link-button" @onclick="() => OnView.InvokeAsync(row.Hit)" aria-label="@($"Abrir {row.Hit.Document.InternalCode}, página {row.Hit.PageNumber}")"><AppIcon Name="eye" />Abrir</button></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        @if (rows.Count > MaxRows) { <small>Y @(rows.Count - MaxRows) fuente(s) más.</small> }
+    </details>
+}
+
+@code {
+    private const int MaxRows = 10;
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+    [Parameter] public IReadOnlyList<SearchHit> Sources { get; set; } = [];
+    /// <summary>Las citas [n] del texto apuntan a Sources[n-1] (pipeline RAG).</summary>
+    [Parameter] public bool NumberedSources { get; set; }
+    [Parameter] public IReadOnlyList<DocumentItem> Documents { get; set; } = [];
+    [Parameter] public EventCallback<SearchHit> OnView { get; set; }
+
+    private IReadOnlyList<AnswerBlock> blocks = [];
+    private List<(int Number, SearchHit Hit)> rows = [];
+    private string? renderedText;
+    private IReadOnlyList<SearchHit>? renderedSources;
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(renderedText, Text) && ReferenceEquals(renderedSources, Sources)) return;
+        renderedText = Text;
+        renderedSources = Sources;
+        blocks = AnswerFormatter.Format(Text);
+        // Una fila por expediente y página, conservando el número de la primera aparición.
+        rows = Sources
+            .Select((hit, index) => (Number: index + 1, Hit: hit))
+            .GroupBy(row => (row.Hit.Document.Id, row.Hit.PageNumber))
+            .Select(group => (group.First().Number, group.MaxBy(row => row.Hit.Score).Hit))
+            .ToList();
+    }
+
+    private RenderFragment Inline(IReadOnlyList<AnswerInline> content) => builder =>
+    {
+        foreach (var part in content)
+        {
+            switch (part.Kind)
+            {
+                case AnswerInlineKind.Bold:
+                    builder.OpenElement(0, "strong");
+                    builder.AddContent(1, part.Text);
+                    builder.CloseElement();
+                    break;
+                case AnswerInlineKind.Code:
+                    builder.OpenElement(2, "code");
+                    builder.AddContent(3, part.Text);
+                    builder.CloseElement();
+                    break;
+                case AnswerInlineKind.Citation:
+                    builder.AddContent(4, Cite(part));
+                    break;
+                default:
+                    builder.AddContent(5, part.Text);
+                    break;
+            }
+        }
+    };
+
+    private RenderFragment Cite(AnswerInline citation) => builder =>
+    {
+        var target = Resolve(citation);
+        if (target is null)
+        {
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "answer-cite");
+            builder.AddContent(2, citation.Text);
+            builder.CloseElement();
+            return;
+        }
+        builder.OpenElement(3, "button");
+        builder.AddAttribute(4, "type", "button");
+        builder.AddAttribute(5, "class", "answer-cite");
+        builder.AddAttribute(6, "title", $"Abrir {target.Document.InternalCode}, página {target.PageNumber}");
+        builder.AddAttribute(7, "onclick", EventCallback.Factory.Create(this, () => OnView.InvokeAsync(target)));
+        builder.AddContent(8, citation.Text);
+        builder.CloseElement();
+    };
+
+    private SearchHit? Resolve(AnswerInline citation)
+    {
+        if (citation.Index is { } number)
+            return NumberedSources && number >= 1 && number <= Sources.Count ? Sources[number - 1] : null;
+        if (citation.Code is null || citation.Page is not { } page) return null;
+        var hit = Sources.FirstOrDefault(source =>
+            source.PageNumber == page && source.Document.InternalCode.Equals(citation.Code, StringComparison.OrdinalIgnoreCase));
+        if (hit is not null) return hit;
+        var document = Documents.FirstOrDefault(item => item.InternalCode.Equals(citation.Code, StringComparison.OrdinalIgnoreCase));
+        return document is not null && document.Pages.Any(item => item.PageNumber == page)
+            ? new SearchHit(document, page, "", 100)
+            : null;
+    }
+}

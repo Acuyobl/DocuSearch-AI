@@ -1,4 +1,7 @@
 @inject DocumentQualityService Inspector
+@inject DocumentService Documents
+@inject WorkspaceState State
+@inject IJSRuntime JS
 
 <div class="module-page">
 <ModuleHeading Icon="quality" Title="Calidad documental" Description="Inspector determinista · sin IA · solo lectura">
@@ -8,6 +11,10 @@
 @if (error is not null)
 {
     <div class="alert error" role="alert">@error</div>
+}
+@if (notice is not null)
+{
+    <div class="alert success" role="status">@notice</div>
 }
 
 <section class="panel">
@@ -46,7 +53,7 @@
                     @foreach (var finding in report.Findings)
                     {
                         <tr>
-                            <td><span class="badge @(finding.Severity == "error" ? "danger" : finding.Severity == "warning" ? "warning" : "")">@KindLabel(finding.Kind)</span></td>
+                            <td><span class="badge @SeverityClass(finding.Severity)">@KindLabel(finding.Kind)</span></td>
                             <td>@finding.DocumentCode</td>
                             <td>@finding.Title</td>
                             <td>@finding.Department</td>
@@ -76,26 +83,145 @@
         }
     }
 </section>
+
+<section class="panel" aria-labelledby="rag-index-title">
+    <h2 id="rag-index-title">Índice RAG</h2>
+    <p>Comprueba que cada expediente con texto esté indexado por fragmentos con el modelo de embeddings actual y que el índice no haya quedado desfasado tras una carga o un reproceso. Solo usa recuentos y fechas: no lee el texto de los fragmentos ni sus vectores.</p>
+
+    @if (ragReport is not null)
+    {
+        <div class="metrics rag-metrics">
+            <div class="metric"><span>Expedientes indexados</span><strong>@ragReport.IndexedDocuments / @ragReport.IndexableDocuments</strong><small>con texto · @ragReport.TotalDocuments revisados</small></div>
+            <div class="metric"><span>Cobertura por páginas</span><strong>@ragReport.PageCoverage.ToString("P0")</strong><small>@ragReport.CoveredPages de @ragReport.TextPages páginas con texto</small></div>
+            <div class="metric"><span>Fragmentos</span><strong>@ragReport.TotalChunks.ToString("N0")</strong><small>modelo @ragReport.ExpectedModel · @ragReport.ExpectedDimensions dims</small></div>
+            <div class="metric"><span>Por reindexar</span><strong>@ragReport.ReindexDocumentIds.Count</strong><small>@ragReport.Findings.Count hallazgos</small></div>
+        </div>
+        <div class="alert @(ragReport.ReindexDocumentIds.Count == 0 ? "success" : "warning")" role="status">@ragReport.Recommendation</div>
+
+        <div class="filters">
+            @if (CanAdmin && ragReport.ReindexDocumentIds.Count > 0)
+            {
+                <button class="primary" disabled="@busy" @onclick="ReindexAsync"><AppIcon Name="refresh" />Reindexar @Math.Min(ragReport.ReindexDocumentIds.Count, DocumentService.MaxReindexBatch) expediente(s)</button>
+            }
+            @if (Inspector.PineconeConfigured)
+            {
+                <button disabled="@busy" @onclick="CheckPineconeAsync">Comprobar Pinecone</button>
+            }
+            @if (ragReport.Findings.Count > 0)
+            {
+                <label>Tipo
+                    <select @bind="ragKind">
+                        <option value="">Todos</option>
+                        @foreach (var kind in ragReport.Findings.Select(finding => finding.Kind).Distinct())
+                        {
+                            <option value="@kind">@KindLabel(kind)</option>
+                        }
+                    </select>
+                </label>
+            }
+        </div>
+
+        @if (drift is not null)
+        {
+            <p role="status">
+                <strong>Pinecone:</strong> @drift.Message
+                @if (drift.Applicable)
+                {
+                    <span> Esperados @drift.Expected.ToString("N0") · presentes @drift.Present.ToString("N0") · faltan @drift.Missing.ToString("N0") · sobran @drift.Orphans.ToString("N0").</span>
+                }
+            </p>
+        }
+
+        @if (ragReport.Findings.Count == 0)
+        {
+            <p class="empty">Sin hallazgos en el índice RAG.</p>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="module-table">
+                    <thead><tr><th>Tipo</th><th>Código</th><th>Título</th><th>Detalle</th></tr></thead>
+                    <tbody>
+                    @foreach (var finding in ragReport.Findings.Where(finding => ragKind.Length == 0 || finding.Kind == ragKind))
+                    {
+                        <tr>
+                            <td><span class="badge @SeverityClass(finding.Severity)">@KindLabel(finding.Kind)</span></td>
+                            <td>@finding.DocumentCode</td>
+                            <td>@finding.Title</td>
+                            <td>@finding.Detail</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+        @if (!CanAdmin && ragReport.ReindexDocumentIds.Count > 0)
+        {
+            <p><small>Solo administración general puede reindexar desde aquí. También se puede ejecutar <code>--rag-reindex</code> y <code>--reindex-embeddings</code> en el servidor.</small></p>
+        }
+    }
+</section>
 </div>
 
 @code {
     private DocumentInspectionReport? report;
+    private RagIndexReport? ragReport;
+    private RagPineconeDrift? drift;
+    private string ragKind = "";
     private bool verifyIntegrity;
     private bool busy;
     private string? error;
+    private string? notice;
+
+    private bool CanAdmin => State.Data is { } snapshot && Permissions.CanAdmin(snapshot.Actor);
 
     protected override Task OnInitializedAsync() => ReloadAsync(false);
 
-    private async Task ReloadAsync(bool integrity)
+    private Task ReloadAsync(bool integrity) => RunAsync(async () =>
+    {
+        report = await Inspector.InspectAsync(integrity);
+        ragReport = await Inspector.InspectRagIndexAsync();
+        drift = null;
+    });
+
+    private Task CheckPineconeAsync() => RunAsync(async () => drift = await Inspector.CheckPineconeAsync());
+
+    private async Task ReindexAsync()
+    {
+        if (ragReport is null || ragReport.ReindexDocumentIds.Count == 0) return;
+        var ids = ragReport.ReindexDocumentIds.Take(DocumentService.MaxReindexBatch).ToList();
+        try
+        {
+            if (!await JS.InvokeAsync<bool>("docusearch.confirm",
+                $"¿Reindexar {ids.Count} expediente(s)? Se regeneran sus embeddings por página y sus fragmentos RAG. La operación queda registrada en la auditoría."))
+                return;
+        }
+        catch (JSDisconnectedException) { return; }
+        catch (JSException) { return; }
+
+        await RunAsync(async () =>
+        {
+            var (reindexed, failed) = await Documents.ReindexAsync(ids);
+            ragReport = await Inspector.InspectRagIndexAsync();
+            drift = null;
+            notice = failed == 0
+                ? $"{reindexed} expediente(s) reindexados."
+                : $"{reindexed} expediente(s) reindexados y {failed} con error. Revisa la consola del servidor.";
+        });
+    }
+
+    private async Task RunAsync(Func<Task> action)
     {
         if (busy) return;
         busy = true;
         error = null;
+        notice = null;
         try
         {
-            report = await Inspector.InspectAsync(integrity);
+            await action();
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException or System.Data.Common.DbException)
+        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException or ValidationException
+            or HttpRequestException or System.Data.Common.DbException)
         {
             error = ex.Message;
         }
@@ -105,6 +231,13 @@
         }
     }
 
+    private static string SeverityClass(string severity) => severity switch
+    {
+        "error" => "danger",
+        "warning" => "warning",
+        _ => ""
+    };
+
     private static string KindLabel(string kind) => kind switch
     {
         "ocr" => "Requiere OCR",
@@ -112,6 +245,11 @@
         "metadata" => "Metadatos incompletos",
         "duplicate" => "Duplicado",
         "integrity" => "Integridad",
+        "rag-missing" => "Sin índice RAG",
+        "rag-page-gap" => "Páginas sin fragmentos",
+        "rag-model" => "Modelo de embeddings",
+        "rag-stale" => "Índice desfasado",
+        "page-index-missing" => "Sin índice por página",
         _ => kind
     };
 }

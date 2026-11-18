@@ -1,0 +1,78 @@
+@inject RoutineService Routines
+@inject WorkspaceState State
+@inject Microsoft.Extensions.Options.IOptions<GovernanceOptions> Governance
+
+<section class="panel" aria-labelledby="routines-title">
+    <div class="section-heading">
+        <div>
+            <h2 id="routines-title"><AppIcon Name="refresh" />Rutinas programadas</h2>
+            <p>Tareas de mantenimiento con historial. Cada ejecución queda en la bitácora como <code>routine.run</code>; un bloqueo en SQL Server evita que dos instancias la repitan.</p>
+        </div>
+        <span class="badge @(Governance.Value.SchedulerEnabled ? "success" : "")">@(Governance.Value.SchedulerEnabled ? $"Planificador activo · cada {Governance.Value.SchedulerTickSeconds} s" : "Planificador desactivado")</span>
+    </div>
+    @if (!Governance.Value.SchedulerEnabled)
+    {
+        <div class="alert info">Con <code>Governance:SchedulerEnabled=false</code> las rutinas no se ejecutan solas; administración general puede lanzarlas con «Ejecutar ahora».</div>
+    }
+    <div class="routine-grid">
+        @foreach (var item in routines)
+        {
+            var routine = item.Routine;
+            var last = item.Runs.FirstOrDefault();
+            <article class="routine-card">
+                <header><strong>@routine.Name</strong><span class="badge @(routine.Enabled ? "success" : "warning")">@(routine.Enabled ? "Activa" : "En pausa")</span></header>
+                <p>@routine.Description</p>
+                <dl class="routine-meta">
+                    <dt>Clave</dt><dd><code>@routine.Key</code></dd>
+                    <dt>Intervalo</dt><dd>@Interval(routine.IntervalMinutes)</dd>
+                    <dt>Última</dt><dd>@(routine.LastRunUtc?.ToLocalTime().ToString("dd/MM HH:mm") ?? "nunca") @if (routine.LastStatus is { } status) { <span class="badge @(status == "OK" ? "success" : "danger")">@status</span> }</dd>
+                    <dt>Próxima</dt><dd>@(routine.Enabled && Governance.Value.SchedulerEnabled ? routine.NextRunUtc?.ToLocalTime().ToString("dd/MM HH:mm") ?? "en el próximo ciclo" : "—")</dd>
+                </dl>
+                @if (last is not null) { <div class="routine-output">@last.Output</div> }
+                @if (item.Runs.Count > 0)
+                {
+                    <details>
+                        <summary>Historial (@item.Runs.Count)</summary>
+                        <ul class="routine-history">
+                            @foreach (var run in item.Runs)
+                            {
+                                <li><span class="@(run.Status == "OK" ? "ok" : "error")">@run.Status</span><span>@run.StartedUtc.ToLocalTime().ToString("dd/MM HH:mm")</span><span>@run.DurationMs ms</span><span>@run.Trigger</span></li>
+                            }
+                        </ul>
+                    </details>
+                }
+                @if (CanAdmin)
+                {
+                    <div class="actions">
+                        <button class="primary" disabled="@State.Busy" @onclick="() => RunNow(routine.Key)"><AppIcon Name="send" />Ejecutar ahora</button>
+                        <button disabled="@State.Busy" @onclick="() => Toggle(routine)">@(routine.Enabled ? "Pausar" : "Reanudar")</button>
+                    </div>
+                }
+            </article>
+        }
+    </div>
+</section>
+
+@code {
+    private List<RoutineStatus> routines = [];
+    private bool CanAdmin => State.Data is { } snapshot && Permissions.CanAdmin(snapshot.Actor);
+
+    protected override Task OnInitializedAsync() => State.RunAsync(async () => routines = await Routines.ListAsync());
+
+    private Task RunNow(string key) => State.RunAsync(async () =>
+    {
+        var run = await Routines.RunNowAsync(key);
+        routines = await Routines.ListAsync();
+        if (run is null) throw new InvalidOperationException("La rutina ya se está ejecutando en otra instancia.");
+        if (run.Status != "OK") throw new InvalidOperationException($"La rutina terminó con error: {run.Output}");
+    }, "Rutina ejecutada.");
+
+    private Task Toggle(RoutineDefinition routine) => State.RunAsync(async () =>
+    {
+        await Routines.SetEnabledAsync(routine.Key, !routine.Enabled);
+        routines = await Routines.ListAsync();
+    }, routine.Enabled ? "Rutina en pausa." : "Rutina reanudada.");
+
+    private static string Interval(int minutes) => minutes % 1440 == 0 ? $"cada {minutes / 1440} día(s)"
+        : minutes % 60 == 0 ? $"cada {minutes / 60} h" : $"cada {minutes} min";
+}

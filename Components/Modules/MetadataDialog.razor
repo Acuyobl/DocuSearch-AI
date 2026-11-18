@@ -80,7 +80,13 @@
     {
         Document.Keywords = keywords.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         Document.Tags = tags.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        await Service.EditAsync(Document);
+        try { await Service.EditAsync(Document); }
+        catch (ApprovalPendingException)
+        {
+            // Bajar la confidencialidad queda en espera de aprobación: se cierra el diálogo y se avisa.
+            await OnClose.InvokeAsync();
+            throw;
+        }
         await State.RefreshAsync();
         await OnClose.InvokeAsync();
     }, "Metadatos actualizados.");

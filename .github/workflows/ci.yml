@@ -53,6 +53,14 @@ jobs:
       - name: Ejecutar checks del auditor AG-05
         run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --audit
 
+      # Gobernanza: bitácora con antes/después, doble control y rutinas.
+      - name: Ejecutar checks de gobernanza
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --governance
+
+      # Consumo de IA: presupuesto, incidentes y registro de llamadas.
+      - name: Ejecutar checks de consumo de IA
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --ai
+
       # Endurecimiento: bloqueo temporal de login por cuenta.
       - name: Ejecutar checks de bloqueo de login
         run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --auth

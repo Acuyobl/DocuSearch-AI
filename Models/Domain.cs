@@ -100,6 +100,13 @@ public sealed class AuditEvent
     public string DocumentCode { get; set; } = "SYSTEM";
     public string Details { get; set; } = "";
     public string Status { get; set; } = "EXITOSO";
+    // Gobernanza (añadidos): entidad afectada, estado antes/después (≤4 KB), IP y duración.
+    [MaxLength(60)] public string? Entity { get; set; }
+    [MaxLength(100)] public string? EntityId { get; set; }
+    [MaxLength(4000)] public string? Before { get; set; }
+    [MaxLength(4000)] public string? After { get; set; }
+    [MaxLength(64)] public string? Ip { get; set; }
+    public long? DurationMs { get; set; }
 }
 
 public sealed record AppSnapshot(AppUser Actor, List<DocumentItem> Documents, List<AppUser> Users,

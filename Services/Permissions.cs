@@ -8,6 +8,10 @@ public static class Permissions
     public static bool CanWrite(AppUser user) => user.Role is "admin_general" or "admin_depto" or "gestor_documental";
     public static bool CanAdmin(AppUser user) => user.Role == "admin_general";
     public static bool CanAudit(AppUser user) => user.Role is "admin_general" or "auditor";
+    /// <summary>Equivale a «ai:usage_read»: ver el consumo y el presupuesto de IA.</summary>
+    public static bool CanReadAiUsage(AppUser user) => CanAudit(user);
+    /// <summary>Equivale a «ai:budget_manage»: cambiar el presupuesto de IA.</summary>
+    public static bool CanManageAiBudget(AppUser user) => CanAdmin(user);
     public static string[] ReadableLevels(AppUser user) => user.Role switch
     {
         "admin_general" or "auditor" => Catalog.Levels,
@@ -36,6 +40,10 @@ public sealed class LocalSession
     public string DisplayName { get; private set; } = "";
     public string Role { get; private set; } = "consultor";
     public string? LastDocumentCode { get; set; }
+    /// <summary>Identificador de este inicio de sesión (claim «sid»); separa la memoria de cada login.</summary>
+    public string? SessionId { get; private set; }
+    /// <summary>IP de inicio de sesión (claim «ip»), para la bitácora.</summary>
+    public string? Ip { get; private set; }
     public bool IsAuthenticated => !string.IsNullOrEmpty(UserId);
 
     public void SignIn(ClaimsPrincipal principal)
@@ -44,6 +52,8 @@ public sealed class LocalSession
             ?? throw new InvalidOperationException("La identidad autenticada no contiene identificador de usuario.");
         DisplayName = principal.FindFirstValue(ClaimTypes.Name) ?? "";
         Role = principal.FindFirstValue(ClaimTypes.Role) ?? "consultor";
+        SessionId = principal.FindFirstValue(AuthService.SessionClaim);
+        Ip = principal.FindFirstValue(AuthService.IpClaim);
         LastDocumentCode = null;
     }
 
@@ -52,6 +62,8 @@ public sealed class LocalSession
         UserId = null;
         DisplayName = "";
         Role = "consultor";
+        SessionId = null;
+        Ip = null;
         LastDocumentCode = null;
     }
 }

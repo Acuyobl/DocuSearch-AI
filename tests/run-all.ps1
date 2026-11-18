@@ -15,7 +15,9 @@ $suites = @(
     [pscustomobject]@{ Name = 'AG-01 Catalogador'; Args = @('--catalog') },
     [pscustomobject]@{ Name = 'AG-05 Auditor'; Args = @('--audit') },
     [pscustomobject]@{ Name = 'Bloqueo de login'; Args = @('--auth') },
-    [pscustomobject]@{ Name = 'RAG híbrido'; Args = @('--rag') }
+    [pscustomobject]@{ Name = 'RAG híbrido'; Args = @('--rag') },
+    [pscustomobject]@{ Name = 'Gobernanza'; Args = @('--governance') },
+    [pscustomobject]@{ Name = 'Consumo de IA'; Args = @('--ai') }
 )
 $failed = [System.Collections.Generic.List[string]]::new()
 

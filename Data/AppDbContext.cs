@@ -10,6 +10,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<DepartmentInfo> Departments => Set<DepartmentInfo>();
     public DbSet<AuditEvent> Audit => Set<AuditEvent>();
+    public DbSet<ApprovalRequest> Approvals => Set<ApprovalRequest>();
+    public DbSet<RoutineDefinition> Routines => Set<RoutineDefinition>();
+    public DbSet<RoutineRun> RoutineRuns => Set<RoutineRun>();
+    public DbSet<AiUsageLedger> AiUsageLedger => Set<AiUsageLedger>();
+    public DbSet<AiBudgetPolicy> AiBudgetPolicies => Set<AiBudgetPolicy>();
+    public DbSet<AiBudgetIncident> AiBudgetIncidents => Set<AiBudgetIncident>();
     public DbSet<AgentTrace> AgentTraces => Set<AgentTrace>();
     public DbSet<PageEmbedding> PageEmbeddings => Set<PageEmbedding>();
     public DbSet<RagChunkRecord> RagChunks => Set<RagChunkRecord>();
@@ -57,5 +63,23 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         // Al borrar un expediente, SQL Server elimina también su texto troceado.
         model.Entity<RagChunkRecord>().HasOne<DocumentItem>().WithMany()
             .HasForeignKey(chunk => chunk.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        // Gobernanza: bitácora con índices por entidad, cola de aprobaciones y rutinas.
+        // Bitácora de solo inserción: un trigger de SQL Server rechaza UPDATE y DELETE (migración Governance).
+        model.Entity<AuditEvent>().ToTable("Audit", table => table.HasTrigger("TR_Audit_AppendOnly"));
+        model.Entity<AuditEvent>().HasIndex(a => new { a.Entity, a.EntityId });
+        model.Entity<ApprovalRequest>().ToTable("ApprovalRequests");
+        model.Entity<ApprovalRequest>().HasIndex(a => new { a.Status, a.RequestedUtc });
+        model.Entity<ApprovalRequest>().HasIndex(a => new { a.Action, a.EntityId, a.Status });
+        model.Entity<RoutineDefinition>().ToTable("Routines");
+        model.Entity<RoutineRun>().ToTable("RoutineRuns");
+        model.Entity<RoutineRun>().HasIndex(r => new { r.RoutineKey, r.StartedUtc });
+        // Consumo de IA: ledger por fecha/periodo y hash; un incidente por (periodo, tipo).
+        model.Entity<AiUsageLedger>().ToTable("AiUsageLedger");
+        model.Entity<AiUsageLedger>().HasIndex(row => row.CreatedUtc);
+        model.Entity<AiUsageLedger>().HasIndex(row => new { row.Period, row.Feature });
+        model.Entity<AiUsageLedger>().HasIndex(row => row.RequestHash);
+        model.Entity<AiBudgetPolicy>().ToTable("AiBudgetPolicies");
+        model.Entity<AiBudgetIncident>().ToTable("AiBudgetIncidents");
+        model.Entity<AiBudgetIncident>().HasIndex(item => new { item.Period, item.Kind }).IsUnique();
     }
 }

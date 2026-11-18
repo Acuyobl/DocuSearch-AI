@@ -5,19 +5,23 @@
 @inject OpenCodeClient OpenCode
 @inject AssistantRuntime Runtime
 @inject RagQueryService Rag
+@inject AssistantMemory Memory
 @inject Microsoft.Extensions.Options.IOptions<DocuSearch.Services.Rag.RagOptions> RagOptions
 @implements IAsyncDisposable
 <div class="assistant-page">
-<ModuleHeading Icon="agent" Title="Asistente IA documental" Description="@($"Acceso: hasta «{Permissions.ReadableLevels(State.Data!.Actor).Last()}» · {State.Data.Documents.Count} expediente(s) consultables · solo lectura")">
-    <button disabled="@State.Busy" @onclick="RefreshDocuments"><AppIcon Name="refresh" />Actualizar documentos</button>
-    <button @onclick="Clear" disabled="@(State.Busy || messages.Count == 0)"><AppIcon Name="delete" />Nueva conversación</button>
-</ModuleHeading>
-<div class="assistant-connection">
-    <span class="badge @(modelVerified ? "success" : "warning")">@EngineLabel · @(modelVerified ? "Verificado" : "Sin verificar")</span>
-    @if (CanSelectProfile)
-    {
-        <label class="inline">Motor
-            <select @bind="selectedProfile" @bind:after="ApplyProfile" disabled="@State.Busy" aria-label="Elegir el motor del asistente">
+<header class="assistant-bar">
+    <div class="assistant-title">
+        <span class="assistant-mark"><AppIcon Name="agent" /></span>
+        <div>
+            <h2>Asistente documental</h2>
+            <small>@State.Data!.Documents.Count expedientes · acceso hasta «@Permissions.ReadableLevels(State.Data.Actor).Last()» · solo lectura</small>
+        </div>
+    </div>
+    <div class="assistant-actions">
+        <span class="engine-status @(modelVerified ? "ok" : "warn")" title="@EngineLabel"><span class="status-dot"></span>@EngineShort</span>
+        @if (CanSelectProfile)
+        {
+            <select @bind="selectedProfile" @bind:after="ApplyProfile" disabled="@State.Busy" aria-label="Motor del asistente (afecta a todas las consultas)" title="Motor del asistente (solo administración general)">
                 @foreach (var group in Runtime.Profiles.GroupBy(profile => profile.Group))
                 {
                     <optgroup label="@group.Key">
@@ -28,51 +32,52 @@
                     </optgroup>
                 }
             </select>
-        </label>
-    }
-    <button disabled="@State.Busy" @onclick="CheckConnection"><AppIcon Name="refresh" />Actualizar motores</button>
-</div>
+        }
+        <button class="icon-button" disabled="@State.Busy" @onclick="CheckConnection" title="Comprobar motores y actualizar documentos" aria-label="Comprobar motores y actualizar documentos"><AppIcon Name="refresh" /></button>
+        <button class="icon-button" @onclick="Clear" disabled="@(State.Busy || messages.Count == 0)" title="Nueva conversación" aria-label="Nueva conversación"><AppIcon Name="delete" /></button>
+    </div>
+</header>
 @if (Runtime.LastError is not null)
 {
     <div class="alert error" role="alert">@Runtime.LastError</div>
 }
-else
+else if (!Active.Available)
 {
-    <small class="assistant-hint">@ProfileSummary — catálogo leído de tu servidor OpenCode (@Runtime.LoadedAt.ToLocalTime().ToString("HH:mm")).</small>
-}
-@if (!Active.Available)
-{
-    <div class="alert error" role="alert">El modelo «@Active.Label» está configurado pero su proveedor no está conectado en OpenCode. Revisa la conexión y pulsa «Actualizar motores».</div>
-}
-@if (CanSelectProfile)
-{
-    <small class="assistant-hint">Solo administración general puede cambiar el motor; el cambio afecta a todas las consultas y se resuelve en el servidor.</small>
+    <div class="alert error" role="alert">El modelo «@Active.Label» está configurado pero su proveedor no está conectado. Revisa la conexión y vuelve a comprobar los motores.</div>
 }
 <section class="conversation" @ref="conversation" aria-label="Conversación documental" aria-live="polite">
     @if (messages.Count == 0)
     {
-        <div class="assistant-welcome"><span class="assistant-emblem"><AppIcon Name="agent" /></span><h2>Consulta tus documentos con fuentes verificables</h2><p>Pregunta sobre los expedientes. Las respuestas documentales incluyen referencias a documento y página.</p>
-            <div class="suggestions">@foreach (var suggestion in Suggestions) { <button disabled="@State.Busy" @onclick="() => Suggest(suggestion)">@suggestion</button> }</div>
-            <small>@EngineDetail</small>
-        </div>
+        <div class="assistant-empty"><AppIcon Name="agent" /><p>¿Qué necesitas consultar en tus expedientes?</p></div>
     }
     @foreach (var message in messages)
     {
-        <article class="chat-turn @(message.IsUser ? "user" : "assistant")"><span class="chat-avatar"><AppIcon Name="@(message.IsUser ? "user" : "agent")" /></span><div class="message"><small>@(message.IsUser ? "Tú" : message.Provider)</small><div class="preserve">@message.Text</div>
-            @if (message.Sources.Count > 0)
-            {
-                <div class="source-list">@foreach (var source in message.Sources)
-                { <button @onclick="() => OnView.InvokeAsync(source)">@source.Document.InternalCode · p. @source.PageNumber</button> }</div>
-            }
-        </div></article>
+        @if (message.IsUser)
+        {
+            <article class="chat-turn user"><div class="message"><div class="preserve">@message.Text</div></div></article>
+        }
+        else
+        {
+            <article class="chat-turn assistant">
+                <span class="chat-avatar"><AppIcon Name="agent" /></span>
+                <div class="message">
+                    <div class="answer-meta"><span>Asistente</span>@if (!string.IsNullOrWhiteSpace(message.Provider)) { <span class="answer-engine">@message.Provider</span> }<time>@message.At.ToLocalTime().ToString("HH:mm")</time></div>
+                    <ChatAnswer Text="@message.Text" Sources="message.Sources" NumberedSources="message.Numbered" Documents="State.Data.Documents" OnView="OnView" />
+                </div>
+            </article>
+        }
     }
-    @if (State.Busy) { <p role="status">Consultando expedientes… La primera carga del modelo puede tardar unos minutos.</p> }
+    @if (State.Busy && messages.Count > 0)
+    {
+        <div class="chat-turn assistant" role="status"><span class="chat-avatar"><AppIcon Name="agent" /></span><div class="message typing"><span></span><span></span><span></span><small>Consultando expedientes…</small></div></div>
+    }
 </section>
 <form class="chat-composer" @onsubmit="Send" @onsubmit:preventDefault>
-    <label>Tu consulta<textarea @ref="composer" @bind="query" @bind:event="oninput" maxlength="2000" rows="2" placeholder="Escribe tu pregunta… (Enter envía, Mayús+Enter salta de línea)"></textarea></label>
+    <label><span class="visually-hidden">Tu consulta</span><textarea @ref="composer" @bind="query" @bind:event="oninput" maxlength="2000" rows="2" placeholder="Escribe tu pregunta… (Enter envía · Mayús+Enter salta de línea)"></textarea></label>
     <button type="submit" class="primary" aria-label="Consultar" disabled="@(State.Busy || string.IsNullOrWhiteSpace(query))"><AppIcon Name="send" />Consultar</button>
 </form>
-<small class="assistant-disclaimer"><AppIcon Name="audit" />Solo se consultan fuentes autorizadas. @EngineDisclaimer</small>
+<small class="assistant-disclaimer">Solo se consultan fuentes autorizadas para tu perfil. @EngineDisclaimer
+    @if (expiresUtc is { } expires) { <span class="memory-note"><AppIcon Name="lock" />Conversación guardada en esta sesión hasta el @expires.ToLocalTime().ToString("dd/MM HH:mm"); se borra al cerrar sesión o con «Nueva conversación».</span> }</small>
 </div>
 @code {
     [Parameter] public EventCallback<SearchHit> OnView { get; set; }
@@ -85,43 +90,34 @@ else
     private bool scrollPending;
     private bool modelVerified;
     private readonly List<ChatMessage> messages = [];
+    private DateTimeOffset? expiresUtc;
     private AssistantProfile Active => Runtime.Active;
     private bool CanSelectProfile => State.Data is { } snapshot && Permissions.CanAdmin(snapshot.Actor);
     private string EngineLabel => Runtime.Describe(Active) + (Active.Available ? "" : " · sin conexión");
-    private string ProfileSummary
+    private string EngineShort => Active.Engine.ToLowerInvariant() switch
     {
-        get
-        {
-            var locals = Runtime.Profiles.Count(profile => profile.Group == "Locales");
-            var free = Runtime.Profiles.Count(profile => profile.Group == "Gratis");
-            var paid = Runtime.Profiles.Count(profile => profile.Group == "Pago");
-            return $"{paid} de pago · {free} gratis" + (locals > 0 ? $" · {locals} local(es)" : "");
-        }
-    }
-    private string EngineDetail => Active.Engine.ToLowerInvariant() switch
-    {
-        "opencode" => $"Perfil «{Active.Label}».",
-        "ollama" => $"Perfil «{Active.Label}»: LangChain/Ollama local, sin servicios externos.",
-        _ => "Modo extractivo local: respuestas por reglas, sin modelo generativo."
-    };
+        "opencode" => string.IsNullOrWhiteSpace(Active.ModelId) ? "OpenCode" : Active.ModelId,
+        "ollama" => "Ollama local",
+        _ => "Extractivo local"
+    } + (modelVerified ? "" : " · sin verificar");
     private string EngineDisclaimer => Active.Engine.ToLowerInvariant() switch
     {
-        "opencode" => "La IA puede cometer errores: verifica las citas. El motor no cambia de proveedor si falla.",
-        "ollama" => "La IA puede cometer errores: verifica las citas. Si Ollama falla, el error se muestra sin cambiar a un proveedor remoto.",
-        _ => "Respuestas por reglas y extracción, sin modelo generativo."
+        "opencode" or "ollama" => "La IA puede cometer errores: verifica las citas.",
+        _ => "Respuestas extractivas, sin modelo generativo."
     };
-    private static readonly string[] Suggestions = ["¿Qué contratos tienen SLA del 99.99%?", "Resume el expediente POL-2025-0012", "Extrae montos de FIN-2024-Q4-01", "Lista documentos de uso interno"];
-    private Task Suggest(string value) { query = value; return Send(); }
-    private sealed record ChatMessage(bool IsUser, string Text, List<SearchHit> Sources, string Provider = "");
+    private sealed record ChatMessage(bool IsUser, string Text, List<SearchHit> Sources, string Provider = "", bool Numbered = false)
+    {
+        public DateTimeOffset At { get; init; } = DateTimeOffset.UtcNow;
+    }
     protected override async Task OnInitializedAsync()
     {
+        RestoreConversation();
         await Runtime.EnsureLoadedAsync();
         selectedProfile = Runtime.Active.Id;
         // La comprobación del motor no debe tumbar el componente si OpenCode no responde:
         // State.RunAsync captura el error y lo muestra en la interfaz.
         await State.RunAsync(CheckActiveEngineCoreAsync);
     }
-    private Task RefreshDocuments() => State.RunAsync(State.RefreshAsync);
     private Task CheckConnection() => State.RunAsync(async () =>
     {
         await Runtime.RefreshAsync(force: true);
@@ -153,22 +149,59 @@ else
             throw new InvalidOperationException("El motor seleccionado ya no existe; pulsa «Actualizar motores» y vuelve a elegir.");
         await CheckActiveEngineCoreAsync();
     }, "Motor del asistente actualizado.");
+    /// <summary>
+    /// Recupera la conversación de esta sesión al volver a la página. Las fuentes se reconstruyen
+    /// con los expedientes que el usuario puede leer ahora: si perdió acceso a alguna, la respuesta
+    /// se oculta en lugar de mostrar contenido que ya no le corresponde.
+    /// </summary>
+    private void RestoreConversation()
+    {
+        if (State.Data is not { } snapshot) return;
+        var saved = Memory.GetConversation(Session);
+        expiresUtc = saved.ExpiresUtc;
+        messages.Clear();
+        foreach (var turn in saved.Turns)
+        {
+            var sources = new List<SearchHit>();
+            var revoked = false;
+            foreach (var source in turn.Sources)
+            {
+                var document = snapshot.Documents.FirstOrDefault(item => item.Id == source.DocumentId);
+                if (document is null) { revoked = true; continue; }
+                sources.Add(new SearchHit(document, source.PageNumber, source.Snippet, source.Score));
+            }
+            messages.Add(revoked && !turn.IsUser
+                ? new(false, "Respuesta oculta: ya no tienes acceso a alguna de sus fuentes.", [], turn.Provider) { At = turn.At }
+                : new(turn.IsUser, turn.Text, sources, turn.Provider, turn.Numbered) { At = turn.At });
+        }
+        if (saved.FocusDocumentCode is not null) Session.LastDocumentCode = saved.FocusDocumentCode;
+        scrollPending = messages.Count > 0;
+    }
+    private void Remember(ChatMessage message) =>
+        expiresUtc = Memory.AddTurn(Session, new MemoryTurn(message.IsUser, message.Text, message.Provider, message.Numbered, message.At,
+            message.Sources.Select(hit => new MemorySource(hit.Document.Id, hit.PageNumber, TextAnalysis.Truncate(hit.Snippet, 1000), hit.Score)).ToList()));
     private async Task Send()
     {
         if (State.Busy || string.IsNullOrWhiteSpace(query)) return;
         await State.RunAsync(async () =>
         {
             var text = query.Trim();
-            messages.Add(new(true, text, []));
+            // La memoria conversacional se calcula con los turnos anteriores, antes de añadir este.
+            var saved = Memory.GetConversation(Session);
+            var hint = ConversationContext.Build(text, saved.Turns, saved.FocusDocumentCode ?? Session.LastDocumentCode);
+            var userMessage = new ChatMessage(true, text, []);
+            messages.Add(userMessage);
+            Remember(userMessage);
             query = "";
             scrollPending = true;
             StateHasChanged();
             AgentAnswer answer;
+            var numbered = false;
             if (RagOptions.Value.UseChunkPipeline)
             {
                 try
                 {
-                    var rag = await Rag.QueryAsync(text);
+                    var rag = await Rag.QueryAsync(text, hint: hint.IsFollowUp ? hint : null);
                     if (rag.Engine == RagQueryService.NoCoverageEngine)
                     {
                         // El índice por fragmentos no cubre la consulta (p. ej. expedientes sin
@@ -185,6 +218,8 @@ else
                                 : null)
                             .Where(source => source is not null).Select(source => source!).ToList();
                         answer = new AgentAnswer(rag.Answer, sources, rag.Engine);
+                        // Las citas [n] del modelo se numeran sobre las fuentes en este mismo orden.
+                        numbered = sources.Count == rag.Sources.Count;
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
@@ -197,7 +232,16 @@ else
             {
                 answer = await Agent.AskAsync(text);
             }
-            messages.Add(new(false, answer.Text, answer.Sources, answer.Provider));
+            var reply = new ChatMessage(false, answer.Text, answer.Sources, answer.Provider, numbered);
+            messages.Add(reply);
+            Remember(reply);
+            // El expediente en foco es la fuente principal de la respuesta (o el que fijó el agente local).
+            var focus = answer.Sources.FirstOrDefault()?.Document.InternalCode ?? Session.LastDocumentCode;
+            if (focus is not null)
+            {
+                Session.LastDocumentCode = focus;
+                Memory.SetFocus(Session, focus);
+            }
             scrollPending = true;
             // SendFromEnter se invoca desde JS: sin este render explícito la respuesta
             // se añadía al estado pero el navegador seguía mostrando «Consultando…».
@@ -210,7 +254,14 @@ else
     /// <summary>Enter en el compositor (sin Mayús): el JS intercepta la tecla y envía.</summary>
     [JSInvokable]
     public Task SendFromEnter() => Send();
-    private void Clear() { messages.Clear(); Session.LastDocumentCode = null; scrollPending = true; }
+    private void Clear()
+    {
+        messages.Clear();
+        Memory.ClearConversation(Session);
+        expiresUtc = null;
+        Session.LastDocumentCode = null;
+        scrollPending = true;
+    }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)

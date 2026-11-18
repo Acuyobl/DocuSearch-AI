@@ -205,8 +205,14 @@ public sealed class AuthService(
     private static string ValidateRole(string role) =>
         Document.Catalog.Roles.Contains(role) ? role : throw new InvalidOperationException($"Rol no válido en Auth:Users: {role}.");
 
-    public static Claim[] BuildClaims(AppUser user) =>
+    /// <summary>Claim con un identificador aleatorio por inicio de sesión.</summary>
+    public const string SessionClaim = "sid";
+    /// <summary>Claim con la IP desde la que se inició la sesión.</summary>
+    public const string IpClaim = "ip";
+
+    public static Claim[] BuildClaims(AppUser user, string? sessionId = null) =>
     [
+        new(SessionClaim, sessionId ?? Catalog.NewId()),
         new(ClaimTypes.NameIdentifier, user.Id),
         new(ClaimTypes.Name, user.Name),
         new(ClaimTypes.Email, user.Email),

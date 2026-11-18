@@ -1,0 +1,116 @@
+@inject ApprovalService Approvals
+@inject WorkspaceState State
+@inject IJSRuntime JS
+
+<section class="panel approvals-panel" aria-labelledby="approvals-title">
+    <div class="section-heading">
+        <div>
+            <h2 id="approvals-title"><AppIcon Name="lock" />Aprobaciones de doble control</h2>
+            <p>Las acciones sensibles no se aplican hasta que otra persona (auditoría) las aprueba. Cada transición queda en la bitácora.</p>
+        </div>
+        <span class="badge @(Approvals.Settings.ApprovalsEnabled ? "success" : "")">@(Approvals.Settings.ApprovalsEnabled ? "Doble control activo" : "Doble control desactivado")</span>
+    </div>
+    @if (!Approvals.Settings.ApprovalsEnabled)
+    {
+        <div class="alert info">Con <code>Governance:ApprovalsEnabled=false</code> las acciones se aplican directamente, como hasta ahora. Al activarlo requieren aprobación: @string.Join(", ", Approvals.Settings.SensitiveActions.Select(SensitiveAction.Label)).</div>
+    }
+
+    @if (Pending.Count > 0)
+    {
+        <label class="approval-note">Nota de la decisión (opcional)<input @bind="note" maxlength="900" placeholder="Motivo de la aprobación o del rechazo" /></label>
+    }
+    <div class="table-scroll">
+        <table class="module-table">
+            <thead><tr><th>Estado</th><th>Acción</th><th>Sobre</th><th>Solicitado por</th><th>Fecha</th><th>Detalle</th><th><span class="visually-hidden">Decisión</span></th></tr></thead>
+            <tbody>
+            @foreach (var request in requests)
+            {
+                var mine = State.Data is { } snapshot && snapshot.Actor.Id == request.RequestedById;
+                <tr class="@(request.Status == ApprovalStatus.Pending ? "is-pending" : "")">
+                    <td><span class="badge @StatusClass(request.Status)">@request.Status</span></td>
+                    <td>@SensitiveAction.Label(request.Action)</td>
+                    <td>@request.EntityLabel</td>
+                    <td>@request.RequestedByName<small>@RoleLabel(request.RequestedByRole)</small></td>
+                    <td>@request.RequestedUtc.ToLocalTime().ToString("dd/MM HH:mm")
+                        @if (request.Status == ApprovalStatus.Pending) { <small>vence @request.ExpiresUtc.ToLocalTime().ToString("dd/MM HH:mm")</small> }
+                        else if (request.DecidedUtc is { } decided) { <small>@(request.DecidedByName ?? "Sistema") · @decided.ToLocalTime().ToString("dd/MM HH:mm")</small> }
+                    </td>
+                    <td>@request.Summary@if (!string.IsNullOrWhiteSpace(request.DecisionNote)) { <small>Nota: @request.DecisionNote</small> }</td>
+                    <td>
+                        @if (request.Status == ApprovalStatus.Pending && CanDecide && !mine)
+                        {
+                            <div class="actions">
+                                <button class="primary" disabled="@State.Busy" @onclick="() => Approve(request)"><AppIcon Name="check" />Aprobar</button>
+                                <button class="danger" disabled="@State.Busy" @onclick="() => Reject(request)">Rechazar</button>
+                            </div>
+                        }
+                        else if (request.Status == ApprovalStatus.Pending && mine)
+                        {
+                            <small>Esperando a otra persona</small>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    @if (requests.Count == 0) { <p class="empty">No hay solicitudes de aprobación.</p> }
+</section>
+
+@code {
+    [Parameter] public EventCallback<int> OnPendingChanged { get; set; }
+    private List<ApprovalRequest> requests = [];
+    private string note = "";
+    private List<ApprovalRequest> Pending => requests.Where(request => request.Status == ApprovalStatus.Pending).ToList();
+    private bool CanDecide => State.Data is { } snapshot && ApprovalRules.CanDecide(snapshot.Actor);
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        await State.RunAsync(async () => requests = await Approvals.ListAsync());
+        await OnPendingChanged.InvokeAsync(Pending.Count);
+    }
+
+    private async Task Approve(ApprovalRequest request)
+    {
+        if (!await Confirm($"¿Aprobar «{SensitiveAction.Label(request.Action)}» sobre {request.EntityLabel}? Se aplicará ahora con los permisos de {request.RequestedByName}.")) return;
+        await State.RunAsync(async () =>
+        {
+            try { await Approvals.ApproveAsync(request.Id, note); }
+            finally { requests = await Approvals.ListAsync(); }
+            note = "";
+            await State.RefreshAsync();
+        }, "Solicitud aprobada y aplicada.");
+        await OnPendingChanged.InvokeAsync(Pending.Count);
+    }
+
+    private async Task Reject(ApprovalRequest request)
+    {
+        if (!await Confirm($"¿Rechazar «{SensitiveAction.Label(request.Action)}» sobre {request.EntityLabel}? No se aplicará.")) return;
+        await State.RunAsync(async () =>
+        {
+            try { await Approvals.RejectAsync(request.Id, note); }
+            finally { requests = await Approvals.ListAsync(); }
+            note = "";
+        }, "Solicitud rechazada; no se aplicó ningún cambio.");
+        await OnPendingChanged.InvokeAsync(Pending.Count);
+    }
+
+    private async Task<bool> Confirm(string message)
+    {
+        try { return await JS.InvokeAsync<bool>("docusearch.confirm", message); }
+        catch (JSDisconnectedException) { return false; }
+        catch (JSException) { return false; }
+    }
+
+    private static string StatusClass(string status) => status switch
+    {
+        ApprovalStatus.Pending => "warning",
+        ApprovalStatus.Approved => "success",
+        ApprovalStatus.Rejected or ApprovalStatus.Failed => "danger",
+        _ => ""
+    };
+
+    private static string RoleLabel(string role) => Catalog.Roles.Contains(role) ? Catalog.RoleLabel(role) : role;
+}

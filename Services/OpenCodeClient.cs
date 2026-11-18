@@ -171,12 +171,13 @@ public sealed class OpenCodeClient
     public Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources) =>
         GenerateAsync(query, sources, settings.ProviderId, settings.ModelId, settings.Agent);
 
-    public Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources, string? providerId, string? modelId, string? agent) =>
+    public Task<AgentAnswer> GenerateAsync(string query, IReadOnlyList<SearchHit> sources, string? providerId, string? modelId, string? agent,
+        AnswerStyle style = AnswerStyle.Default) =>
         resilience.ExecuteAsync("opencode.generate",
-            cancellationToken => GenerateOnceAsync(query, sources, providerId, modelId, agent, cancellationToken));
+            cancellationToken => GenerateOnceAsync(query, sources, providerId, modelId, agent, style, cancellationToken));
 
     private async Task<AgentAnswer> GenerateOnceAsync(string query, IReadOnlyList<SearchHit> sources,
-        string? providerId, string? modelId, string? agent, CancellationToken cancellationToken)
+        string? providerId, string? modelId, string? agent, AnswerStyle style, CancellationToken cancellationToken)
     {
         if (!Enabled) throw new InvalidOperationException("La generación con OpenCode está desactivada.");
         var provider = string.IsNullOrWhiteSpace(providerId) ? settings.ProviderId : providerId;
@@ -189,9 +190,9 @@ public sealed class OpenCodeClient
         var selected = sources.DistinctBy(source => (source.Document.Id, source.PageNumber)).Take(6).ToList();
         await CheckAsync(agentName);
         if (settings.UseLangChain)
-            return await GenerateWithLangChainAsync(query, selected, provider, model, agentName, cancellationToken);
+            return await GenerateWithLangChainAsync(query, selected, provider, model, agentName, style, cancellationToken);
 
-        return await GenerateV2Async(query, selected, provider, model, agentName, cancellationToken);
+        return await GenerateV2Async(query, selected, provider, model, agentName, style, cancellationToken);
     }
 
     private AgentAnswer ParseAnswer(string text, IReadOnlyList<SearchHit> selected, string provider, string model, TokenUsage? tokens)
@@ -225,7 +226,7 @@ public sealed class OpenCodeClient
     /// envía el prompt, espera el mensaje del asistente y valida las citas en C#.
     /// </summary>
     private async Task<AgentAnswer> GenerateV2Async(string query, IReadOnlyList<SearchHit> selected,
-        string provider, string model, string agentName, CancellationToken cancellationToken)
+        string provider, string model, string agentName, AnswerStyle style, CancellationToken cancellationToken)
     {
         var context = selected.Select((source, index) => new
         {
@@ -251,7 +252,7 @@ public sealed class OpenCodeClient
         try
         {
             await PostAsync<V2PromptAck>($"api/session/{Uri.EscapeDataString(sessionId)}/prompt",
-                new { text = AssistantPrompt.System + "\n\n" + payload }, cancellationToken);
+                new { text = AssistantPrompt.For(style) + "\n\n" + payload }, cancellationToken);
 
             var deadline = DateTimeOffset.UtcNow.AddSeconds(settings.TimeoutSeconds);
             string? answerText = null;
@@ -286,7 +287,7 @@ public sealed class OpenCodeClient
     }
 
     private async Task<AgentAnswer> GenerateWithLangChainAsync(string query, IReadOnlyList<SearchHit> selected,
-        string provider, string model, string agentName, CancellationToken cancellationToken)
+        string provider, string model, string agentName, AnswerStyle style, CancellationToken cancellationToken)
     {
         var sources = selected.Select((source, index) => new
         {
@@ -307,7 +308,7 @@ public sealed class OpenCodeClient
             timeout = settings.TimeoutSeconds,
             question = query,
             sources,
-            system = AssistantPrompt.System
+            system = AssistantPrompt.For(style)
         };
         var raw = await LangChainRunner.RunAsync(settings.PythonExecutable, "opencode_worker.py", settings.TimeoutSeconds, request);
         LangChainAnswer generated;

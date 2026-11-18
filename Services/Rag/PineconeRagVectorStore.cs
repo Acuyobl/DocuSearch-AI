@@ -19,7 +19,7 @@ public sealed class PineconeRagVectorStore(
     ILogger<PineconeRagVectorStore> logger,
     IOptions<EmbeddingOptions>? embeddingOptions = null) : IRagVectorStore
 {
-    private const string IdPrefix = "rag:";
+    public const string IdPrefix = "rag:";
     private readonly string expectedModel = embeddingOptions?.Value.Model ?? "";
 
     public string Name => "pinecone";

@@ -3,6 +3,8 @@
 @inject EmbeddingClient Embeddings
 @inject PineconeRetriever Pinecone
 @inject IRagRetriever Retrieval
+@inject AssistantMemory Memory
+@inject LocalSession Session
 @inject Microsoft.Extensions.Options.IOptions<RagOptions> RagOptions
 <div class="module-page smart-search">
 <div class="segmented-control search-modes" role="group" aria-label="Herramientas del buscador">
@@ -26,7 +28,7 @@
     </div>
     @if (history.Count > 0)
     {
-        <div class="suggestions"><small>Recientes:</small>@foreach (var recent in history) { <button @onclick="() => Suggest(recent)">@recent</button> }</div>
+        <div class="suggestions"><small>Recientes:</small>@foreach (var recent in history) { <button @onclick="() => Suggest(recent)">@recent</button> }<button class="link-button" title="Borrar la búsqueda y el historial de esta sesión" @onclick="ClearHistory"><AppIcon Name="delete" />Borrar</button></div>
     }
 </header>
 <section class="panel search-panel">
@@ -49,7 +51,6 @@
 <div id="search-assistant" hidden="@(!showAssistant)">
     @if (assistantOpened)
     {
-        <p>El asistente consulta los documentos autorizados para tu perfil. Los filtros de la pestaña Buscar documentos no se aplican al chat.</p>
         <AgentChat OnView="OnView" />
     }
 </div>
@@ -70,7 +71,38 @@
     private IReadOnlyDictionary<(string DocumentId, int PageNumber), double>? externalScores;
     private List<SearchHit> results = [];
     private readonly List<string> history = [];
-    protected override async Task OnInitializedAsync() => await RefilterAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        // Al volver a la página se recupera la última búsqueda de esta sesión (24 h como máximo).
+        if (Memory.GetSearch(Session) is { } saved)
+        {
+            query = saved.Query;
+            exact = saved.Exact;
+            minimum = saved.Minimum;
+            filter.Department = saved.Department;
+            filter.Category = saved.Category;
+            filter.Level = saved.Level;
+            filter.Year = saved.Year;
+            history.AddRange(saved.History);
+            if (!string.IsNullOrWhiteSpace(query))
+            {
+                try { await RefreshQuerySignals(); }
+                catch (Exception ex) when (ex is not OperationCanceledException) { queryVector = null; externalScores = null; }
+            }
+        }
+        await RefilterAsync();
+    }
+    private void Remember() => Memory.SaveSearch(Session, new SearchMemory(query, exact, minimum,
+        filter.Department, filter.Category, filter.Level, filter.Year, history.ToList()));
+    private async Task ClearHistory()
+    {
+        history.Clear();
+        query = "";
+        queryVector = null;
+        externalScores = null;
+        Memory.ClearSearch(Session);
+        await RefilterAsync();
+    }
     protected override void OnParametersSet()
     {
         if (previousOpenAssistant == OpenAssistant) return;
@@ -96,6 +128,11 @@
             : await Pinecone.SearchAsync(queryVector, State.Data!.Documents.Select(document => document.Id).ToList());
     }
     private async Task RefilterAsync()
+    {
+        try { await FilterCoreAsync(); }
+        finally { if (Session.IsAuthenticated) Remember(); }
+    }
+    private async Task FilterCoreAsync()
     {
         var timer = System.Diagnostics.Stopwatch.StartNew();
         if (RagOptions.Value.UseChunkPipeline && !exact && !string.IsNullOrWhiteSpace(query) && queryVector is not null)

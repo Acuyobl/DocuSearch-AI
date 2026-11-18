@@ -26,7 +26,8 @@ public sealed class CatalogSuggester(
     AgentObservability observability,
     OpenCodeClient? opencode = null,
     AssistantRuntime? assistant = null,
-    ILogger<CatalogSuggester>? logger = null)
+    ILogger<CatalogSuggester>? logger = null,
+    IAiGovernance? aiGovernance = null)
 {
     public async Task<CatalogSuggestion> SuggestAsync(string documentId, bool consent)
     {
@@ -71,9 +72,14 @@ public sealed class CatalogSuggester(
         try
         {
             var query = BuildQuery(document, snapshot.Departments);
-            AgentAnswer answer = engine == "opencode"
-                ? await opencode!.GenerateAsync(query, sources, profile?.ProviderId, profile?.ModelId, profile?.Agent)
-                : await ollama.GenerateAsync(query, sources);
+            var provider = engine == "opencode" ? profile?.ProviderId ?? "" : "ollama";
+            var model = engine == "opencode" ? profile?.ModelId ?? "" : ollama.Model;
+            var context = new AiCallContext("catalog_suggestion", engine, provider, model, "catalog.suggest",
+                AssistantPrompt.For(AnswerStyle.Default), query + "\n" + string.Join("\n", sources.Select(source => source.Snippet)),
+                aiGovernance?.ResolvePricing(engine, provider, model, profile) ?? AiPricing.Free, 600, nameof(DocumentItem), document.Id);
+            AgentAnswer answer = await AiCallGuard.RunAsync(aiGovernance, context, () => engine == "opencode"
+                ? opencode!.GenerateAsync(query, sources, profile?.ProviderId, profile?.ModelId, profile?.Agent)
+                : ollama.GenerateAsync(query, sources));
 
             // AG-02: la propuesta también pasa por el verificador antes de llegar al formulario.
             var verification = AgentVerifier.Verify(answer, snapshot.Documents, snapshot.Actor);

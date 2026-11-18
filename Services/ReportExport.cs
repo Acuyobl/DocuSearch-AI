@@ -20,8 +20,9 @@ public static class ReportExport
         .Concat(documents.Select(d => new[] { d.InternalCode, d.Title, d.Author, d.Department, d.Category, d.Confidentiality,
             d.Version, d.UploadDate.ToString("O"), d.PageCount.ToString(), d.OcrStatus })));
     public static byte[] AuditCsv(IEnumerable<AuditEvent> events) => Csv(
-        new[] { new[] { "UTC", "Usuario", "Rol", "Acción", "Expediente", "Detalle", "Estado" } }
-        .Concat(events.Select(a => new[] { a.TimestampUTC.ToString("O"), a.UserName, a.UserRole, a.Action, a.DocumentCode, a.Details, a.Status })));
+        new[] { new[] { "UTC", "Usuario", "Rol", "Acción", "Expediente", "Detalle", "Estado", "Entidad", "IdEntidad", "IP", "Antes", "Después" } }
+        .Concat(events.Select(a => new[] { a.TimestampUTC.ToString("O"), a.UserName, a.UserRole, a.Action, a.DocumentCode, a.Details, a.Status,
+            a.Entity ?? "", a.EntityId ?? "", a.Ip ?? "", a.Before ?? "", a.After ?? "" })));
 
     public static byte[] Html(IEnumerable<DocumentItem> documents, string author)
     {

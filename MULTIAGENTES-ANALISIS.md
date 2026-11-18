@@ -140,6 +140,7 @@ public interface IAgentVerifier
 - 10 comprobaciones deterministas con `--verifier`: 97/97 en total, 0 tokens, sin migración ni paquetes nuevos.
 - **AG-10 Inspector implementado (13/11/2026):** `Services/DocumentInspector.cs` + módulo `/quality` (solo administración general y auditoría); informe de OCR pendiente, originales ausentes, metadatos incompletos, duplicados SHA-256 e integridad verificable. 5 comprobaciones con `--inspector` (92/92 en total). Sin LLM, sin escritura, sin migración.
 - **AG-01 Catalogador MVP implementado (13/11/2026):** `Services/CatalogSuggester.cs` + botón **Sugerir ficha** en el formulario de metadatos. Una llamada, consentimiento explícito, propuesta sin escritura, bloqueo de confidenciales con motor remoto y verificación AG-02. 5 comprobaciones con `--catalog` (92/92 en total). Sin cola, sin migración.
+- **AG-10 ampliado y AG-06 implementados (15/11/2026):** `Services/RagIndexInspector.cs` añade la salud del índice RAG a `/quality` (con reindexado auditado solo para administración general); `Services/Rag/RagObservatory.cs` añade la calidad del asistente a `/observability`. `RagQueryService` registra ahora trazas `rag-*` y respeta `Rag:AuditContent` (sin él, la bitácora guarda solo un hash de la pregunta). 7 comprobaciones nuevas en `--inspector` y 7 en `--rag`. Sin LLM ni migración.
 - **AG-05 Auditor implementado (13/11/2026):** `Services/AuditInspector.cs` + panel de riesgos en Auditoría; intentos fallidos, accesos denegados, integridad, cambios administrativos, descargas y acciones frecuentes. 5 comprobaciones con `--audit` (92/92 en total). Sin LLM, sin escritura.
 
 ---
@@ -245,8 +246,8 @@ Reglas: categoría y departamento contra catálogo; confidencialidad contra los 
 | **AG-01** | **Catalogador** | Asistido | Sí | **MVP opt-in implementado** | Sugerencia manual en el formulario; sin escritura, con consentimiento y bloqueo de confidenciales con motor remoto. Cola/aprobaciones pendientes. |
 | AG-10 | Inspector | Determinista | No | **Implementado (informe)** | Informe de OCR pendiente, originales, metadatos, duplicados e integridad; sin LLM ni escritura. |
 | AG-05 | Auditor | Determinista | No | **Implementado (informe)** | Resumen de riesgos en la página de Auditoría: intentos fallidos, accesos denegados, integridad, cambios administrativos y descargas; sin LLM. |
-| AG-06 | Observador | Determinista | No | Fase 3 (informe SQL) | `AgentTraces` sin contenido; métricas SQL bastan. |
-| AG-03 | Recuperador | Determinista | Opcional | Posponer | Corpus de 9 documentos; una llamada más no se justifica. |
+| AG-06 | Observador | Determinista | No | **Implementado (informe RAG)** | Calidad del asistente en `/observability` a partir de `RAG_QUERY`: cobertura, confianza, rechazos AG-02, fallos del motor, latencia y preguntas sin respuesta fiable. |
+| AG-03 | Recuperador | Determinista | Opcional | **Cubierto por el pipeline RAG** | Recuperación híbrida por fragmentos, reranking y verificación en `Services/Rag`; no requiere un agente aparte. |
 | AG-07 | Archivista | Determinista | No | Posponer | No hay campos de retención ni política aprobada. |
 | AG-08 | Migrador | Determinista | Opcional | Posponer | `LegacyImport` y el hash ya resuelven; solo si la migración se repite. |
 | AG-09 | Guía | Asistido | Sí | **Descartar** | Ayuda estática; un LLM que explique la app alucina y cuesta. |
@@ -267,7 +268,7 @@ Reglas: categoría y departamento contra catálogo; confidencialidad contra los 
 | Visor/notas | Humano | — | No delegar escritura. |
 | Reportes | CSV/HTML deterministas | — | No convertir en agente. |
 | Auditoría | Bitácora + CSV | AG-05 | Implementado como resumen de riesgos determinista en la propia bitácora; sin LLM. |
-| Observabilidad | Panel de 500 trazas | AG-06 | Fase 3 como métricas SQL. |
+| Observabilidad | Panel de 500 trazas + calidad del asistente RAG | AG-06 | Implementado como métricas deterministas sobre la bitácora (15/11/2026). |
 | Administración/migración | `LegacyImport` | AG-08 | Posponer. |
 | Retención | Manual | AG-07 | Requiere política; no ahora. |
 | Ayuda | Documentación | AG-09 | Descartar. |

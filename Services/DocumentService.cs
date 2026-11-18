@@ -11,14 +11,26 @@ namespace DocuSearch.Services;
 
 public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, LocalSession session, PdfProcessor processor,
     EmbeddingIndexer? indexer = null, ILogger<DocumentService>? logger = null, PineconeSyncService? pinecone = null,
-    RagIngestionService? rag = null)
+    RagIngestionService? rag = null, ApprovalService? approvals = null)
 {
     private async Task<AppUser> ActorAsync(AppDbContext db)
     {
         if (!session.IsAuthenticated)
             throw new UnauthorizedAccessException("No hay una sesión autenticada. Inicia sesión para continuar.");
-        return await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == session.UserId && u.Status == "Activo")
+        // Al aplicar una solicitud aprobada se actúa como quien la pidió, revalidando que siga activo.
+        var userId = ApprovalContext.Current?.RequesterId ?? session.UserId;
+        return await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId && u.Status == "Activo")
             ?? throw new UnauthorizedAccessException("El usuario autenticado no existe o está inactivo. Vuelve a iniciar sesión.");
+    }
+
+    /// <summary>
+    /// Doble control: si la acción es sensible y está activado, registra la solicitud y lanza
+    /// <see cref="ApprovalPendingException"/> sin aplicar nada. Llamar tras comprobar permisos.
+    /// </summary>
+    private async Task GateAsync(string action, string entityType, string entityId, string label, object payload, string summary)
+    {
+        if (approvals is null || !approvals.Requires(action)) return;
+        await approvals.RequestAsync(action, entityType, entityId, label, payload, summary);
     }
 
     private static IQueryable<DocumentItem> Readable(AppDbContext db, AppUser actor)
@@ -31,7 +43,10 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
     private static void Audit(AppDbContext db, AppUser user, string action, string details, string? code = null, string status = "EXITOSO") =>
         db.Audit.Add(new AuditEvent
         {
-            UserName = user.Name, UserRole = user.Role, Action = action, Details = details,
+            UserName = user.Name, UserRole = user.Role, Action = action,
+            Details = ApprovalContext.Current is { } approved
+                ? $"{details} · Aprobado por {approved.ApproverName} (solicitud {approved.ApprovalId[..8]})."
+                : details,
             DocumentCode = code ?? "SYSTEM", Status = status
         });
 
@@ -233,6 +248,23 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
 
     public async Task EditAsync(DocumentItem edited)
     {
+        if (approvals is not null && approvals.Requires(SensitiveAction.DowngradeConfidentiality))
+        {
+            await using var db = await factory.CreateDbContextAsync();
+            var actor = await ActorAsync(db);
+            var current = await db.Documents.AsNoTracking().SingleOrDefaultAsync(d => d.Id == edited.Id);
+            if (current is not null && ApprovalRules.IsDowngrade(current.Confidentiality, edited.Confidentiality))
+            {
+                await RequireAsync(db, actor, Permissions.CanRead(actor, current) && Permissions.CanWrite(actor) &&
+                    Permissions.CanAssign(actor, edited.Department, edited.Confidentiality), "UPDATE");
+                ValidateDocument(edited);
+                await GateAsync(SensitiveAction.DowngradeConfidentiality, nameof(DocumentItem), current.Id,
+                    $"{current.InternalCode} {current.Title}",
+                    new DocumentEditPayload(edited.Title, edited.Author, edited.Department, edited.Category, edited.Version,
+                        edited.Confidentiality, edited.ExecutiveSummary, edited.Keywords, edited.Tags),
+                    $"De «{current.Confidentiality}» a «{edited.Confidentiality}». La edición completa queda en espera.");
+            }
+        }
         await MutateDocumentAsync(edited.Id, "UPDATE", async (db, actor, document) =>
         {
             await RequireAsync(db, actor, Permissions.CanAssign(actor, edited.Department, edited.Confidentiality), "UPDATE");
@@ -255,6 +287,15 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
 
     public async Task DeleteAsync(string id)
     {
+        if (approvals is not null && approvals.Requires(SensitiveAction.DeleteDocument))
+        {
+            await using var db = await factory.CreateDbContextAsync();
+            var actor = await ActorAsync(db);
+            var current = await db.Documents.AsNoTracking().SingleOrDefaultAsync(d => d.Id == id);
+            await RequireAsync(db, actor, current is not null && Permissions.CanRead(actor, current) && Permissions.CanAdmin(actor), "DELETE");
+            await GateAsync(SensitiveAction.DeleteDocument, nameof(DocumentItem), id, $"{current!.InternalCode} {current.Title}",
+                new { }, $"Eliminación definitiva del expediente, su PDF y sus índices ({current.PageCount} páginas).");
+        }
         await MutateDocumentAsync(id, "DELETE", async (db, actor, document) =>
         {
             await RequireAsync(db, actor, Permissions.CanAdmin(actor), "DELETE");
@@ -306,6 +347,52 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
         await TryIndexRagAsync(id);
     }
 
+    /// <summary>Máximo de expedientes por reindexado desde la interfaz.</summary>
+    public const int MaxReindexBatch = 100;
+
+    /// <summary>
+    /// Reconstruye los índices (páginas, Pinecone y fragmentos RAG) de los expedientes indicados.
+    /// Solo administración general; no cambia el contenido de los expedientes y se registra en la bitácora.
+    /// </summary>
+    public async Task<(int Reindexed, int Failed)> ReindexAsync(IReadOnlyCollection<string> ids)
+    {
+        if (ids.Count == 0) return (0, 0);
+        if (ids.Count > MaxReindexBatch)
+            throw new ValidationException($"Se pueden reindexar hasta {MaxReindexBatch} expedientes por operación.");
+        await using var db = await factory.CreateDbContextAsync();
+        var actor = await ActorAsync(db);
+        await RequireAsync(db, actor, Permissions.CanAdmin(actor), "REINDEX");
+        var requested = ids.Distinct(StringComparer.Ordinal).ToList();
+        var targets = await Readable(db, actor).AsNoTracking()
+            .Where(document => requested.Contains(document.Id))
+            .Select(document => new { document.Id, document.InternalCode })
+            .ToListAsync();
+
+        var failed = new List<string>();
+        foreach (var target in targets)
+        {
+            try
+            {
+                if (indexer is { Enabled: true }) await indexer.IndexDocumentAsync(target.Id);
+                if (pinecone is { Enabled: true }) await pinecone.SyncDocumentAsync(target.Id);
+                if (rag is not null) await rag.IngestDocumentAsync(target.Id);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
+            {
+                failed.Add(target.InternalCode);
+                logger?.LogWarning("No se pudo reindexar el expediente {DocumentId} ({Error}).", target.Id, ex.GetType().Name);
+            }
+        }
+
+        var codes = string.Join(", ", targets.Select(target => target.InternalCode));
+        Audit(db, actor, "REINDEX",
+            TextAnalysis.Truncate($"Reindexado desde Calidad de {targets.Count} expediente(s): {codes}." +
+                (failed.Count > 0 ? $" Fallos: {string.Join(", ", failed)}." : ""), 2000),
+            status: failed.Count > 0 ? "ADVERTENCIA" : "EXITOSO");
+        await db.SaveChangesAsync();
+        return (targets.Count - failed.Count, failed.Count);
+    }
+
     public async Task AddNoteAsync(string id, string text, int page)
     {
         if (string.IsNullOrWhiteSpace(text) || text.Length > 4000) throw new ValidationException("La nota debe tener entre 1 y 4000 caracteres.");
@@ -346,6 +433,16 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
             throw new ValidationException("Rol o estado inválido.");
         if (input.Id == actor.Id && (delete || input.Status != "Activo" || input.Role != "admin_general"))
             throw new ValidationException("No puedes eliminar, desactivar ni degradar tu propio perfil de administrador.");
+        if (approvals is not null)
+        {
+            var previous = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == input.Id);
+            if (delete && previous is not null && approvals.Requires(SensitiveAction.DeleteUser))
+                await GateAsync(SensitiveAction.DeleteUser, nameof(AppUser), input.Id, $"{previous.Name} ({previous.Email})",
+                    previous, "Eliminación de la cuenta.");
+            if (!delete && previous is not null && previous.Role != input.Role && approvals.Requires(SensitiveAction.ChangeUserRole))
+                await GateAsync(SensitiveAction.ChangeUserRole, nameof(AppUser), input.Id, $"{previous.Name} ({previous.Email})",
+                    input, $"Rol: {Catalog.RoleLabel(previous.Role)} → {Catalog.RoleLabel(input.Role)}.");
+        }
         await using var tx = await db.Database.BeginTransactionAsync();
         await DatabaseSetup.LockAsync(db);
         actor = await ActorAsync(db);
@@ -429,6 +526,8 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
         await using var db = await factory.CreateDbContextAsync();
         var actor = await ActorAsync(db);
         await RequireAsync(db, actor, Permissions.CanAdmin(actor), "RESET");
+        await GateAsync(SensitiveAction.Reset, "SYSTEM", "RESET", "datos de ejemplo", new { },
+            "Borra expedientes, PDF, usuarios y departamentos actuales y restaura el seed. La bitácora se conserva.");
         await using var tx = await db.Database.BeginTransactionAsync();
         await DatabaseSetup.LockAsync(db);
         actor = await ActorAsync(db);

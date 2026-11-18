@@ -978,6 +978,82 @@ if (args.Contains("--inspector"))
         var empty = DocumentInspector.Analyze([]);
         Assert(empty.TotalDocuments == 0 && empty.Findings.Count == 0 && empty.Duplicates.Count == 0);
     }));
+
+    DocumentItem RagDoc(string code, params int[] textPages) => new()
+    {
+        InternalCode = code, Title = code, Department = "Tecnología & TI", Confidentiality = "Uso Interno",
+        Pages = textPages.Select(page => new DocumentPage(page, $"Texto de la página {page}", "", [])).ToList()
+    };
+    var indexedAt = new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
+    var ragOk = RagDoc("RAG-OK", 1, 2);
+    var ragGap = RagDoc("RAG-GAP", 1, 2, 3);
+    var ragMissing = RagDoc("RAG-MISSING", 1);
+    var ragOtherModel = RagDoc("RAG-MODEL", 1);
+    var ragNoModel = RagDoc("RAG-NOMODEL", 1);
+    var ragStale = RagDoc("RAG-STALE", 1);
+    var ragScanned = RagDoc("RAG-SCAN");
+    ragScanned.Pages = [new DocumentPage(1, "   ", "", [])];
+    var ragDocuments = new List<DocumentItem> { ragOk, ragGap, ragMissing, ragOtherModel, ragNoModel, ragStale, ragScanned };
+    var ragStats = new List<RagPageStat>
+    {
+        new(ragOk.Id, 1, "bge-m3", 1024, 2, indexedAt), new(ragOk.Id, 2, "bge-m3", 1024, 1, indexedAt),
+        new(ragGap.Id, 1, "bge-m3", 1024, 1, indexedAt),
+        new(ragOtherModel.Id, 1, "nomic-embed-text", 768, 3, indexedAt),
+        new(ragNoModel.Id, 1, "", 1024, 2, indexedAt),
+        new(ragStale.Id, 1, "bge-m3", 1024, 1, indexedAt)
+    };
+    var ragChanges = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["RAG-OK"] = indexedAt.AddMinutes(-1),
+        ["RAG-STALE"] = indexedAt.AddDays(2)
+    };
+    var pageIndexed = ragDocuments.Where(document => document != ragGap).Select(document => document.Id).ToHashSet();
+    var ragIndex = RagIndexInspector.Analyze(ragDocuments, ragStats, ragChanges, pageIndexed, "bge-m3", 1024);
+    IEnumerable<InspectionFinding> RagFindings(string code) => ragIndex.Findings.Where(finding => finding.DocumentCode == code);
+
+    await Check("Inspector RAG: expediente con texto sin fragmentos es un error", () => Sync(() =>
+    {
+        Assert(RagFindings("RAG-MISSING").Any(finding => finding.Kind == "rag-missing" && finding.Severity == "error"));
+        Assert(ragIndex.ReindexDocumentIds.Contains(ragMissing.Id));
+    }));
+    await Check("Inspector RAG: lista las páginas con texto sin fragmentos y el índice por página ausente", () => Sync(() =>
+    {
+        var gap = RagFindings("RAG-GAP").Single(finding => finding.Kind == "rag-page-gap");
+        Assert(gap.Detail.Contains("2, 3"), gap.Detail);
+        Assert(RagFindings("RAG-GAP").Any(finding => finding.Kind == "page-index-missing"));
+    }));
+    await Check("Inspector RAG: modelo o dimensiones distintos es error; sin modelo es informativo", () => Sync(() =>
+    {
+        var other = RagFindings("RAG-MODEL").Single(finding => finding.Kind == "rag-model");
+        Assert(other.Severity == "error" && other.Detail.Contains("nomic-embed-text/768"), other.Detail);
+        Assert(RagFindings("RAG-NOMODEL").Single(finding => finding.Kind == "rag-model").Severity == "info");
+    }));
+    await Check("Inspector RAG: detecta índice anterior al último cambio de texto", () => Sync(() =>
+    {
+        Assert(RagFindings("RAG-STALE").Any(finding => finding.Kind == "rag-stale"));
+        Assert(!RagFindings("RAG-OK").Any(), "Un índice posterior a la carga no es un hallazgo");
+    }));
+    await Check("Inspector RAG: un escaneado sin texto no da falso positivo y no cuenta como indexable", () => Sync(() =>
+    {
+        Assert(!RagFindings("RAG-SCAN").Any());
+        Assert(ragIndex.IndexableDocuments == 6 && ragIndex.IndexedDocuments == 5 && ragIndex.TotalDocuments == 7);
+        Assert(ragIndex.TextPages == 9 && ragIndex.CoveredPages == 6 && ragIndex.TotalChunks == 10);
+        Assert(ragIndex.Findings[0].Severity == "error", "Los errores van primero");
+    }));
+    await Check("Inspector RAG: recomienda reindexar y queda correcto sin hallazgos", () => Sync(() =>
+    {
+        Assert(ragIndex.ReindexDocumentIds.Count == 5 && !ragIndex.ReindexDocumentIds.Contains(ragOk.Id));
+        Assert(ragIndex.Recommendation.Contains("Reindexa 5"), ragIndex.Recommendation);
+        var healthy = RagIndexInspector.Analyze([ragOk], ragStats, ragChanges, pageIndexed, "bge-m3", 1024);
+        Assert(healthy.Findings.Count == 0 && healthy.Recommendation.StartsWith("Índice correcto"), healthy.Recommendation);
+        Assert(RagIndexInspector.Analyze([ragOk], ragStats, null, null, "bge-m3", 1024, embeddingsEnabled: false)
+            .Recommendation.Contains("desactivados"));
+    }));
+    await Check("Inspector RAG: un escaneado con fragmentos antiguos se marca como desfasado", () => Sync(() =>
+    {
+        var report = RagIndexInspector.Analyze([ragScanned], [new(ragScanned.Id, 1, "bge-m3", 1024, 4, indexedAt)], null, null, "bge-m3", 1024);
+        Assert(report.Findings.Single().Kind == "rag-stale" && report.ReindexDocumentIds.Single() == ragScanned.Id);
+    }));
 }
 
 if (args.Contains("--catalog"))
@@ -1384,6 +1460,536 @@ if (args.Contains("--rag"))
         Assert(cases.Select(item => item.ExpectedDocumentId).Distinct().Count() == seed.Documents.Count,
             "El set debe cubrir todos los documentos del seed");
     });
+
+    RagQueryResponse Response(string outcome, long latency, params (string Code, double Score)[] sources) =>
+        new(new string('r', 3000), sources.Select((source, index) => new RagCitation(source.Code, "t", 1, index, source.Score, "")).ToList(),
+            outcome == RagOutcome.NoCoverage ? RagQueryService.NoCoverageEngine : "Ollama", latency, outcome);
+    var observedNow = new DateTimeOffset(2026, 11, 10, 12, 0, 0, TimeSpan.Zero);
+    AuditEvent RagEvent(string question, RagQueryResponse response, int minutesAgo, bool content = true) => new()
+    {
+        Action = "RAG_QUERY", TimestampUTC = observedNow.AddMinutes(-minutesAgo),
+        Details = RagQueryService.AuditDetails(question, response, content)
+    };
+
+    await Check("RAG auditoría: sin AuditContent no guarda la pregunta ni la respuesta", () => Sync(() =>
+    {
+        var response = Response(RagOutcome.Generated, 120, ("DOC-A", 0.8));
+        var hidden = RagQueryService.AuditDetails("¿Cuál es el salario confidencial?", response, auditContent: false);
+        Assert(!hidden.Contains("salario") && !hidden.Contains("rrr") && hidden.Contains("\"queryHash\""), hidden);
+        Assert(hidden.Contains("\"outcome\":\"generated\"") && hidden.Contains("\"topScore\":0.8"), hidden);
+        var visible = RagQueryService.AuditDetails("¿Cuál es el salario?", response, auditContent: true);
+        using var json = JsonDocument.Parse(visible);
+        Assert(json.RootElement.GetProperty("query").GetString() == "¿Cuál es el salario?");
+        Assert(json.RootElement.GetProperty("answer").GetString()!.Length <= RagQueryService.AuditAnswerChars + 1);
+    }));
+    await Check("RAG auditoría: el hash agrupa la misma pregunta con otra puntuación, mayúsculas o tildes", () => Sync(() =>
+    {
+        Assert(RagQueryService.QueryHash("¿Qué es la Acreditación?") == RagQueryService.QueryHash("que es la acreditacion"));
+        Assert(RagQueryService.QueryHash("¿Qué es la acreditación?") != RagQueryService.QueryHash("¿Qué es la evaluación?"));
+    }));
+
+    var observedEvents = new List<AuditEvent>
+    {
+        RagEvent("¿Dónde está el manual de vacaciones?", Response(RagOutcome.NoCoverage, 40), 10),
+        RagEvent("donde esta el manual de vacaciones", Response(RagOutcome.NoCoverage, 50), 20),
+        RagEvent("¿Dónde está el MANUAL de vacaciones?", Response(RagOutcome.NoCoverage, 60), 30, content: false),
+        RagEvent("¿Cuál es la política de viajes?", Response(RagOutcome.Generated, 900, ("DOC-A", 0.15)), 40),
+        RagEvent("¿Qué dice el contrato?", Response(RagOutcome.Generated, 1000, ("DOC-A", 0.9), ("DOC-SECRETO", 0.7)), 50),
+        RagEvent("¿Qué dice el informe?", Response(RagOutcome.EngineFallback, 300, ("DOC-B", 0.8)), 60),
+        new() { Action = "RAG_QUERY", TimestampUTC = observedNow.AddMinutes(-70), Details = "{no es json" },
+        new()
+        {
+            Action = "RAG_QUERY", TimestampUTC = observedNow.AddMinutes(-80),
+            Details = """{"query":"antigua","answer":"x","engine":"extractivo · verificación AG-02","latencyMs":200,"sources":[{"documentCode":"DOC-B","pageNumber":1,"chunkIndex":0,"score":0.6}]}"""
+        },
+        RagEvent("fuera del periodo", Response(RagOutcome.Generated, 10, ("DOC-A", 0.9)), 60 * 24 * 10)
+    };
+    var readableCodes = new[] { "DOC-A", "DOC-B", "DOC-C" };
+    var observed = RagObservatory.Analyze(observedEvents, readableCodes, observedNow.AddDays(-7), observedNow, showQuestions: true);
+
+    await Check("RAG Observador: clasifica resultados, ignora JSON roto y entiende eventos antiguos", () => Sync(() =>
+    {
+        Assert(observed.Queries == 7 && observed.Ignored == 1, $"{observed.Queries}/{observed.Ignored}");
+        Assert(observed.Count(RagOutcome.NoCoverage) == 3 && observed.Count(RagOutcome.Generated) == 2);
+        Assert(observed.Count(RagOutcome.EngineFallback) == 1 && observed.Count(RagOutcome.VerificationFailed) == 1);
+        Assert(observed.LowConfidence == 1 && Math.Abs(observed.Rate(RagOutcome.NoCoverage) - 3.0 / 7) < 1e-9);
+    }));
+    await Check("RAG Observador: agrupa las preguntas sin cobertura aunque una no guarde texto", () => Sync(() =>
+    {
+        Assert(observed.GapQuestionsTotal == 2, observed.GapQuestionsTotal.ToString());
+        var top = observed.Gaps[0];
+        Assert(top.Count == 3 && top.Reason == "sin cobertura" && top.Question == "¿Dónde está el manual de vacaciones?", top.ToString());
+        Assert(observed.Gaps[1].Reason == "baja confianza");
+        var hidden = RagObservatory.Analyze(observedEvents, readableCodes, observedNow.AddDays(-7), observedNow, showQuestions: false);
+        Assert(hidden.Gaps.All(gap => gap.Question is null) && !hidden.QuestionsVisible && hidden.GapQuestionsTotal == 2);
+    }));
+    await Check("RAG Observador: uso de expedientes solo con códigos legibles", () => Sync(() =>
+    {
+        Assert(observed.TopDocuments[0] == new RagDocumentUsage("DOC-A", 2), observed.TopDocuments[0].ToString());
+        Assert(observed.TopDocuments.All(usage => usage.DocumentCode != "DOC-SECRETO"));
+        Assert(observed.NeverCited.SequenceEqual(["DOC-C"]) && observed.NeverCitedTotal == 1);
+    }));
+    await Check("RAG Observador: latencia p50/p95 por motor y serie diaria", () => Sync(() =>
+    {
+        var ollama = observed.Latency.Single(engine => engine.Engine == "Ollama");
+        Assert(ollama.Queries == 3 && ollama.P50Ms == 900 && ollama.P95Ms == 1000, ollama.ToString());
+        Assert(observed.Daily.Sum(day => day.Queries) == 7 && observed.Daily.Sum(day => day.NoCoverage) == 3);
+    }));
+    await Check("Chat: el formato extractivo se convierte en fragmentos citados y aviso", () => Sync(() =>
+    {
+        var blocks = AnswerFormatter.Format("Primer fragmento\ncon dos líneas\n[CNT-2026-ABC123, p. 2]\n\nOtro texto\n[POL-2025-0012, p. 1]\n\nRespuesta extractiva con citas verificables.");
+        Assert(blocks.Count == 3 && blocks[0] is AnswerExcerpt { Code: "CNT-2026-ABC123", Page: 2 } first &&
+            string.Concat(first.Content.Select(part => part.Text)) == "Primer fragmento con dos líneas", string.Join(" | ", blocks));
+        Assert(blocks[1] is AnswerExcerpt { Code: "POL-2025-0012", Page: 1 } && blocks[2] is AnswerNote);
+    }));
+    await Check("Chat: Markdown del modelo a encabezado, lista con negrita y cita, y tabla", () => Sync(() =>
+    {
+        var blocks = AnswerFormatter.Format("## Resumen\n- **Plazo**: 30 días [1]\n- Sin penalización\n\n| Concepto | Monto |\n|---|---:|\n| Licencia | 500 € |\n| Soporte | 200 € |");
+        Assert(blocks[0] is AnswerHeading && blocks[1] is AnswerList { Ordered: false, Items.Count: 2 } list &&
+            list.Items[0].Any(part => part.Kind == AnswerInlineKind.Bold && part.Text == "Plazo") &&
+            list.Items[0].Any(part => part.Kind == AnswerInlineKind.Citation && part.Index == 1), string.Join(" | ", blocks));
+        Assert(blocks[2] is AnswerTable { Headers.Count: 2, Rows.Count: 2 } table && table.Rows[1][1][0].Text == "200 €");
+    }));
+    await Check("Chat: entidades, listados y fichas se tabulan", () => Sync(() =>
+    {
+        var entities = AnswerFormatter.Format("MONEY: 500 € — [FIN-2024-Q4-01, p. 3]\nDATE: 2024 — [FIN-2024-Q4-01, p. 1]");
+        Assert(entities.Single() is AnswerTable { Rows.Count: 2 } money && money.Headers.SequenceEqual(["Tipo", "Valor", "Fuente"]) &&
+            money.Rows[0][0][0].Text == "Monto" && money.Rows[0][2][0] is { Kind: AnswerInlineKind.Citation, Code: "FIN-2024-Q4-01", Page: 3 });
+        var listing = AnswerFormatter.Format("2 expediente(s) accesible(s).\nCNT-2026-AAA — Contrato marco (Uso Interno)\nPOL-2025-0012 — Política (Público)");
+        Assert(listing.Count == 2 && listing[0] is AnswerParagraph && listing[1] is AnswerTable { Rows.Count: 2, Headers.Count: 3 }, string.Join(" | ", listing));
+        var card = AnswerFormatter.Format("CNT-2026-AAA — Contrato marco\nAutor: Ana\nDepartamento: Legal\n\nResumen del contrato.");
+        Assert(card.Count == 3 && card[0] is AnswerHeading && card[1] is AnswerTable { Rows.Count: 2 } && card[2] is AnswerParagraph, string.Join(" | ", card));
+    }));
+    LocalSession MemorySession(string userId, string sessionId)
+    {
+        var session = new LocalSession();
+        session.SignIn(new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, userId), new Claim(AuthService.SessionClaim, sessionId)], "checks")));
+        return session;
+    }
+    MemoryTurn Turn(bool user, string text, params MemorySource[] sources) => new(user, text, "test", false, DateTimeOffset.UtcNow, sources);
+
+    await Check("Memoria: la conversación sobrevive entre páginas y caduca a las 24 h", () => Sync(() =>
+    {
+        var clock = new ManualClock { Now = DateTimeOffset.UtcNow };
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var memory = new AssistantMemory(cache, clock);
+        var session = MemorySession("usr-a", "login-1");
+        var expires = memory.AddTurn(session, Turn(true, "¿Qué plazo tiene el contrato?"));
+        memory.AddTurn(session, Turn(false, "30 días", new MemorySource("doc-1", 2, "fragmento", 80)));
+        memory.SetFocus(session, "CNT-2026-AAA");
+        Assert(expires == clock.Now + AssistantMemory.Lifetime);
+        // Otra instancia del componente (cambio de página) lee la misma conversación.
+        var restored = memory.GetConversation(MemorySession("usr-a", "login-1"));
+        Assert(restored.Turns.Count == 2 && restored.FocusDocumentCode == "CNT-2026-AAA" && restored.Turns[1].Sources[0].DocumentId == "doc-1");
+        clock.Now = clock.Now.AddHours(23);
+        Assert(memory.GetConversation(session).Turns.Count == 2, "Antes de 24 h sigue disponible");
+        clock.Now = clock.Now.AddHours(1).AddMinutes(1);
+        Assert(memory.GetConversation(session).Turns.Count == 0 && memory.GetConversation(session).ExpiresUtc is null, "A las 24 h se borra");
+    }));
+    await Check("Memoria: aislada por usuario e inicio de sesión; se borra al cerrar sesión o a mano", () => Sync(() =>
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var memory = new AssistantMemory(cache);
+        var first = MemorySession("usr-a", "login-1");
+        memory.AddTurn(first, Turn(true, "pregunta"));
+        memory.SaveSearch(first, new SearchMemory("ISO 27001", false, 10, "", "", "", "", ["ISO 27001", "ISO 27001", "SLA"]));
+        Assert(memory.GetConversation(MemorySession("usr-b", "login-1")).Turns.Count == 0, "Otro usuario no la ve");
+        Assert(memory.GetConversation(MemorySession("usr-a", "login-2")).Turns.Count == 0, "Un nuevo inicio de sesión empieza vacío");
+        Assert(memory.GetSearch(first)!.History.SequenceEqual(["ISO 27001", "SLA"]));
+        memory.ClearConversation(first);
+        Assert(memory.GetConversation(first).Turns.Count == 0 && memory.GetSearch(first) is not null, "«Nueva conversación» no borra el buscador");
+        memory.AddTurn(first, Turn(true, "otra"));
+        memory.ClearSession("usr-a", "login-1");
+        Assert(memory.GetConversation(first).Turns.Count == 0 && memory.GetSearch(first) is null, "El cierre de sesión borra todo");
+        Throws<UnauthorizedAccessException>(() => memory.GetConversation(new LocalSession()));
+    }));
+    await Check("Memoria: limita el número de turnos guardados", () => Sync(() =>
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var memory = new AssistantMemory(cache);
+        var session = MemorySession("usr-a", "login-1");
+        for (var i = 0; i < AssistantMemory.MaxTurns + 5; i++) memory.AddTurn(session, Turn(true, $"p{i}"));
+        var turns = memory.GetConversation(session).Turns;
+        Assert(turns.Count == AssistantMemory.MaxTurns && turns[0].Text == "p5");
+    }));
+    await Check("Memoria conversacional: completa las preguntas de seguimiento", () => Sync(() =>
+    {
+        Assert(ConversationContext.IsFollowUp("¿Y el plazo?"));
+        Assert(ConversationContext.IsFollowUp("Resume ese documento por favor"));
+        Assert(!ConversationContext.IsFollowUp("¿Qué contratos tienen penalizaciones por incumplimiento del SLA?"));
+        Assert(!ConversationContext.IsFollowUp("¿Qué norma está vigente para el teletrabajo en la empresa?"), "«está» no es demostrativo");
+        Assert(!ConversationContext.IsFollowUp("Resume ese documento CNT-2026-AAA"), "Si nombra un expediente es autónoma");
+        IReadOnlyList<MemoryTurn> history = [Turn(true, "¿Qué plazo de preaviso fija el contrato marco?"), Turn(false, "30 días")];
+        var hint = ConversationContext.Build("¿Y la penalización?", history, "CNT-2026-AAA");
+        Assert(hint.IsFollowUp && hint.RetrievalQuery.StartsWith("¿Qué plazo de preaviso") && hint.RetrievalQuery.EndsWith("¿Y la penalización?"));
+        Assert(hint.GenerationQuestion.StartsWith("¿Y la penalización?") && hint.GenerationQuestion.Contains("CNT-2026-AAA") && hint.FocusDocumentCode == "CNT-2026-AAA");
+        var standalone = ConversationContext.Build("¿Y la penalización?", [], "CNT-2026-AAA");
+        Assert(!standalone.IsFollowUp && standalone.RetrievalQuery == "¿Y la penalización?" && standalone.FocusDocumentCode is null);
+    }));
+    await Check("Síntesis: detecta resumen, análisis, varios documentos y preguntas sin tema", () => Sync(() =>
+    {
+        var bare = DocumentSynthesis.Detect("Resumen");
+        Assert(bare.Style == AnswerStyle.Summary && bare.Bare && !bare.MultiDocument);
+        var contracts = DocumentSynthesis.Detect("Hazme un análisis de los contratos de nube");
+        Assert(contracts.Style == AnswerStyle.Analysis && contracts.MultiDocument && !contracts.Bare);
+        var named = DocumentSynthesis.Detect("Resume CNT-2026-AAA y POL-2025-0012");
+        Assert(named.Style == AnswerStyle.Summary && named.MultiDocument && named.Codes.SequenceEqual(["CNT-2026-AAA", "POL-2025-0012"]) && !named.Bare);
+        var related = DocumentSynthesis.Detect("resume ese documento y sus relacionados");
+        Assert(related.Style == AnswerStyle.Summary && related.Bare && related.WantsRelated);
+        Assert(DocumentSynthesis.Detect("Compara las políticas de teletrabajo") is { Style: AnswerStyle.Analysis, MultiDocument: true, Bare: false });
+        Assert(DocumentSynthesis.Detect("¿Qué plazo de preaviso tiene el contrato?").Style == AnswerStyle.Default);
+        Assert(DocumentSynthesis.Detect("¿Qué prueba estadística se empleó para comparar las medias de las variables estudiadas?").Style == AnswerStyle.Default,
+            "Un verbo en mitad de una pregunta concreta no la convierte en análisis");
+        Assert(DocumentSynthesis.Detect("¿Qué tienen en común los contratos?").Style == AnswerStyle.Analysis);
+        Assert(DocumentSynthesis.Detect("¿Me puedes resumir las políticas de seguridad?").Style == AnswerStyle.Summary);
+        Assert(DocumentSynthesis.Detect("¿Qué diferencias hay entre los contratos? Explica las diferencias entre ambos").Style == AnswerStyle.Analysis);
+        Assert(DocumentSynthesis.Detect("¿Qué variable mostró diferencias significativas en los puntajes?").Style == AnswerStyle.Default);
+    }));
+
+    DocumentItem SynthesisDoc(string code, string category, string[] keywords, params string[] pages) => new()
+    {
+        InternalCode = code, Title = $"Título {code}", Author = "Pruebas", Department = "Legal", Category = category,
+        Confidentiality = "Uso Interno", ExecutiveSummary = $"El documento {code} regula el servicio. Fija plazos y responsables. Incluye anexos.",
+        Keywords = keywords, PageCount = pages.Length, UploadDate = new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero),
+        Pages = pages.Select((text, index) => new DocumentPage(index + 1, text, text.Split('.')[0] + ".",
+            index == 0 ? [new DocumentEntity("e1", "500 €", "MONEY", 1)] : [])).ToList()
+    };
+    var synthA = SynthesisDoc("CNT-2026-AAA", "Contrato", ["nube", "sla", "soporte"],
+        "Contrato de nube. Disponibilidad del 99,9 %.", "Penalizaciones por incumplimiento del SLA.", "Soporte 24x7 con respuesta en 4 horas.");
+    var synthB = SynthesisDoc("POL-2025-0012", "Política & Norma", ["nube", "seguridad", "sla"],
+        "Política de uso de la nube.", "Clasificación de datos.", "Copias de seguridad diarias.", "Revisión anual de la política.");
+    RagHit SynthesisHit(DocumentItem document, int page, double score) =>
+        new(new RagChunk($"{document.Id}:{page}", document.Id, document.InternalCode, "sql", page, page - 1, 0, 10,
+            document.Pages[page - 1].ExtractedText, "h"), score);
+
+    await Check("Síntesis: las preguntas concretas de los sets de evaluación siguen la vía normal", async () =>
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "eval"))) directory = directory.Parent;
+        var files = Directory.GetFiles(Path.Combine(directory!.FullName, "eval"), "rag_questions*.json");
+        Assert(files.Length >= 2);
+        foreach (var file in files)
+            foreach (var item in JsonSerializer.Deserialize<List<RagEvalCase>>(await File.ReadAllTextAsync(file),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!)
+                Assert(DocumentSynthesis.Detect(item.Question).Style == AnswerStyle.Default, $"{Path.GetFileName(file)} {item.Id}: {item.Question}");
+    });
+    await Check("Síntesis: elige los documentos relacionados por cercanía al mejor resultado", () => Sync(() =>
+    {
+        var hits = new List<RagHit> { SynthesisHit(synthA, 2, 0.9), SynthesisHit(synthB, 1, 0.7), SynthesisHit(synthA, 3, 0.5),
+            new(new RagChunk("x:1", "doc-lejano", "X", "sql", 1, 0, 0, 1, "t", "h"), 0.3) };
+        Assert(DocumentSynthesis.RankDocuments(hits).SequenceEqual([synthA.Id, synthB.Id]));
+        Assert(DocumentSynthesis.RankDocuments(hits, max: 1).SequenceEqual([synthA.Id]));
+        Assert(DocumentSynthesis.RankDocuments(hits, relative: 0.8).SequenceEqual([synthA.Id]));
+        Assert(DocumentSynthesis.RankDocuments([]).Count == 0);
+    }));
+    await Check("Síntesis: reparte hasta 6 páginas distintas entre documentos y el Verificador las acepta", () => Sync(() =>
+    {
+        var byDocument = new Dictionary<string, IReadOnlyList<RagHit>>
+        {
+            [synthA.Id] = [SynthesisHit(synthA, 2, 0.9), SynthesisHit(synthA, 2, 0.8), SynthesisHit(synthA, 3, 0.6)]
+        };
+        var sources = DocumentSynthesis.SelectSources([synthA, synthB], byDocument);
+        Assert(sources.Count == 6 && sources.DistinctBy(source => (source.Document.Id, source.PageNumber)).Count() == 6);
+        Assert(sources[0].Document == synthA && sources[0].PageNumber == 2 && sources[1].Document == synthB && sources[1].PageNumber == 1,
+            "Turnos: primero la página donde se encontró la consulta, luego la primera página del otro documento");
+        Assert(sources.Count(source => source.Document == synthA) == 3 && sources.Count(source => source.Document == synthB) == 3);
+        Assert(AgentVerifier.Verify(new AgentAnswer("Resumen [1]", sources), [synthA, synthB], admin).IsValid);
+        Assert(DocumentSynthesis.SelectSources([SynthesisDoc("SCN-2026-001", "Contrato", [], "  ")], byDocument).Count == 0,
+            "Un escaneado sin texto no aporta fuentes");
+    }));
+    await Check("Síntesis: resumen extractivo de varios documentos en lenguaje natural", () => Sync(() =>
+    {
+        var sources = DocumentSynthesis.SelectSources([synthA, synthB], new Dictionary<string, IReadOnlyList<RagHit>>());
+        var text = DocumentSynthesis.Compose(AnswerStyle.Summary, [synthA, synthB], sources);
+        Assert(text.StartsWith("He revisado 2 documentos relacionados con tu consulta: **CNT-2026-AAA** y **POL-2025-0012**."), text);
+        Assert(text.Contains("**En común:** tratan temas compartidos como nube y sla.") && text.Contains("[POL-2025-0012, p. 1]"), text);
+        var blocks = AnswerFormatter.Format(text);
+        Assert(blocks.OfType<AnswerParagraph>().Count() == 4 && blocks[^1] is AnswerNote, string.Join(" | ", blocks));
+        Assert(blocks.OfType<AnswerParagraph>().Any(paragraph => paragraph.Content.Any(part => part is { Kind: AnswerInlineKind.Citation, Code: "CNT-2026-AAA" })));
+    }));
+    await Check("Síntesis: análisis con diferencias y datos a tener en cuenta; resumen de un solo documento", () => Sync(() =>
+    {
+        var analysis = DocumentSynthesis.Compose(AnswerStyle.Analysis, [synthA, synthB], []);
+        Assert(analysis.Contains("**Diferencias:** CNT-2026-AAA es contrato; POL-2025-0012 es política & norma.") &&
+            analysis.Contains("**A tener en cuenta:** en total mencionan 2 importe(s)"), analysis);
+        var single = DocumentSynthesis.Compose(AnswerStyle.Summary, [synthA], []);
+        Assert(single.StartsWith("**CNT-2026-AAA · Título CNT-2026-AAA** es un contrato del área de Legal, de 3 página(s).") &&
+            !single.Contains("En común"), single);
+        var overview = DocumentSynthesis.Compose(AnswerStyle.Summary, [synthA, synthB], [], totalAvailable: 9);
+        Assert(overview.StartsWith("Tienes acceso a 9 expedientes. Este es un resumen de los 2 más relevantes"), overview);
+        Assert(DocumentSynthesis.Gist(new DocumentItem()).Contains("OCR"));
+        Assert(DocumentSynthesis.Gist(new DocumentItem { ExecutiveSummary = string.Join(" ", Enumerable.Repeat("Frase larga de prueba sin fin.", 40)) }).Length
+            <= DocumentSynthesis.MaxGistChars + 1);
+    }));
+    await Check("Síntesis: el prompt pide lenguaje natural y cabe en el límite de los workers", () => Sync(() =>
+    {
+        foreach (var style in Enum.GetValues<AnswerStyle>()) Assert(AssistantPrompt.For(style).Length < 4000, style.ToString());
+        Assert(AssistantPrompt.For(AnswerStyle.Summary).Contains("lenguaje natural") && AssistantPrompt.For(AnswerStyle.Analysis).Contains("Diferencias:"));
+        Assert(AssistantPrompt.For(AnswerStyle.Default).Contains("breve") && AssistantPrompt.For(AnswerStyle.Default).StartsWith(AssistantPrompt.System));
+    }));
+    await Check("Chat: el marcado de un documento se conserva como texto", () => Sync(() =>
+    {
+        var blocks = AnswerFormatter.Format("<script>alert(1)</script> texto");
+        Assert(blocks.Single() is AnswerParagraph { Content: [{ Kind: AnswerInlineKind.Text } part] } && part.Text.StartsWith("<script>"));
+        Assert(AnswerFormatter.Format("   ").Count == 0);
+    }));
+    await Check("RAG Observador: periodo vacío", () => Sync(() =>
+    {
+        var empty = RagObservatory.Analyze([], readableCodes, observedNow.AddDays(-7), observedNow, true);
+        Assert(empty.Queries == 0 && empty.Rate(RagOutcome.NoCoverage) == 0 && empty.Gaps.Count == 0 && empty.NeverCitedTotal == 3);
+    }));
+}
+
+if (args.Contains("--governance"))
+{
+    var auditActor = new AuditActor("Ana Admin", "admin_general", "10.0.0.7");
+    var auditNow = new DateTimeOffset(2026, 11, 15, 10, 0, 0, TimeSpan.Zero);
+    AuditChange TitleChange() => new(nameof(DocumentItem), "doc-1", "UPDATE",
+        new Dictionary<string, string?> { ["Title"] = "Antes", ["InternalCode"] = "CNT-2026-AAA" },
+        new Dictionary<string, string?> { ["Title"] = "Después", ["InternalCode"] = "CNT-2026-AAA" });
+
+    await Check("Gobernanza bitácora: completa el evento instrumentado con entidad, antes/después e IP", () => Sync(() =>
+    {
+        var explicitEvent = new AuditEvent { Action = "UPDATE", UserName = "Ana Admin", Details = "UPDATE: x" };
+        var added = AuditTrail.Apply([TitleChange()], [explicitEvent], auditActor, auditNow);
+        Assert(added.Count == 0, "No duplica eventos si la operación ya está auditada");
+        Assert(explicitEvent.Entity == nameof(DocumentItem) && explicitEvent.EntityId == "doc-1" && explicitEvent.Ip == "10.0.0.7");
+        Assert(explicitEvent.Before!.Contains("Antes") && explicitEvent.After!.Contains("Después"));
+    }));
+    await Check("Gobernanza bitácora: registra mutaciones no instrumentadas", () => Sync(() =>
+    {
+        var added = AuditTrail.Apply([TitleChange()], [], auditActor, auditNow);
+        var item = added.Single();
+        Assert(item.Action == "DATA.UPDATE" && item.UserName == "Ana Admin" && item.DocumentCode == "CNT-2026-AAA" &&
+            item.TimestampUTC == auditNow && item.Before!.Contains("Antes"), item.Details);
+        Assert(AuditTrail.Apply([], [], auditActor, auditNow).Count == 0);
+    }));
+    await Check("Gobernanza bitácora: el antes/después se acota a 4 KB", () => Sync(() =>
+    {
+        var big = new Dictionary<string, string?> { ["ExecutiveSummary"] = new string('x', 9000) };
+        Assert(AuditTrail.Snapshot(big)!.Length == AuditTrail.MaxSnapshotChars);
+        Assert(AuditTrail.Snapshot(new Dictionary<string, string?>()) is null);
+    }));
+    await Check("Gobernanza bitácora: detecta cambios reales con el modelo EF y omite texto y binarios", () => Sync(() =>
+    {
+        using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer("Server=(local);Database=sin_conexion;Trusted_Connection=True").Options);
+        var document = new DocumentItem { Id = "doc-9", InternalCode = "CNT-2026-ZZZ", Title = "Original", Author = "A", Department = "Legal",
+            Category = "Contrato", Confidentiality = "Confidencial", Pages = [new DocumentPage(1, "texto secreto", "", [])] };
+        context.Attach(document);
+        document.Title = "Nuevo";
+        document.Confidentiality = "Público";
+        document.Pages = [new DocumentPage(1, "otro texto secreto", "", [])];
+        context.ChangeTracker.DetectChanges();
+        var change = GovernanceAuditInterceptor.Describe(context.Entry(document))!;
+        Assert(change.Operation == "UPDATE" && change.EntityId == "doc-9");
+        Assert(change.Before!["Title"] == "Original" && change.After!["Title"] == "Nuevo" && change.After["Confidentiality"] == "Público");
+        Assert(!change.After!.ContainsKey(nameof(DocumentItem.PagesJson)) && !string.Join(" ", change.After.Values).Contains("secreto"),
+            "El texto de las páginas nunca va a la bitácora");
+        var user = new AppUser { Id = "usr-9", Name = "Nuevo", Email = "n@example.com", Role = "consultor", Department = "Legal" };
+        context.Add(user);
+        context.ChangeTracker.DetectChanges();
+        var insert = GovernanceAuditInterceptor.Describe(context.Entry(user))!;
+        Assert(insert.Operation == "INSERT" && insert.Before is null && insert.After!["Role"] == "consultor");
+    }));
+    await Check("Gobernanza bitácora: filtros por acción, entidad, usuario, estado, fechas y texto", () => Sync(() =>
+    {
+        var events = new List<AuditEvent>
+        {
+            new() { Action = "UPDATE", Entity = "DocumentItem", EntityId = "doc-1", UserName = "Ana", Status = "EXITOSO", TimestampUTC = auditNow, Details = "cambio de título" },
+            new() { Action = "approval.requested", Entity = "ApprovalRequest", EntityId = "apr-1", UserName = "Ana", Status = "EXITOSO", TimestampUTC = auditNow.AddDays(-2), Details = "borrado" },
+            new() { Action = "ACCESS_DENIED", UserName = "Luis", Status = "DENEGADO", TimestampUTC = auditNow.AddDays(-10), Details = "Operación denegada" }
+        }.AsQueryable();
+        Assert(AuditQuery.Apply(events, new AuditFilter(Entity: "DocumentItem")).Single().EntityId == "doc-1");
+        Assert(AuditQuery.Apply(events, new AuditFilter(Actor: "Ana")).Count() == 2);
+        Assert(AuditQuery.Apply(events, new AuditFilter(Status: "DENEGADO")).Single().UserName == "Luis");
+        Assert(AuditQuery.Apply(events, new AuditFilter(From: auditNow.AddDays(-3))).Count() == 2);
+        Assert(AuditQuery.Apply(events, new AuditFilter(Text: "apr-1")).Single().Action == "approval.requested");
+        Assert(AuditQuery.Apply(events, new AuditFilter(Action: "UPDATE", To: auditNow.AddDays(-1))).Count() == 0);
+    }));
+
+    var governanceOn = new GovernanceOptions { ApprovalsEnabled = true };
+    var requester = new AppUser { Id = "usr-admin", Role = "admin_general" };
+    var reviewer = new AppUser { Id = "usr-audit", Role = "auditor" };
+    ApprovalRequest Pending() => new() { RequestedById = requester.Id, Status = ApprovalStatus.Pending, ExpiresUtc = auditNow.AddHours(72) };
+
+    await Check("Gobernanza aprobaciones: apagado por defecto, también en appsettings", () => Sync(() =>
+    {
+        var defaults = new GovernanceOptions();
+        Assert(!defaults.ApprovalsEnabled && !defaults.SchedulerEnabled && !ApprovalRules.Requires(defaults, SensitiveAction.DeleteDocument));
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "appsettings.json"))) directory = directory.Parent;
+        using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory!.FullName, "appsettings.json")));
+        var governance = json.RootElement.GetProperty("Governance");
+        Assert(!governance.GetProperty("ApprovalsEnabled").GetBoolean() && !governance.GetProperty("SchedulerEnabled").GetBoolean());
+    }));
+    await Check("Gobernanza aprobaciones: solo las acciones configuradas requieren doble control", () => Sync(() =>
+    {
+        Assert(SensitiveAction.All.All(action => ApprovalRules.Requires(governanceOn, action)));
+        Assert(!ApprovalRules.Requires(governanceOn, "UPLOAD"));
+        Assert(!ApprovalRules.Requires(new GovernanceOptions { ApprovalsEnabled = true, SensitiveActions = [SensitiveAction.Reset] }, SensitiveAction.DeleteDocument));
+    }));
+    await Check("Gobernanza aprobaciones: decide otra persona con rol autorizado y solo si sigue pendiente", () => Sync(() =>
+    {
+        Assert(ApprovalRules.DecisionError(reviewer, Pending(), auditNow) is null);
+        Assert(ApprovalRules.DecisionError(requester, Pending(), auditNow)!.Contains("propia"));
+        Assert(ApprovalRules.DecisionError(new AppUser { Id = "usr-x", Role = "gestor_documental" }, Pending(), auditNow) is not null);
+        var decided = Pending(); decided.Status = ApprovalStatus.Approved;
+        Assert(ApprovalRules.DecisionError(reviewer, decided, auditNow)!.Contains("aprobada"), "Doble decisión = conflicto (409)");
+        Assert(ApprovalRules.DecisionError(reviewer, Pending(), auditNow.AddHours(73))!.Contains("venció"));
+        Assert(ApprovalRules.DecisionError(new AppUser { Id = "usr-admin-2", Role = "admin_general" }, Pending(), auditNow) is null);
+    }));
+    await Check("Gobernanza aprobaciones: solo bajar la confidencialidad es sensible", () => Sync(() =>
+    {
+        Assert(ApprovalRules.IsDowngrade("Confidencial", "Uso Interno") && ApprovalRules.IsDowngrade("Estrictamente Secreto", "Público"));
+        Assert(!ApprovalRules.IsDowngrade("Uso Interno", "Confidencial") && !ApprovalRules.IsDowngrade("Público", "Público"));
+        Assert(!ApprovalRules.IsDowngrade("Desconocido", "Público"));
+    }));
+    await Check("Gobernanza aprobaciones: la respuesta pendiente explica que no se aplicó nada", () => Sync(() =>
+    {
+        var request = new ApprovalRequest { Action = SensitiveAction.DeleteDocument, EntityLabel = "CNT-2026-AAA Contrato" };
+        Assert(new ApprovalPendingException(request, false).Message.Contains("No se aplicará"));
+        Assert(new ApprovalPendingException(request, true).Message.Contains("Ya hay una solicitud pendiente"));
+        Assert(ApprovalContext.Current is null);
+    }));
+
+    await Check("Gobernanza rutinas: tres rutinas, vencimiento, pausa y siguiente ejecución", () => Sync(() =>
+    {
+        Assert(RoutineSchedule.Specs.Select(spec => spec.Key).SequenceEqual([RoutineSchedule.Scan, RoutineSchedule.DailySummary, RoutineSchedule.Cleanup]));
+        var routine = new RoutineDefinition { Key = RoutineSchedule.Scan, IntervalMinutes = 60, Enabled = true, NextRunUtc = auditNow };
+        Assert(RoutineSchedule.IsDue(routine, auditNow) && !RoutineSchedule.IsDue(routine, auditNow.AddMinutes(-1)));
+        Assert(RoutineSchedule.IsDue(new RoutineDefinition { Enabled = true }, auditNow), "Sin próxima fecha se ejecuta en el siguiente ciclo");
+        routine.Enabled = false;
+        Assert(!RoutineSchedule.IsDue(routine, auditNow.AddDays(1)), "Una rutina en pausa no se ejecuta");
+        Assert(RoutineSchedule.Next(routine, auditNow) == auditNow.AddMinutes(60));
+        Assert(RoutineSchedule.Bound(new string('x', 5000)).Length == RoutineSchedule.MaxOutputChars);
+        Assert(RoutineSchedule.Specs.Single(spec => spec.Key == RoutineSchedule.Cleanup).Description.Contains("bitácora no se borra"));
+    }));
+}
+
+if (args.Contains("--ai"))
+{
+    await Check("Consumo IA: periodo = mes calendario UTC, también en los bordes", () => Sync(() =>
+    {
+        Assert(AiBudgetMath.CurrentPeriod(new DateTimeOffset(2026, 11, 30, 23, 59, 59, TimeSpan.FromHours(-5))) == "2026-12");
+        Assert(AiBudgetMath.CurrentPeriod(new DateTimeOffset(2026, 12, 1, 0, 30, 0, TimeSpan.FromHours(2))) == "2026-11");
+        Assert(AiBudgetMath.CurrentPeriod(new DateTimeOffset(2027, 1, 1, 0, 0, 0, TimeSpan.Zero)) == "2027-01");
+        var (start, end) = AiBudgetMath.PeriodRange("2026-02");
+        Assert(start == new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero) && end == new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero));
+        Throws<FormatException>(() => AiBudgetMath.PeriodRange("2026-13"));
+    }));
+    await Check("Consumo IA: coste en micro-dólares enteros, truncado y nunca negativo", () => Sync(() =>
+    {
+        var pricing = new AiPricing(0.0005m, 0.0015m);
+        Assert(AiBudgetMath.ComputeCostMicroUsd(2000, 1000, pricing) == 2500);
+        Assert(AiBudgetMath.ComputeCostMicroUsd(1, 0, pricing) == 0, "Medio micro-dólar se trunca a 0");
+        Assert(AiBudgetMath.ComputeCostMicroUsd(-50, -10, pricing) == 0);
+        Assert(AiBudgetMath.ComputeCostMicroUsd(100_000, 100_000, AiPricing.Free) == 0);
+        Assert(AiBudgetMath.ToMicroUsd(12.3456789m) == 12_345_678 && AiBudgetMath.ToMicroUsd(-1) == 0);
+    }));
+    await Check("Consumo IA: porcentaje, previsión y formato en USD (máx. 4 decimales)", () => Sync(() =>
+    {
+        Assert(AiBudgetMath.ComputePercentUsed(250_000, 1_000_000) == 25 && AiBudgetMath.ComputePercentUsed(5, 0) is null);
+        Assert(AiBudgetMath.ComputeForecastMicroUsd(10, new DateTimeOffset(2026, 11, 11, 0, 0, 0, TimeSpan.Zero), "2026-11") == 30);
+        Assert(AiBudgetMath.ComputeForecastMicroUsd(10, new DateTimeOffset(2026, 12, 5, 0, 0, 0, TimeSpan.Zero), "2026-11") == 10);
+        Assert(AiBudgetMath.ComputeForecastMicroUsd(10, new DateTimeOffset(2026, 10, 5, 0, 0, 0, TimeSpan.Zero), "2026-11") == 0);
+        Assert(AiBudgetMath.FormatMicroUsd(1_500) == "$0.0015" && AiBudgetMath.FormatMicroUsd(0) == "$0.00" &&
+            AiBudgetMath.FormatMicroUsd(2_000_000) == "$2.00" && AiBudgetMath.FormatMicroUsd(1_234_567) == "$1.2346");
+    }));
+    await Check("Consumo IA: corte por presupuesto, aviso sin cortar, cuota de tokens y presupuesto 0 = sin límite", () => Sync(() =>
+    {
+        var policy = new AiBudgetPolicy { MonthlyBudgetMicroUsd = 1_000_000, AlertPercent = 80, HardStop = true };
+        Assert(AiBudgetMath.Evaluate(policy, 990_000, 0, 20_000) is { Allowed: false, IncidentKind: AiBudgetIncident.HardStop, LimitMicroUsd: 1_000_000 });
+        Assert(AiBudgetMath.Evaluate(policy, 800_000, 0, 0) is { Allowed: true, IncidentKind: AiBudgetIncident.Warning });
+        Assert(AiBudgetMath.Evaluate(policy, 100_000, 0, 0) is { Allowed: true, IncidentKind: null });
+        Assert(AiBudgetMath.Evaluate(new AiBudgetPolicy { MonthlyBudgetMicroUsd = 1_000_000, HardStop = false }, 2_000_000, 0, 0)
+            is { Allowed: true, IncidentKind: AiBudgetIncident.Warning }, "Sin corte, pasarse solo avisa");
+        var quota = new AiBudgetPolicy { MonthlyBudgetMicroUsd = 0, MonthlyTokenQuota = 10_000, HardStop = true };
+        Assert(AiBudgetMath.Evaluate(quota, 99_000_000, 10_000, 0) is { Allowed: false, IncidentKind: AiBudgetIncident.QuotaExceeded });
+        Assert(AiBudgetMath.Evaluate(quota, 99_000_000, 9_999, 0) is { Allowed: true, IncidentKind: null }, "Con presupuesto 0 el gasto no limita");
+        Assert(AiBudgetMath.Evaluate(new AiBudgetPolicy(), 50_000_000, 50_000_000, 0) is { Allowed: true, IncidentKind: null });
+        Assert(AiBudgetMath.Evaluate(null, 1, 1, 1).Allowed);
+    }));
+
+    var noDatabase = new FailingFactory();
+    AiGovernanceService Governance(AiGovernanceOptions? settings = null) => new(noDatabase, Session(), Options.Create(settings ?? new AiGovernanceOptions()),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<AiGovernanceService>.Instance);
+    await Check("Consumo IA: precio local gratis, catálogo de OpenCode y configuración", () => Sync(() =>
+    {
+        var paid = new AssistantProfile { Group = "Pago", InputCostPerMillion = 0.27m, OutputCostPerMillion = 1.10m };
+        Assert(Governance().ResolvePricing("ollama", "ollama", "qwen", null).IsFree);
+        Assert(Governance().ResolvePricing("opencode", "lmstudio", "m", new AssistantProfile { Group = "Locales", InputCostPerMillion = 9 }).IsFree);
+        Assert(Governance().ResolvePricing("opencode", "deepseek", "flash", paid) == new AiPricing(0.00027m, 0.0011m));
+        var configured = new AiGovernanceOptions { UsdPer1kInput = 0.001m, UsdPer1kOutput = 0.002m };
+        configured.Pricing["deepseek/flash"] = new AiPricing(0.5m, 0.6m);
+        Assert(Governance(configured).ResolvePricing("opencode", "deepseek", "flash", paid) == new AiPricing(0.5m, 0.6m), "La configuración prevalece");
+        Assert(Governance(configured).ResolvePricing("opencode", "x", "y", new AssistantProfile { Group = "Pago" }) == new AiPricing(0.001m, 0.002m));
+        Assert(Governance(configured).ResolvePricing("opencode", "x", "y", new AssistantProfile { Group = "Gratis" }).IsFree);
+    }));
+    await Check("Consumo IA: sin base de datos degrada sin bloquear y el registro nunca tumba el proceso", async () =>
+    {
+        await Governance().AssertCanSpendAsync("assistant_rag", 1_000_000);
+        await Governance().RecordAsync(new AiUsageRecord("assistant_rag", "p", "m", "k", "v", "h", 1, 1, false, 1, 1, "ok"));
+    });
+
+    AiCallContext GuardContext() => new("assistant_rag", "opencode", "deepseek", "flash", "assistant.rag.default", "SYSTEM PROMPT",
+        new string('x', 4000), new AiPricing(0.001m, 0.002m), 600, nameof(AgentTrace), "trace-1");
+    await Check("Consumo IA: comprueba antes y registra una vez después de cada llamada real", async () =>
+    {
+        var fake = new FakeAiGovernance();
+        var answer = await AiCallGuard.RunAsync(fake, GuardContext(), () =>
+        {
+            fake.Events.Add("call");
+            return Task.FromResult(new AgentAnswer("respuesta", [], "OpenCode", 1200, 300));
+        });
+        Assert(answer.Text == "respuesta" && fake.Events.SequenceEqual(["assert", "call", "record"]), string.Join(",", fake.Events));
+        var row = fake.Records.Single();
+        Assert(row is { TokensIn: 1200, TokensOut: 300, TokensEstimated: false, CostMicroUsd: 1800, Status: "ok", EntityId: "trace-1" } &&
+            row.PromptVersion.Length == 8 && row.RequestHash.Length == 16, row.ToString());
+        Assert(fake.LastEstimate > 0, "Estima el coste antes de llamar");
+    });
+    await Check("Consumo IA: estima tokens si el proveedor no los informa y registra los fallos", async () =>
+    {
+        var fake = new FakeAiGovernance();
+        await AiCallGuard.RunAsync(fake, GuardContext(), () => Task.FromResult(new AgentAnswer(new string('r', 400), [])));
+        Assert(fake.Records.Single() is { TokensEstimated: true, TokensOut: 100 } estimated && estimated.TokensIn > 1000);
+        await ThrowsAsync<HttpRequestException>(() => AiCallGuard.RunAsync(fake, GuardContext(), () => throw new HttpRequestException("caído")));
+        Assert(fake.Records[1] is { Status: "error", ErrorCode: "connection", CostMicroUsd: 0 });
+    });
+    await Check("Consumo IA: con el presupuesto agotado no llama al proveedor ni registra", async () =>
+    {
+        var fake = new FakeAiGovernance { Block = true };
+        var called = false;
+        await ThrowsAsync<AiQuotaExceededException>(() => AiCallGuard.RunAsync(fake, GuardContext(), () =>
+        {
+            called = true;
+            return Task.FromResult(new AgentAnswer("x", []));
+        }));
+        Assert(!called && fake.Records.Count == 0);
+        Assert(AgentObservability.ErrorCode(new AiQuotaExceededException("Presupuesto mensual de IA agotado.", 1, 1, AiBudgetIncident.HardStop)) == "ai_quota_exceeded");
+        Assert(AnswerFormatter.Format("Fragmento\n[CNT-2026-AAA, p. 1]\n\nPresupuesto mensual de IA agotado ($1.00 de $1.00). Se muestra la respuesta extractiva.")[^1] is AnswerNote);
+    });
+    await Check("Consumo IA: lectura para auditoría y administración; presupuesto solo administración", () => Sync(() =>
+    {
+        Assert(Permissions.CanReadAiUsage(admin) && Permissions.CanManageAiBudget(admin));
+        Assert(Permissions.CanReadAiUsage(auditor) && !Permissions.CanManageAiBudget(auditor));
+        Assert(!Permissions.CanReadAiUsage(manager) && !Permissions.CanManageAiBudget(manager));
+    }));
+    await Check("Consumo IA: el informe agrupa por función y modelo y cuenta errores", () => Sync(() =>
+    {
+        AiUsageLedger Row(string feature, string model, long cost, string status = "ok") => new()
+        {
+            Period = "2026-11", Feature = feature, Provider = "deepseek", Model = model, TokensIn = 100, TokensOut = 50,
+            CostMicroUsd = cost, Status = status, CreatedUtc = new DateTimeOffset(2026, 11, 10, 0, 0, 0, TimeSpan.Zero)
+        };
+        var report = AiBudgetMath.BuildReport("2026-11",
+            [Row("assistant_rag", "flash", 300), Row("assistant_rag", "flash", 200), Row("catalog_suggestion", "pro", 900), Row("assistant_rag", "flash", 0, "error")],
+            new AiBudgetPolicy { MonthlyBudgetMicroUsd = 10_000 }, [], new DateTimeOffset(2026, 12, 2, 0, 0, 0, TimeSpan.Zero));
+        Assert(report is { Calls: 4, Errors: 1, SpentMicroUsd: 1400, TokensIn: 400, PercentUsed: 14, ForecastMicroUsd: 1400 }, report.ToString());
+        Assert(report.Features[0] == new AiFeatureUsage("catalog_suggestion", 1, 100, 50, 900) && report.Features[1].Calls == 3);
+        Assert(report.Models.Count == 2 && AiBudgetMath.BuildReport("2026-11", [], null, [], DateTimeOffset.UtcNow).PercentUsed is null);
+    }));
 }
 
 if (args.Contains("--database"))
@@ -1588,6 +2194,128 @@ if (args.Contains("--database"))
         Assert(saved.Departments.All(d => d.Id != department.Id));
         Assert(saved.Documents.Single(d => d.Id == contract.Id).Category == contract.Category);
     });
+
+    // --- Gobernanza contra SQL Server real: doble control, trigger y rutinas ---
+    var governance = Options.Create(new GovernanceOptions { ApprovalsEnabled = true });
+    var adminServices = new MapServiceProvider();
+    var adminApprovals = new ApprovalService(factory, session, governance, adminServices);
+    var adminDocs = new DocumentService(factory, session, processor, approvals: adminApprovals);
+    adminServices.Add(adminDocs);
+    var auditorSession = Session(auditor.Id);
+    var auditorServices = new MapServiceProvider();
+    var auditorApprovals = new ApprovalService(factory, auditorSession, governance, auditorServices);
+    var auditorDocs = new DocumentService(factory, auditorSession, processor, approvals: auditorApprovals);
+    auditorServices.Add(auditorDocs);
+    async Task<DocumentItem> GovernanceFixture(string title)
+    {
+        await service.UploadAsync(new() { Title = title, Author = admin.Name, Department = admin.Department }, pdf);
+        return (await service.LoadAsync()).Documents.Single(d => d.Title == title);
+    }
+    await Check("SQL Server gobernanza: borrar pide aprobación, no aplica nada y lo aplica al aprobar", async () =>
+    {
+        var target = await GovernanceFixture("Governance delete fixture");
+        await ThrowsAsync<ApprovalPendingException>(() => adminDocs.DeleteAsync(target.Id));
+        Assert((await service.LoadAsync()).Documents.Any(d => d.Id == target.Id), "La primera llamada no aplica nada (202)");
+        try { await adminDocs.DeleteAsync(target.Id); throw new InvalidOperationException("Se esperaba una solicitud pendiente"); }
+        catch (ApprovalPendingException repeated) { Assert(repeated.Message.Contains("Ya hay una solicitud pendiente")); }
+        var request = (await auditorApprovals.ListAsync()).Single(r => r.EntityId == target.Id && r.Status == ApprovalStatus.Pending);
+        await ThrowsAsync<ValidationException>(() => adminApprovals.ApproveAsync(request.Id, null));
+        await auditorApprovals.ApproveAsync(request.Id, "Revisado");
+        Assert(!(await service.LoadAsync()).Documents.Any(d => d.Id == target.Id), "Se aplica solo al aprobar");
+        await ThrowsAsync<ApprovalConflictException>(() => auditorApprovals.ApproveAsync(request.Id, null));
+        var trail = (await service.ExportAuditAsync()).Where(e => e.EntityId == request.Id || e.Details.Contains(request.Id[..8])).Select(e => e.Action).ToList();
+        Assert(trail.Contains("approval.requested") && trail.Contains("approval.approved") && trail.Contains("DELETE"), string.Join(",", trail));
+    });
+    await Check("SQL Server gobernanza: rechazar descarta la acción", async () =>
+    {
+        var target = await GovernanceFixture("Governance reject fixture");
+        await ThrowsAsync<ApprovalPendingException>(() => adminDocs.DeleteAsync(target.Id));
+        var request = (await auditorApprovals.ListAsync()).Single(r => r.EntityId == target.Id && r.Status == ApprovalStatus.Pending);
+        await auditorApprovals.RejectAsync(request.Id, "No procede");
+        Assert((await service.LoadAsync()).Documents.Any(d => d.Id == target.Id));
+        Assert((await auditorApprovals.ListAsync()).Single(r => r.Id == request.Id).Status == ApprovalStatus.Rejected);
+        await ThrowsAsync<ApprovalConflictException>(() => auditorApprovals.RejectAsync(request.Id, null));
+        await service.DeleteAsync(target.Id);
+    });
+    await Check("SQL Server gobernanza: bajar la confidencialidad espera aprobación y subirla no", async () =>
+    {
+        var target = await GovernanceFixture("Governance level fixture");
+        target.Confidentiality = "Confidencial";
+        await adminDocs.EditAsync(target);
+        target.Confidentiality = "Público";
+        await ThrowsAsync<ApprovalPendingException>(() => adminDocs.EditAsync(target));
+        Assert((await service.LoadAsync()).Documents.Single(d => d.Id == target.Id).Confidentiality == "Confidencial");
+        var request = (await auditorApprovals.ListAsync()).Single(r => r.EntityId == target.Id && r.Status == ApprovalStatus.Pending);
+        await auditorApprovals.ApproveAsync(request.Id, null);
+        Assert((await service.LoadAsync()).Documents.Single(d => d.Id == target.Id).Confidentiality == "Público");
+        await service.DeleteAsync(target.Id);
+    });
+    await Check("SQL Server gobernanza: la bitácora rechaza UPDATE y DELETE", async () =>
+    {
+        await using var db = await factory.CreateDbContextAsync();
+        await ThrowsAsync<SqlException>(() => db.Database.ExecuteSqlRawAsync("UPDATE [Audit] SET [Details] = N'alterado'"));
+        await ThrowsAsync<SqlException>(() => db.Database.ExecuteSqlRawAsync("DELETE FROM [Audit]"));
+        Assert(await db.Audit.AnyAsync());
+    });
+    await Check("SQL Server gobernanza: el interceptor guarda el antes/después de una edición", async () =>
+    {
+        var audited = new TestFactory(new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connection, sql => sql.UseCompatibilityLevel(150))
+            .AddInterceptors(new GovernanceAuditInterceptor(session)).Options);
+        var target = await GovernanceFixture("Governance diff fixture");
+        target.Title = "Governance diff edited";
+        await new DocumentService(audited, session, processor).EditAsync(target);
+        await using var db = await factory.CreateDbContextAsync();
+        var row = await db.Audit.Where(e => e.Action == "UPDATE" && e.EntityId == target.Id).OrderByDescending(e => e.TimestampUTC).FirstAsync();
+        Assert(row.Before!.Contains("Governance diff fixture") && row.After!.Contains("Governance diff edited"));
+        await service.DeleteAsync(target.Id);
+    });
+    await Check("SQL Server consumo IA: corte por presupuesto con incidente idempotente y permisos", async () =>
+    {
+        await using (var clean = await factory.CreateDbContextAsync())
+        {
+            // Base exclusiva de tests: se parte de un mes sin consumo ni incidentes.
+            await clean.AiUsageLedger.ExecuteDeleteAsync();
+            await clean.AiBudgetIncidents.ExecuteDeleteAsync();
+        }
+        var aiOptions = Options.Create(new AiGovernanceOptions());
+        var aiAdmin = new AiGovernanceService(factory, session, aiOptions, Microsoft.Extensions.Logging.Abstractions.NullLogger<AiGovernanceService>.Instance);
+        var aiAuditor = new AiGovernanceService(factory, Session(auditor.Id), aiOptions, Microsoft.Extensions.Logging.Abstractions.NullLogger<AiGovernanceService>.Instance);
+        await ThrowsAsync<UnauthorizedAccessException>(() => aiAuditor.UpdateBudgetAsync(1, 80, true, 0));
+        await aiAdmin.UpdateBudgetAsync(AiBudgetMath.ToMicroUsd(0.01m), 50, true, 0);
+        await aiAdmin.RecordAsync(new AiUsageRecord("assistant_rag", "deepseek", "flash", "assistant.rag.default", "v1", "h1", 1000, 500, false, 6_000, 900, "ok"));
+        await aiAdmin.AssertCanSpendAsync("assistant_rag", 0);
+        await aiAdmin.RecordAsync(new AiUsageRecord("assistant_rag", "deepseek", "flash", "assistant.rag.default", "v1", "h2", 1000, 500, false, 5_000, 900, "ok"));
+        await ThrowsAsync<AiQuotaExceededException>(() => aiAdmin.AssertCanSpendAsync("assistant_rag", 0));
+        await ThrowsAsync<AiQuotaExceededException>(() => aiAdmin.AssertCanSpendAsync("assistant_summary", 0));
+        var usage = await aiAuditor.GetUsageAsync();
+        Assert(usage.SpentMicroUsd >= 11_000 && usage.Calls >= 2);
+        var hardStop = usage.Incidents.Single(incident => incident.Kind == AiBudgetIncident.HardStop);
+        Assert(hardStop.Occurrences >= 2 && hardStop.LastFeature == "assistant_summary", "Un solo incidente por periodo y tipo");
+        Assert(usage.Incidents.Any(incident => incident.Kind == AiBudgetIncident.Warning));
+        await aiAdmin.UpdateBudgetAsync(0, 80, false, 0);
+        await aiAdmin.AssertCanSpendAsync("assistant_rag", 0);
+    });
+    await Check("SQL Server gobernanza: rutinas con historial, pausa y bloqueo entre instancias", async () =>
+    {
+        var routineServices = new MapServiceProvider();
+        routineServices.Add(adminApprovals);
+        var routines = new RoutineService(factory, session, governance, new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
+            routineServices, Microsoft.Extensions.Logging.Abstractions.NullLogger<RoutineService>.Instance);
+        var run = await routines.RunNowAsync(RoutineSchedule.Cleanup);
+        Assert(run is { Status: "OK" } && run.Output.Contains("bitácora se conserva"), run?.Output ?? "sin ejecución");
+        Assert((await routines.ListAsync()).Single(r => r.Routine.Key == RoutineSchedule.Cleanup).Runs.Any(r => r.Id == run!.Id));
+        await routines.SetEnabledAsync(RoutineSchedule.Cleanup, false);
+        Assert(!(await routines.ListAsync()).Single(r => r.Routine.Key == RoutineSchedule.Cleanup).Routine.Enabled);
+        await routines.SetEnabledAsync(RoutineSchedule.Cleanup, true);
+        await using var holder = new SqlConnection(connection);
+        await holder.OpenAsync();
+        await using (var take = new SqlCommand("EXEC sp_getapplock @Resource = 'docusearch:routine:RESUMEN_DIARIO', @LockMode = 'Exclusive', @LockOwner = 'Session', @LockTimeout = 0", holder))
+            await take.ExecuteNonQueryAsync();
+        Assert(await routines.RunNowAsync(RoutineSchedule.DailySummary) is null, "Con el bloqueo tomado por otra instancia no se repite");
+        await using (var release = new SqlCommand("EXEC sp_releaseapplock @Resource = 'docusearch:routine:RESUMEN_DIARIO', @LockOwner = 'Session'", holder))
+            await release.ExecuteNonQueryAsync();
+        Assert(await routines.RunNowAsync(RoutineSchedule.DailySummary) is { Status: "OK" });
+    });
 }
 else Console.WriteLine("INFO Integración SQL Server no ejecutada. Usa --database con DOCUSEARCH_TEST_CONNECTION.");
 
@@ -1601,6 +2329,46 @@ internal sealed class TestFactory(DbContextOptions<AppDbContext> options) : IDbC
 }
 
 internal sealed class TestDbException : System.Data.Common.DbException;
+
+internal sealed class MapServiceProvider : IServiceProvider
+{
+    private readonly Dictionary<Type, object> services = [];
+    public void Add<T>(T service) where T : notnull => services[typeof(T)] = service;
+    public object? GetService(Type serviceType) => services.GetValueOrDefault(serviceType);
+}
+
+internal sealed class FailingFactory : IDbContextFactory<AppDbContext>
+{
+    public AppDbContext CreateDbContext() => throw new InvalidOperationException("Base de datos no disponible.");
+}
+
+internal sealed class FakeAiGovernance : IAiGovernance
+{
+    public bool Block { get; init; }
+    public long LastEstimate { get; private set; }
+    public List<string> Events { get; } = [];
+    public List<AiUsageRecord> Records { get; } = [];
+    public AiPricing ResolvePricing(string engine, string provider, string model, AssistantProfile? profile) => AiPricing.Free;
+    public Task AssertCanSpendAsync(string feature, long estimateMicroUsd, CancellationToken cancellationToken = default)
+    {
+        Events.Add("assert");
+        LastEstimate = estimateMicroUsd;
+        if (Block) throw new AiQuotaExceededException("Presupuesto mensual de IA agotado.", 1, 1, AiBudgetIncident.HardStop);
+        return Task.CompletedTask;
+    }
+    public Task RecordAsync(AiUsageRecord record, CancellationToken cancellationToken = default)
+    {
+        Events.Add("record");
+        Records.Add(record);
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed class ManualClock : TimeProvider
+{
+    public DateTimeOffset Now { get; set; }
+    public override DateTimeOffset GetUtcNow() => Now;
+}
 
 internal sealed class FakeRagEmbedder(Func<string, float[]> embed) : IRagEmbedder
 {

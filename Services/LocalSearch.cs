@@ -99,7 +99,8 @@ public static class LocalSearch
 
 public sealed class LocalAgent(DocumentService documents, LocalSession session, OllamaClient ollama,
     AgentObservability observability, OpenCodeClient? opencode = null, AssistantRuntime? assistant = null,
-    ILogger<LocalAgent>? logger = null, EmbeddingClient? embeddings = null, PineconeRetriever? pinecone = null)
+    ILogger<LocalAgent>? logger = null, EmbeddingClient? embeddings = null, PineconeRetriever? pinecone = null,
+    IAiGovernance? aiGovernance = null)
 {
     private bool UseOpenCode => opencode is { Enabled: true };
 
@@ -155,7 +156,9 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
                     throw new InvalidOperationException("El motor OpenCode está seleccionado en la interfaz, pero OpenCode:Enabled está desactivado en la configuración.");
                 trace.Engine = "opencode";
                 trace.Model = $"{profile?.ProviderId}/{profile?.ModelId} ({profile?.Agent})";
-                answer = await opencode!.GenerateAsync(query, extracted.Sources, profile?.ProviderId, profile?.ModelId, profile?.Agent);
+                answer = await AiCallGuard.RunAsync(aiGovernance,
+                    LegacyContext("opencode", profile?.ProviderId ?? "", profile?.ModelId ?? "", profile, query, extracted.Sources, trace.Id),
+                    () => opencode!.GenerateAsync(query, extracted.Sources, profile?.ProviderId, profile?.ModelId, profile?.Agent));
                 generated = true;
             }
             else
@@ -163,7 +166,9 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
                 if (!ollama.Enabled) return extracted;
                 trace.Engine = ollama.UseLangChain ? "langchain-ollama" : "ollama";
                 trace.Model = ollama.Model;
-                answer = await ollama.GenerateAsync(query, extracted.Sources);
+                answer = await AiCallGuard.RunAsync(aiGovernance,
+                    LegacyContext("ollama", "ollama", ollama.Model, profile, query, extracted.Sources, trace.Id),
+                    () => ollama.GenerateAsync(query, extracted.Sources));
                 generated = true;
             }
         }
@@ -173,8 +178,16 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
             // La recuperación extractiva ya está calculada: se devuelve y se marca la consulta
             // para revisión humana en lugar de romper el asistente.
             var quota = ex as FreeQuotaExceededException;
+            var budget = ex as AiQuotaExceededException;
             var escalated = ex is AgentUnavailableException;
             trace.ErrorCode = quota is not null ? "free_quota" : escalated ? "human_fallback" : AgentObservability.ErrorCode(ex);
+            if (budget is not null)
+            {
+                // Presupuesto de IA agotado: no se llamó al proveedor.
+                answer = new AgentAnswer($"{extracted.Text}\n\n{budget.Message} Se muestra la respuesta extractiva sin consultar al modelo.",
+                    extracted.Sources, $"{engineLabel} · presupuesto de IA · respuesta extractiva");
+                return answer;
+            }
             logger?.LogWarning(ex, "El motor {Engine} no respondió; se devuelve la respuesta extractiva{Review}.",
                 engineLabel, escalated ? " y se marca para revisión humana" : "");
             answer = new AgentAnswer(
@@ -288,6 +301,12 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
         return new(string.Join("\n\n", hits.Select(h => $"{h.Snippet}\n[{h.Document.InternalCode}, p. {h.PageNumber}]")) +
             "\n\nRespuesta extractiva local: recuperación híbrida (léxica + vectores locales cuando el índice está disponible), sin modelo generativo.", hits);
     }
+
+    private AiCallContext LegacyContext(string engine, string provider, string model, AssistantProfile? profile, string query,
+        IReadOnlyList<SearchHit> sources, string traceId) =>
+        new("assistant_legacy", engine, provider, model, "assistant.legacy", AssistantPrompt.For(AnswerStyle.Default),
+            query + "\n" + string.Join("\n", sources.Take(6).Select(source => source.Snippet)),
+            aiGovernance?.ResolvePricing(engine, provider, model, profile) ?? AiPricing.Free, 600, nameof(AgentTrace), traceId);
 
     private static void ValidateQuery(string query)
     {

@@ -2,9 +2,15 @@
 @inject DocumentService Service
 @inject IJSRuntime JS
 <div class="module-page audit-page">
-    <ModuleHeading Icon="audit" Title="Bitácora de Auditoría (Audit Trail)" Description="Registro cronológico de lectura, ingesta, descargas y eventos de seguridad.">
+    <ModuleHeading Icon="audit" Title="Bitácora de Auditoría (Audit Trail)" Description="Registro cronológico de solo inserción: lecturas, ingesta, cambios con su estado anterior y posterior, aprobaciones y rutinas.">
         <button class="primary" @onclick="Export" disabled="@State.Busy"><AppIcon Name="download" />Exportar Evidencia (.CSV)</button>
     </ModuleHeading>
+<div class="segmented-control audit-tabs" role="tablist" aria-label="Secciones de auditoría">
+    <button type="button" role="tab" aria-selected="@(tab == "log")" class="@(tab == "log" ? "active" : "")" @onclick="@(() => tab = "log")"><AppIcon Name="audit" />Bitácora</button>
+    <button type="button" role="tab" aria-selected="@(tab == "approvals")" class="@(tab == "approvals" ? "active" : "")" @onclick="@(() => tab = "approvals")"><AppIcon Name="lock" />Aprobaciones@if (pendingApprovals > 0) { <span class="tab-count">@pendingApprovals</span> }</button>
+</div>
+<div hidden="@(tab != "approvals")"><ApprovalsPanel OnPendingChanged="count => pendingApprovals = count" /></div>
+<div class="module-page" hidden="@(tab != "log")">
 <section class="panel audit-risk">
     <div class="section-heading">
         <div><h2><AppIcon Name="audit" />Resumen de riesgos</h2><p>Análisis determinista AG-05 sobre la bitácora cargada; no usa IA ni modifica eventos.</p></div>
@@ -36,22 +42,49 @@
     <div class="filters"><label>Buscar<input @bind="text" @bind:event="oninput" placeholder="Usuario, detalle o expediente" /></label>
         <label>Acción<select @bind="action"><option value="">Todas</option>@foreach (var a in State.Data!.Audit.Select(a => a.Action).Distinct().Order()) { <option>@a</option> }</select></label>
         <label>Estado<select @bind="status"><option value="">Todos</option><option>EXITOSO</option><option>DENEGADO</option><option>ADVERTENCIA</option></select></label>
+        <label>Entidad<select @bind="entity"><option value="">Todas</option>@foreach (var e in State.Data!.Audit.Where(a => a.Entity != null).Select(a => a.Entity!).Distinct().Order()) { <option>@e</option> }</select></label>
+        <label>Usuario<select @bind="actor"><option value="">Todos</option>@foreach (var u in State.Data!.Audit.Select(a => a.UserName).Distinct().Order()) { <option>@u</option> }</select></label>
         <label>Desde<input type="date" @bind="since" /></label><label>Hasta<input type="date" @bind="until" /></label>
     </div>
     <small>Últimos 1000 eventos. La exportación consulta todo el historial con estos filtros.</small>
 </section>
 <section class="panel audit-log">
-    <div class="table-scroll"><table class="module-table"><thead><tr><th>Marca de Tiempo UTC</th><th>Usuario &amp; Rol</th><th>Acción</th><th>Expediente</th><th>Detalles del Evento</th><th>Resultado</th></tr></thead><tbody>
+    <div class="table-scroll"><table class="module-table"><thead><tr><th>Marca de Tiempo UTC</th><th>Usuario &amp; Rol</th><th>Acción</th><th>Expediente / entidad</th><th>Detalles del Evento</th><th>Resultado</th></tr></thead><tbody>
         @foreach (var entry in Filter(State.Data!.Audit).Take(limit))
-        { <tr><td>@entry.TimestampUTC.ToString("yyyy-MM-dd HH:mm:ss")</td><td>@entry.UserName<small>@(entry.UserRole == "system" ? "Sistema" : Catalog.RoleLabel(entry.UserRole))</small></td><td><span class="badge">@entry.Action</span></td><td class="code">@entry.DocumentCode</td><td>@entry.Details</td><td><span class="badge @(entry.Status == "DENEGADO" ? "warning" : "success")">@entry.Status</span></td></tr> }
+        {
+            var hasChange = entry.Before is not null || entry.After is not null;
+            <tr><td>@entry.TimestampUTC.ToString("yyyy-MM-dd HH:mm:ss")@if (entry.Ip is not null) { <small>IP @entry.Ip</small> }</td>
+                <td>@entry.UserName<small>@RoleLabel(entry.UserRole)</small></td>
+                <td><span class="badge">@entry.Action</span></td>
+                <td class="code">@entry.DocumentCode@if (entry.Entity is not null) { <small>@entry.Entity@(entry.EntityId is null ? "" : $" · {Short(entry.EntityId)}")</small> }</td>
+                <td>@entry.Details
+                    @if (hasChange)
+                    {
+                        <button class="link-button" aria-expanded="@(expanded == entry.Id)" @onclick="() => expanded = expanded == entry.Id ? null : entry.Id">@(expanded == entry.Id ? "Ocultar cambios" : "Ver antes / después")</button>
+                        @if (expanded == entry.Id)
+                        {
+                            <div class="audit-diff">
+                                <div><strong>Antes</strong><pre>@(entry.Before ?? "—")</pre></div>
+                                <div><strong>Después</strong><pre>@(entry.After ?? "—")</pre></div>
+                            </div>
+                        }
+                    }
+                </td>
+                <td><span class="badge @(entry.Status == "DENEGADO" ? "warning" : entry.Status == "ADVERTENCIA" ? "warning" : "success")">@entry.Status</span></td></tr>
+        }
     </tbody></table></div>
     @if (!Filter(State.Data!.Audit).Any()) { <p class="empty">No hay eventos con estos filtros.</p> }
     @if (Filter(State.Data!.Audit).Count() > limit) { <button @onclick="() => limit += 50">Mostrar más eventos</button> }
-    <small>El restablecimiento de datos no elimina esta bitácora. Un administrador de la base puede modificarla: no equivale a un registro criptográficamente inmutable.</small>
+    <small>Bitácora de solo inserción: un trigger de SQL Server rechaza cualquier UPDATE o DELETE, y el restablecimiento de datos no la borra. Un administrador de la base con permiso para desactivar el trigger aún podría alterarla: no equivale a un registro criptográficamente inmutable.</small>
 </section>
 </div>
+</div>
 @code {
-    private string text = "", action = "", status = "";
+    private string text = "", action = "", status = "", entity = "", actor = "", tab = "log";
+    private string? expanded;
+    private int pendingApprovals;
+    private static string Short(string id) => id.Length > 14 ? id[..12] + "…" : id;
+    private static string RoleLabel(string role) => role == "system" ? "Sistema" : Catalog.Roles.Contains(role) ? Catalog.RoleLabel(role) : role;
     private DateTime? since, until;
     private int limit = 50;
     private int riskDays = 30;
@@ -66,6 +99,7 @@
     private IEnumerable<AuditEvent> Filter(IEnumerable<AuditEvent> rows) => rows.Where(a =>
         (text.Length == 0 || TextAnalysis.Normalize($"{a.UserName} {a.Details} {a.DocumentCode}").Contains(TextAnalysis.Normalize(text))) &&
         (action.Length == 0 || a.Action == action) && (status.Length == 0 || a.Status == status) &&
+        (entity.Length == 0 || a.Entity == entity) && (actor.Length == 0 || a.UserName == actor) &&
         (since is null || a.TimestampUTC.UtcDateTime.Date >= since.Value.Date) &&
         (until is null || a.TimestampUTC.UtcDateTime.Date <= until.Value.Date));
     private Task Export() => State.RunAsync(async () =>
