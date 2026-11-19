@@ -8,8 +8,8 @@
 @inject Microsoft.Extensions.Options.IOptions<RagOptions> RagOptions
 <div class="module-page smart-search">
 <div class="segmented-control search-modes" role="group" aria-label="Herramientas del buscador">
-    <button type="button" aria-pressed="@(!showAssistant)" aria-controls="document-search" class="@(!showAssistant ? "active" : "")" @onclick="() => SelectAssistant(false)"><AppIcon Name="search" />Buscar documentos</button>
     <button type="button" aria-pressed="@showAssistant" aria-controls="search-assistant" class="@(showAssistant ? "active" : "")" @onclick="() => SelectAssistant(true)"><AppIcon Name="agent" />Asistente IA</button>
+    <button type="button" aria-pressed="@(!showAssistant)" aria-controls="document-search" class="@(!showAssistant ? "active" : "")" @onclick="() => SelectAssistant(false)"><AppIcon Name="search" />Buscar documentos</button>
 </div>
 <div id="document-search" hidden="@showAssistant">
 <div class="module-page">
