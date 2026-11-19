@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DocuSearch.Models;
 using DocuSearch.Services;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace DocuSearch.Data;
@@ -17,7 +18,7 @@ public static class DatabaseSetup
 
     public static async Task InitializeAsync(AppDbContext db)
     {
-        await db.Database.MigrateAsync();
+        await MigrateWithRetryAsync(db);
         await using var transaction = await db.Database.BeginTransactionAsync();
         await LockAsync(db);
         if (DemoPolicy.SeedOnInitialize && !await db.Users.AnyAsync())
@@ -35,6 +36,29 @@ public static class DatabaseSetup
         }
         await transaction.CommitAsync();
     }
+
+    // SQL Server puede tardar varios minutos en recuperar la base después de un reinicio
+    // del contenedor. La app no debe morir por arrancar antes de que termine.
+    private static async Task MigrateWithRetryAsync(AppDbContext db)
+    {
+        const int attempts = 36;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await db.Database.MigrateAsync();
+                return;
+            }
+            catch (SqlException ex) when (attempt < attempts && IsTransient(ex))
+            {
+                Console.WriteLine($"SQL Server aún no está disponible ({ex.Number}); reintento {attempt}/{attempts} en 10 s.");
+                await Task.Delay(TimeSpan.FromSeconds(10));
+            }
+        }
+    }
+
+    private static bool IsTransient(SqlException exception) =>
+        exception.Number is -2 or 0 or 233 or 1205 or 1801 or 4060 or 40613 or 40197 or 18456;
 
     // Serializa las mutaciones, incluidas cuotas, contadores y notas, entre todos los circuitos.
     public static Task LockAsync(AppDbContext db) =>
