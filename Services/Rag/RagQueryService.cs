@@ -148,6 +148,13 @@ public sealed class RagQueryService(
         ConversationHint? hint, CancellationToken cancellationToken)
     {
         var readable = snapshot.Documents;
+        // Para elegir documentos, el tema pesa más que la intención: «resumen completo de
+        // Mesopotamia» debe buscar «Mesopotamia», no fragmentos que contengan «resumen».
+        var topicQuery = DocumentSynthesis.Subject(retrievalQuery);
+        var searchQuery = string.IsNullOrWhiteSpace(topicQuery) ? retrievalQuery : topicQuery;
+        var searchVector = string.Equals(searchQuery, retrievalQuery, StringComparison.Ordinal)
+            ? queryVector
+            : await embedder.EmbedAsync(searchQuery, cancellationToken);
         DocumentItem? Find(string code) => readable.FirstOrDefault(document => document.InternalCode.Equals(code, StringComparison.OrdinalIgnoreCase));
         var targets = new List<DocumentItem>();
         var hitsByDocument = new Dictionary<string, IReadOnlyList<RagHit>>(StringComparer.Ordinal);
@@ -163,10 +170,10 @@ public sealed class RagQueryService(
             targets.Add(focus);
 
         if (targets.Count > 0 && !intent.Bare)
-            Remember(await retriever.RetrieveAsync(retrievalQuery, queryVector, targets.Select(document => document.Id).ToArray(), cancellationToken));
+            Remember(await retriever.RetrieveAsync(searchQuery, searchVector, targets.Select(document => document.Id).ToArray(), cancellationToken));
         else if (targets.Count == 0 && !intent.Bare)
         {
-            var hits = await retriever.RetrieveAsync(retrievalQuery, queryVector, readable.Select(document => document.Id).ToArray(), cancellationToken);
+            var hits = await retriever.RetrieveAsync(searchQuery, searchVector, readable.Select(document => document.Id).ToArray(), cancellationToken);
             Remember(hits);
             var ranked = DocumentSynthesis.RankDocuments(hits,
                 intent.MultiDocument ? DocumentSynthesis.MaxDocuments : 3,

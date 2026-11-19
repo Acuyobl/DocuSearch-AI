@@ -40,7 +40,7 @@ public static partial class DocumentSynthesis
     {
         "de", "del", "la", "el", "los", "las", "un", "una", "unos", "unas", "me", "haz", "hazme", "dame", "por", "favor", "y", "o",
         "sobre", "este", "ese", "esta", "esa", "esto", "eso", "documento", "documentos", "expediente", "expedientes", "general",
-        "breve", "corto", "completo", "quiero", "necesito", "puedes", "podrias", "un", "lo", "los", "al", "a", "en", "con", "su", "sus",
+        "breve", "corto", "completo", "quiero", "necesito", "puedes", "podrias", "generar", "genera", "hacer", "haz", "un", "lo", "los", "al", "a", "en", "con", "su", "sus",
         "relacionados", "relacionadas", "todos", "todas", "mis", "mi", "que", "trata", "tratan", "comun", "vision", "porfa"
     };
 
@@ -52,6 +52,21 @@ public static partial class DocumentSynthesis
 
     [GeneratedRegex(@"(?<=[.!?;])\s+")]
     private static partial Regex SentenceBreak();
+
+    /// <summary>
+    /// Consulta de recuperación para una síntesis: quita la intención («resumen», «análisis»)
+    /// y las palabras de relleno, para que el tema explícito pese más que la palabra «resumen».
+    /// Devuelve vacío si la pregunta no aporta tema.
+    /// </summary>
+    public static string Subject(string question)
+    {
+        var withoutCodes = DocumentCode().Replace(question, " ");
+        var words = Word().Matches(TextAnalysis.Normalize(withoutCodes))
+            .Select(match => match.Value)
+            .Where(word => !FillerWords.Contains(word) && !SummaryWords.Contains(word) && !AnalysisWords.Contains(word))
+            .ToList();
+        return string.Join(' ', words);
+    }
 
     public static AnswerIntent Detect(string question)
     {

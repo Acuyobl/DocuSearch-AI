@@ -1645,6 +1645,9 @@ if (args.Contains("--rag"))
         Assert(DocumentSynthesis.Detect("¿Me puedes resumir las políticas de seguridad?").Style == AnswerStyle.Summary);
         Assert(DocumentSynthesis.Detect("¿Qué diferencias hay entre los contratos? Explica las diferencias entre ambos").Style == AnswerStyle.Analysis);
         Assert(DocumentSynthesis.Detect("¿Qué variable mostró diferencias significativas en los puntajes?").Style == AnswerStyle.Default);
+        var topic = DocumentSynthesis.Detect("puedes generar un resumen completo de Mesopotamia");
+        Assert(topic.Style == AnswerStyle.Summary && !topic.Bare);
+        Assert(DocumentSynthesis.Subject("puedes generar un resumen completo de Mesopotamia") == "mesopotamia");
     }));
 
     DocumentItem SynthesisDoc(string code, string category, string[] keywords, params string[] pages) => new()
