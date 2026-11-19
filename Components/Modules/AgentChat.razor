@@ -63,6 +63,10 @@ else if (!Active.Available)
                 <div class="message">
                     <div class="answer-meta"><span>Asistente</span>@if (!string.IsNullOrWhiteSpace(message.Provider)) { <span class="answer-engine">@message.Provider</span> }<time>@message.At.ToLocalTime().ToString("HH:mm")</time></div>
                     <ChatAnswer Text="@message.Text" Sources="message.Sources" NumberedSources="message.Numbered" Documents="State.Data.Documents" OnView="OnView" />
+                    @if (message.Sources.Count > 0)
+                    {
+                        <button class="link-button" @onclick="() => DownloadPdf(message)" title="Descargar esta respuesta en PDF"><AppIcon Name="download" />Descargar PDF</button>
+                    }
                 </div>
             </article>
         }
@@ -105,7 +109,8 @@ else if (!Active.Available)
         "opencode" or "ollama" => "La IA puede cometer errores: verifica las citas.",
         _ => "Respuestas extractivas, sin modelo generativo."
     };
-    private sealed record ChatMessage(bool IsUser, string Text, List<SearchHit> Sources, string Provider = "", bool Numbered = false)
+    private sealed record ChatMessage(bool IsUser, string Text, List<SearchHit> Sources, string Provider = "", bool Numbered = false,
+        string Question = "")
     {
         public DateTimeOffset At { get; init; } = DateTimeOffset.UtcNow;
     }
@@ -232,9 +237,11 @@ else if (!Active.Available)
             {
                 answer = await Agent.AskAsync(text);
             }
-            var reply = new ChatMessage(false, answer.Text, answer.Sources, answer.Provider, numbered);
+            var reply = new ChatMessage(false, answer.Text, answer.Sources, answer.Provider, numbered, text);
             messages.Add(reply);
             Remember(reply);
+            if (WantsPdf(text) && answer.Sources.Count > 0)
+                await DownloadPdf(reply);
             // El expediente en foco es la fuente principal de la respuesta (o el que fijó el agente local).
             var focus = answer.Sources.FirstOrDefault()?.Document.InternalCode ?? Session.LastDocumentCode;
             if (focus is not null)
@@ -252,6 +259,21 @@ else if (!Active.Available)
         await InvokeAsync(StateHasChanged);
     }
     /// <summary>Enter en el compositor (sin Mayús): el JS intercepta la tecla y envía.</summary>
+    private async Task DownloadPdf(ChatMessage message)
+    {
+        if (message.Sources.Count == 0) return;
+        var question = string.IsNullOrWhiteSpace(message.Question) ? message.Text : message.Question;
+        var bytes = RagPdfExporter.Build(question, message.Text, message.Sources);
+        var slug = new string(TextAnalysis.Normalize(question).Where(char.IsLetterOrDigit).Take(40).ToArray());
+        if (slug.Length == 0) slug = "documento";
+        var filename = $"docusearch-{slug}-{DateTime.Now:yyyyMMdd-HHmm}.pdf";
+        await JS.InvokeVoidAsync("docusearch.downloadBase64", Convert.ToBase64String(bytes), filename, "application/pdf");
+    }
+
+    private static bool WantsPdf(string text) => System.Text.RegularExpressions.Regex.IsMatch(
+        TextAnalysis.Normalize(text),
+        @"\bpdf\b|\b(en|como) un documento\b|\bgenera (un|el) (documento|informe|archivo)\b");
+
     [JSInvokable]
     public Task SendFromEnter() => Send();
     private void Clear()

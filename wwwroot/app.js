@@ -43,6 +43,19 @@ window.docusearch = {
         link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 10000);
     },
+    downloadBase64(base64, filename, type) {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+        const url = URL.createObjectURL(new Blob([bytes], { type }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    },
     print() {
         window.print();
     },

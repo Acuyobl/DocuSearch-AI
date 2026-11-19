@@ -1725,6 +1725,21 @@ if (args.Contains("--rag"))
         Assert(DocumentSynthesis.Gist(new DocumentItem { ExecutiveSummary = string.Join(" ", Enumerable.Repeat("Frase larga de prueba sin fin.", 40)) }).Length
             <= DocumentSynthesis.MaxGistChars + 1);
     }));
+    await Check("PDF: una respuesta con fuentes genera un documento PDF válido", () => Sync(() =>
+    {
+        var document = new DocumentItem
+        {
+            InternalCode = "PDF-2026-001",
+            Title = "Documento de prueba",
+            PageCount = 1,
+            Pages = [new DocumentPage(1, "Texto de prueba", "Resumen", [])]
+        };
+        var pdf = RagPdfExporter.Build("resumen de Mesopotamia", "**Resumen** con [1] y acentos: ñ á é.",
+            [new SearchHit(document, 1, "Texto de prueba", 90)]);
+        Assert(Encoding.ASCII.GetString(pdf, 0, 5) == "%PDF-");
+        using var parsed = UglyToad.PdfPig.PdfDocument.Open(pdf);
+        Assert(parsed.NumberOfPages >= 1);
+    }));
     await Check("Síntesis: el prompt pide lenguaje natural y cabe en el límite de los workers", () => Sync(() =>
     {
         foreach (var style in Enum.GetValues<AnswerStyle>()) Assert(AssistantPrompt.For(style).Length < 4000, style.ToString());
