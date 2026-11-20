@@ -1,8 +1,9 @@
 # MCP en DocuSearch AI — revisión, prompt y guía de implementación
 
-> **Estado: Fase 1 implementada.** Servidor `DocuSearch.Mcp` por stdio, read-only, con
-> identidad configurada en el servidor y RBAC reutilizado. Ver `DocuSearch.Mcp/README.md`
-> y `tests/mcp/smoke.py`. La Fase 2 (HTTP + bearer) sigue pendiente.
+> **Estado: Fase 1 y Fase 2 MVP implementadas.** Servidor stdio `DocuSearch.Mcp`,
+> endpoint HTTP `/mcp` en la app y bearer configurado por entorno. El token HTTP es de
+> configuración (un usuario por proceso); los tokens multiusuario hasheados en SQL y su
+> UI de administración quedan pendientes. Ver `DocuSearch.Mcp/README.md`.
 
 ## 1. Qué es MCP
 

@@ -8,6 +8,7 @@ using DocuSearch.Data;
 using DocuSearch.Models;
 using DocuSearch.Services;
 using DocuSearch.Services.Rag;
+using DocuSearch.Services.Mcp;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -168,6 +169,12 @@ builder.Services.AddScoped<LocalAgent>();
 builder.Services.AddScoped<AgentObservability>();
 builder.Services.AddScoped<LegacyImport>();
 builder.Services.AddScoped<WorkspaceState>();
+// MCP HTTP (Fase 2): herramientas read-only con bearer configurado fuera del cliente.
+builder.Services.AddHttpContextAccessor();
+builder.Services.Configure<McpHttpOptions>(builder.Configuration.GetSection("Mcp:Http"));
+builder.Services.AddScoped<McpIdentity>();
+builder.Services.AddScoped<ReadOnlyDocumentTools>();
+builder.Services.AddMcpServer().WithHttpTransport().WithToolsFromAssembly();
 
 var app = builder.Build();
 
@@ -542,6 +549,24 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
+// Endpoint MCP HTTP: el token bearer se valida en tiempo constante y fija la identidad
+// antes de que la tool intente leer cualquier expediente.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/mcp"))
+    {
+        var options = context.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<McpHttpOptions>>().Value;
+        if (!McpHttpAuth.TryAuthenticate(context, options, out var principal))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            context.Response.Headers.WWWAuthenticate = "Bearer";
+            return;
+        }
+        context.User = principal;
+    }
+    await next(context);
+});
+
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseRouting();
 app.UseRateLimiter();
@@ -762,6 +787,8 @@ app.MapPost("/api/rag/query", async (HttpContext context, LocalSession session, 
     }
 }).RequireAuthorization();
 
+// MCP HTTP compartido con OpenCode/Claude/Cursor. El middleware anterior exige bearer.
+app.MapMcp("/mcp");
 app.MapGovernanceApi();
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();

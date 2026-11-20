@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 
-namespace DocuSearch.Mcp;
+namespace DocuSearch.Services.Mcp;
 
 /// <summary>
 /// Herramientas MCP de solo lectura. Todas usan el snapshot filtrado por RBAC de

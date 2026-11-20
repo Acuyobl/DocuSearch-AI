@@ -1,18 +1,38 @@
-# Servidor MCP local de DocuSearch
+# Servidor MCP de DocuSearch
 
-Servidor **stdio** de solo lectura para OpenCode, Claude Desktop u otros clientes MCP.
+Dos transportes con el mismo contrato read-only:
+
+- **stdio**: proceso separado `DocuSearch.Mcp` para OpenCode/Claude Desktop local.
+- **HTTP**: endpoint `/mcp` de la app, autenticado con bearer. Ideal para clientes remotos.
 
 ## Requisitos
 
 - .NET 10.
 - SQL Server con la base `DocuSearch` y el esquema migrado.
 - Variables de entorno:
-  - `DOCUSEARCH_MCP_USER`: correo de un usuario activo. El servidor usa su rol real.
-  - `DOCUSEARCH_MCP_CONNECTION`: cadena de conexión SQL.
-    También se acepta `ConnectionStrings__Documents`.
+  - stdio: `DOCUSEARCH_MCP_USER` y `DOCUSEARCH_MCP_CONNECTION`.
+  - HTTP: `Mcp__Http__Enabled=true`, `Mcp__Http__User` y `Mcp__Http__Token`.
 - Permiso de lectura en SQL para ese usuario.
 
-No se guardan credenciales en el repositorio.
+No se guardan credenciales en el repositorio. En `appsettings.json` la sección HTTP
+queda desactivada y vacía por defecto.
+
+## HTTP en la app
+
+```powershell
+$env:Mcp__Http__Enabled = "true"
+$env:Mcp__Http__User = "usuario@example.test"
+$env:Mcp__Http__Token = "<token-largo-y-aleatorio>"
+```
+
+El endpoint queda en `http://127.0.0.1:5068/mcp`.
+
+- Sin `Authorization: Bearer ...` responde **401**.
+- Con token incorrecto responde **401**.
+- Con token correcto acepta JSON-RPC MCP y resuelve el rol real del usuario en SQL.
+
+> Esta es la Fase 2 MVP con un token de configuración por usuario. Los tokens multiusuario
+> hasheados en SQL y su UI de administración quedan como siguiente fase.
 
 ## Compilar
 
@@ -40,6 +60,11 @@ En `~/.config/opencode/opencode.json`:
 
 Arranca OpenCode desde una consola que tenga definidas `DOCUSEARCH_MCP_USER` y
 `DOCUSEARCH_MCP_CONNECTION`. Así las credenciales no quedan en el archivo de configuración.
+
+## Registrar cliente remoto en OpenCode
+
+Con `Mcp:Http` activo, usa `DocuSearch.Mcp/opencode.remote.sample.json` y sustituye el
+token. La URL es `http://127.0.0.1:5068/mcp`.
 
 ## Tools
 

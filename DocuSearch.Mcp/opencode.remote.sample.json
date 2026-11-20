@@ -1,0 +1,12 @@
+{
+  "mcp": {
+    "docusearch": {
+      "type": "remote",
+      "url": "http://127.0.0.1:5068/mcp",
+      "headers": {
+        "Authorization": "Bearer <token-de-Mcp-Http-Token>"
+      },
+      "enabled": true
+    }
+  }
+}

@@ -1,6 +1,6 @@
 using DocuSearch.Data;
-using DocuSearch.Mcp;
 using DocuSearch.Services;
+using DocuSearch.Services.Mcp;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -22,6 +22,7 @@ builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogL
 
 builder.Services.AddDbContextFactory<AppDbContext>(options => options.UseSqlServer(connection));
 builder.Services.AddScoped<LocalSession>();
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<PdfProcessor>();
 builder.Services.AddScoped<DocumentService>(services => new DocumentService(
     services.GetRequiredService<IDbContextFactory<AppDbContext>>(),
@@ -33,6 +34,6 @@ builder.Services.AddScoped<ReadOnlyDocumentTools>();
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()
-    .WithToolsFromAssembly();
+    .WithToolsFromAssembly(typeof(ReadOnlyDocumentTools).Assembly);
 
 await builder.Build().RunAsync();
