@@ -14,8 +14,11 @@ import ipaddress
 import json
 import os
 import sys
+import time
 from typing import Any, TypedDict
 from urllib.parse import urlsplit
+
+import httpx
 
 sys.stdout.reconfigure(encoding="utf-8")
 sys.stderr.reconfigure(encoding="utf-8")
@@ -26,7 +29,7 @@ for key in tuple(os.environ):
 os.environ["LANGSMITH_TRACING"] = "false"
 os.environ["LANGCHAIN_TRACING_V2"] = "false"
 
-from langchain_ollama import ChatOllama  # noqa: E402
+from langchain_core.messages import AIMessage  # noqa: E402
 from langgraph.graph import END, START, StateGraph  # noqa: E402
 from pydantic import BaseModel, ConfigDict, Field, model_validator  # noqa: E402
 
@@ -47,7 +50,11 @@ class Source(BaseModel):
 class Request(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     base_url: str
-    model: str = Field(min_length=1, max_length=200)
+    username: str = Field(default="opencode", max_length=200)
+    password: str = Field(default="", max_length=500)
+    provider_id: str = Field(min_length=1, max_length=200)
+    model_id: str = Field(min_length=1, max_length=200)
+    agent: str = Field(default="", max_length=200)
     timeout: int = Field(ge=5, le=600)
     question: str = Field(min_length=1, max_length=2000)
     sources: list[Source] = Field(min_length=1, max_length=6)
@@ -68,12 +75,63 @@ class Request(BaseModel):
             or endpoint.path not in ("", "/")
             or endpoint.query
             or endpoint.fragment
-            or "cloud" in self.model.lower()
         ):
-            raise ValueError("Only a local Ollama endpoint and model are allowed.")
+            raise ValueError("Only a local OpenCode endpoint is allowed.")
         if [source.id for source in self.sources] != list(range(1, len(self.sources) + 1)):
             raise ValueError("Source IDs must be contiguous.")
         return self
+
+
+class OpenCodeChat:
+    """Adaptador mínimo al servidor OpenCode 2; no expone herramientas al modelo."""
+
+    def __init__(self, request: Request) -> None:
+        self.request = request
+        self.auth = (request.username, request.password) if request.password else None
+
+    def invoke(self, prompt: str) -> AIMessage:
+        request = self.request
+        with httpx.Client(
+            base_url=request.base_url, auth=self.auth, timeout=request.timeout,
+            trust_env=False, follow_redirects=False,
+        ) as client:
+            body: dict[str, Any] = {
+                "title": "DocuSearch LangGraph",
+                "model": {"id": request.model_id, "providerID": request.provider_id},
+                "permissions": [{"action": "*", "resource": "*", "effect": "deny"}],
+            }
+            if request.agent:
+                body["agent"] = request.agent
+            created = client.post("/api/session", json=body)
+            created.raise_for_status()
+            session_id = (created.json().get("data") or {}).get("id")
+            if not session_id:
+                raise ValueError("OpenCode no devolvió una sesión.")
+            try:
+                prompted = client.post(f"/api/session/{session_id}/prompt", json={"text": prompt})
+                prompted.raise_for_status()
+                deadline = time.monotonic() + request.timeout
+                while time.monotonic() < deadline:
+                    time.sleep(0.4)
+                    messages = client.get(
+                        f"/api/session/{session_id}/message?order=asc&limit=100")
+                    messages.raise_for_status()
+                    assistant = [item for item in messages.json().get("data", [])
+                                 if item.get("type") == "assistant"]
+                    if not assistant:
+                        continue
+                    last = assistant[-1]
+                    text = "".join(part.get("text", "") for part in last.get("content", [])
+                                   if part.get("type") == "text" and part.get("text"))
+                    finished = bool(last.get("finish")) or bool((last.get("time") or {}).get("completed"))
+                    if text and finished:
+                        return AIMessage(text)
+                raise TimeoutError("OpenCode no terminó dentro del tiempo configurado.")
+            finally:
+                try:
+                    client.delete(f"/api/session/{session_id}")
+                except httpx.HTTPError:
+                    pass
 
 
 class GraphState(TypedDict, total=False):
@@ -213,12 +271,7 @@ def build_graph(model: Any):
 
 
 def run(request: Request) -> dict[str, Any]:
-    model = ChatOllama(
-        model=request.model, base_url=request.base_url, temperature=0,
-        num_ctx=8192, num_predict=800, keep_alive="5m",
-        client_kwargs={"timeout": request.timeout, "trust_env": False, "follow_redirects": False},
-    )
-    result = build_graph(model).invoke(
+    result = build_graph(OpenCodeChat(request)).invoke(
         {"request": request}, {"recursion_limit": 12, "configurable": {}},
     )
     if "error" in result and result["error"]:
@@ -236,7 +289,7 @@ def run(request: Request) -> dict[str, Any]:
 
 def main() -> None:
     if sys.argv[1:] == ["--check"]:
-        print(json.dumps({"status": "ready", "framework": "LangGraph", "provider": "ollama-local"}))
+        print(json.dumps({"status": "ready", "framework": "LangGraph", "provider": "opencode-2"}))
         return
     if sys.argv[1:]:
         raise ValueError("Unexpected arguments.")

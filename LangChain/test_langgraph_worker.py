@@ -30,8 +30,12 @@ class FakeModel:
 
 def request(**overrides):
     payload = {
-        "base_url": "http://127.0.0.1:11434",
-        "model": "qwen2.5-coder:7b",
+        "base_url": "http://127.0.0.1:4097",
+        "username": "opencode",
+        "password": "secreto",
+        "provider_id": "deepseek",
+        "model_id": "deepseek-flash",
+        "agent": "",
         "timeout": 30,
         "question": "Resume la fuente.",
         "sources": [{"id": 1, "code": "PRUEBA-1", "title": "Prueba", "page": 1,

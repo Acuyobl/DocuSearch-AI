@@ -6,27 +6,39 @@ namespace DocuSearch.Services.Rag;
 
 /// <summary>
 /// Integración LangGraph para resumen/análisis. Recibe fuentes ya autorizadas, llama a
-/// un worker Python aislado y vuelve a aplicar AG-02 en C#. Nunca escribe documentos.
+/// un worker Python aislado que usa OpenCode 2/DeepSeek y vuelve a aplicar AG-02 en C#.
+/// Nunca escribe documentos.
 /// </summary>
 public sealed class LangGraphRagService(
     IOptions<AssistantOptions> assistantOptions,
-    IOptions<OllamaOptions> ollamaOptions,
+    IOptions<OpenCodeOptions> openCodeOptions,
+    AssistantRuntime assistant,
     ILogger<LangGraphRagService> logger)
 {
     private readonly AssistantOptions settings = assistantOptions.Value;
-    private readonly OllamaOptions ollama = ollamaOptions.Value;
+    private readonly OpenCodeOptions openCode = openCodeOptions.Value;
 
-    public bool Enabled => settings.UseLangGraph && ollama.Enabled;
+    public bool Enabled => settings.UseLangGraph && openCode.Enabled;
 
     public async Task<AgentAnswer?> TryGenerateAsync(string question, IReadOnlyList<SearchHit> sources,
         AppSnapshot snapshot, AnswerStyle style, CancellationToken cancellationToken)
     {
         if (!Enabled || sources.Count == 0 || string.IsNullOrWhiteSpace(question)) return null;
+        await assistant.EnsureLoadedAsync();
+        var profile = assistant.Active;
+        if (!string.Equals(profile.Engine, "opencode", StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(profile.ProviderId) || string.IsNullOrWhiteSpace(profile.ModelId))
+            return null;
+
         var selected = sources.Take(Math.Clamp(settings.LangGraphMaxSources, 1, 6)).ToList();
         var request = new
         {
-            base_url = ollama.BaseUrl,
-            model = ollama.Model,
+            base_url = openCode.BaseUrl,
+            username = openCode.Username,
+            password = openCode.Password,
+            provider_id = profile.ProviderId,
+            model_id = profile.ModelId,
+            agent = profile.Agent,
             timeout = Math.Clamp(settings.LangGraphTimeoutSeconds, 5, 600),
             question,
             sources = selected.Select((source, index) => new
@@ -44,7 +56,7 @@ public sealed class LangGraphRagService(
 
         try
         {
-            var raw = await LangChainRunner.RunAsync(ollama.PythonExecutable, "langgraph_worker.py",
+            var raw = await LangChainRunner.RunAsync(openCode.PythonExecutable, "langgraph_worker.py",
                 request.timeout, request);
             var result = JsonSerializer.Deserialize<LangGraphResponse>(raw,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
@@ -54,7 +66,7 @@ public sealed class LangGraphRagService(
                 .Select(id => selected[id - 1]).ToList();
             if (cited.Count == 0) return null;
             var answer = new AgentAnswer(result.Answer, cited,
-                $"LangGraph · Ollama local · {ollama.Model}", null, null);
+                $"LangGraph · OpenCode · {profile.ProviderId}/{profile.ModelId}", null, null);
             if (!AgentVerifier.Verify(answer, snapshot.Documents, snapshot.Actor).IsValid)
             {
                 logger.LogWarning("LangGraph: AG-02 rechazó la respuesta; se usará el camino anterior.");
