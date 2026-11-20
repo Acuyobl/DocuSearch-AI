@@ -3,58 +3,113 @@
 @inject IJSRuntime JS
 
 <section class="panel approvals-panel" aria-labelledby="approvals-title">
-    <div class="section-heading">
+    <div class="section-heading approvals-heading">
         <div>
             <h2 id="approvals-title"><AppIcon Name="lock" />Aprobaciones de doble control</h2>
-            <p>Las acciones sensibles no se aplican hasta que otra persona (auditoría) las aprueba. Cada transición queda en la bitácora.</p>
+            <p>Las acciones sensibles no se aplican hasta que otra persona las aprueba. Cada decisión queda en la bitácora.</p>
         </div>
-        <span class="badge @(Approvals.Settings.ApprovalsEnabled ? "success" : "")">@(Approvals.Settings.ApprovalsEnabled ? "Doble control activo" : "Doble control desactivado")</span>
+        <div class="approvals-heading-actions">
+            <span class="badge @(Approvals.Settings.ApprovalsEnabled ? "success" : "")">@(Approvals.Settings.ApprovalsEnabled ? "Doble control activo" : "Doble control desactivado")</span>
+            <button class="icon-button" disabled="@State.Busy" @onclick="ReloadAsync" title="Actualizar solicitudes" aria-label="Actualizar solicitudes"><AppIcon Name="refresh" /></button>
+        </div>
     </div>
+
     @if (!Approvals.Settings.ApprovalsEnabled)
     {
-        <div class="alert info">Con <code>Governance:ApprovalsEnabled=false</code> las acciones se aplican directamente, como hasta ahora. Al activarlo requieren aprobación: @string.Join(", ", Approvals.Settings.SensitiveActions.Select(SensitiveAction.Label)).</div>
+        <div class="alert info">Con <code>Governance:ApprovalsEnabled=false</code> las acciones se aplican directamente. Al activarlo requieren aprobación: @string.Join(", ", Approvals.Settings.SensitiveActions.Select(SensitiveAction.Label)).</div>
     }
 
-    @if (Pending.Count > 0)
+    <div class="approval-summary">
+        <div class="approval-summary-main">
+            <strong>@Pending.Count</strong>
+            <span>solicitud(es) pendiente(s)</span>
+        </div>
+        <div class="approval-summary-copy">
+            @if (CanDecide)
+            {
+                <span><AppIcon Name="check" />Puedes aprobar o rechazar solicitudes de otras personas.</span>
+            }
+            else
+            {
+                <span><AppIcon Name="user" />Tu rol puede solicitar, pero la decisión corresponde a auditoría o administración general.</span>
+            }
+        </div>
+    </div>
+
+    @if (requests.Count == 0)
     {
-        <label class="approval-note">Nota de la decisión (opcional)<input @bind="note" maxlength="900" placeholder="Motivo de la aprobación o del rechazo" /></label>
+        <div class="approval-empty">
+            <AppIcon Name="check" />
+            <strong>No hay solicitudes de aprobación</strong>
+            <span>Cuando una acción sensible quede pendiente aparecerá aquí con sus botones de decisión.</span>
+        </div>
     }
-    <div class="table-scroll">
-        <table class="module-table">
-            <thead><tr><th>Estado</th><th>Acción</th><th>Sobre</th><th>Solicitado por</th><th>Fecha</th><th>Detalle</th><th><span class="visually-hidden">Decisión</span></th></tr></thead>
-            <tbody>
+    else
+    {
+        @if (Pending.Count > 0)
+        {
+            <label class="approval-note">Nota de la decisión (opcional, se usa en la acción que elijas)
+                <input @bind="note" maxlength="900" placeholder="Motivo de la aprobación o del rechazo" />
+            </label>
+        }
+        <div class="approval-list">
             @foreach (var request in requests)
             {
                 var mine = State.Data is { } snapshot && snapshot.Actor.Id == request.RequestedById;
-                <tr class="@(request.Status == ApprovalStatus.Pending ? "is-pending" : "")">
-                    <td><span class="badge @StatusClass(request.Status)">@request.Status</span></td>
-                    <td>@SensitiveAction.Label(request.Action)</td>
-                    <td>@request.EntityLabel</td>
-                    <td>@request.RequestedByName<small>@RoleLabel(request.RequestedByRole)</small></td>
-                    <td>@request.RequestedUtc.ToLocalTime().ToString("dd/MM HH:mm")
-                        @if (request.Status == ApprovalStatus.Pending) { <small>vence @request.ExpiresUtc.ToLocalTime().ToString("dd/MM HH:mm")</small> }
-                        else if (request.DecidedUtc is { } decided) { <small>@(request.DecidedByName ?? "Sistema") · @decided.ToLocalTime().ToString("dd/MM HH:mm")</small> }
-                    </td>
-                    <td>@request.Summary@if (!string.IsNullOrWhiteSpace(request.DecisionNote)) { <small>Nota: @request.DecisionNote</small> }</td>
-                    <td>
-                        @if (request.Status == ApprovalStatus.Pending && CanDecide && !mine)
-                        {
-                            <div class="actions">
-                                <button class="primary" disabled="@State.Busy" @onclick="() => Approve(request)"><AppIcon Name="check" />Aprobar</button>
-                                <button class="danger" disabled="@State.Busy" @onclick="() => Reject(request)">Rechazar</button>
+                var isPending = request.Status == ApprovalStatus.Pending;
+                var canDecideThis = isPending && CanDecide && !mine;
+                <article class="approval-card @(isPending ? "pending" : "decided") @StatusClass(request.Status)">
+                    <header class="approval-card-head">
+                        <div class="approval-card-title">
+                            <span class="approval-icon"><AppIcon Name="lock" /></span>
+                            <div>
+                                <strong>@SensitiveAction.Label(request.Action)</strong>
+                                <span>@request.EntityLabel</span>
                             </div>
-                        }
-                        else if (request.Status == ApprovalStatus.Pending && mine)
+                        </div>
+                        <span class="badge @StatusClass(request.Status)">@StatusLabel(request.Status)</span>
+                    </header>
+
+                    <div class="approval-meta">
+                        <div><small>Solicitado por</small><strong>@request.RequestedByName</strong><span>@RoleLabel(request.RequestedByRole)</span></div>
+                        <div><small>Solicitado</small><strong>@request.RequestedUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong></div>
+                        <div><small>Vence</small><strong>@request.ExpiresUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong></div>
+                        @if (request.DecidedUtc is { } decided)
                         {
-                            <small>Esperando a otra persona</small>
+                            <div><small>Decidido por</small><strong>@(request.DecidedByName ?? "Sistema")</strong><span>@decided.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span></div>
                         }
-                    </td>
-                </tr>
+                    </div>
+
+                    <p class="approval-summary-text">@request.Summary</p>
+                    @if (!string.IsNullOrWhiteSpace(request.DecisionNote))
+                    {
+                        <p class="approval-decision-note"><strong>Nota:</strong> @request.DecisionNote</p>
+                    }
+
+                    @if (canDecideThis)
+                    {
+                        <div class="approval-actions">
+                            <button class="primary" disabled="@State.Busy" @onclick="() => Approve(request)"><AppIcon Name="check" />Aprobar y ejecutar</button>
+                            <button class="danger" disabled="@State.Busy" @onclick="() => Reject(request)"><AppIcon Name="close" />Rechazar</button>
+                        </div>
+                    }
+                    else if (isPending && mine)
+                    {
+                        <div class="approval-waiting"><AppIcon Name="lock" />Esperando a otra persona: no puedes aprobar tu propia solicitud, pero sí puedes retirarla.</div>
+                        <div class="approval-actions"><button class="danger" disabled="@State.Busy" @onclick="() => CancelRequest(request)"><AppIcon Name="close" />Cancelar solicitud</button></div>
+                    }
+                    else if (isPending)
+                    {
+                        <div class="approval-waiting"><AppIcon Name="user" />Solo auditoría o administración general pueden decidir esta solicitud.</div>
+                    }
+                    else
+                    {
+                        <div class="approval-decided">@StatusLabel(request.Status) @(request.DecidedByName is null ? "" : $"por {request.DecidedByName}")</div>
+                    }
+                </article>
             }
-            </tbody>
-        </table>
-    </div>
-    @if (requests.Count == 0) { <p class="empty">No hay solicitudes de aprobación.</p> }
+        </div>
+    }
 </section>
 
 @code {
@@ -74,14 +129,14 @@
 
     private async Task Approve(ApprovalRequest request)
     {
-        if (!await Confirm($"¿Aprobar «{SensitiveAction.Label(request.Action)}» sobre {request.EntityLabel}? Se aplicará ahora con los permisos de {request.RequestedByName}.")) return;
+        if (!await Confirm($"¿Aprobar y ejecutar «{SensitiveAction.Label(request.Action)}» sobre {request.EntityLabel}?")) return;
         await State.RunAsync(async () =>
         {
             try { await Approvals.ApproveAsync(request.Id, note); }
             finally { requests = await Approvals.ListAsync(); }
             note = "";
             await State.RefreshAsync();
-        }, "Solicitud aprobada y aplicada.");
+        }, "Solicitud aprobada y ejecutada.");
         await OnPendingChanged.InvokeAsync(Pending.Count);
     }
 
@@ -97,6 +152,18 @@
         await OnPendingChanged.InvokeAsync(Pending.Count);
     }
 
+    private async Task CancelRequest(ApprovalRequest request)
+    {
+        if (!await Confirm($"¿Retirar tu solicitud «{SensitiveAction.Label(request.Action)}» sobre {request.EntityLabel}? No se aplicará.")) return;
+        await State.RunAsync(async () =>
+        {
+            try { await Approvals.CancelAsync(request.Id, note); }
+            finally { requests = await Approvals.ListAsync(); }
+            note = "";
+        }, "Solicitud retirada.");
+        await OnPendingChanged.InvokeAsync(Pending.Count);
+    }
+
     private async Task<bool> Confirm(string message)
     {
         try { return await JS.InvokeAsync<bool>("docusearch.confirm", message); }
@@ -109,7 +176,18 @@
         ApprovalStatus.Pending => "warning",
         ApprovalStatus.Approved => "success",
         ApprovalStatus.Rejected or ApprovalStatus.Failed => "danger",
+        ApprovalStatus.Expired => "danger",
         _ => ""
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        ApprovalStatus.Pending => "Pendiente",
+        ApprovalStatus.Approved => "Aprobada",
+        ApprovalStatus.Rejected => "Rechazada",
+        ApprovalStatus.Failed => "Fallida",
+        ApprovalStatus.Expired => "Vencida",
+        _ => status
     };
 
     private static string RoleLabel(string role) => Catalog.Roles.Contains(role) ? Catalog.RoleLabel(role) : role;

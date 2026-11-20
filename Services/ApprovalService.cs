@@ -168,6 +168,23 @@ public sealed class ApprovalService(
         await db.SaveChangesAsync();
     }
 
+    /// <summary>El solicitante puede retirar su propia solicitud; nunca puede aprobarla.</summary>
+    public async Task CancelAsync(string id, string? note)
+    {
+        await using var db = await factory.CreateDbContextAsync();
+        var actor = await ActorAsync(db);
+        var request = await db.Approvals.SingleOrDefaultAsync(item => item.Id == id)
+            ?? throw new ApprovalConflictException("La solicitud no existe.");
+        if (!string.Equals(request.RequestedById, actor.Id, StringComparison.Ordinal))
+            throw new UnauthorizedAccessException("Solo el solicitante puede retirar su propia solicitud.");
+        if (request.Status != ApprovalStatus.Pending)
+            throw new ApprovalConflictException("La solicitud ya fue resuelta.");
+        var claimed = await Claim(db, id, ApprovalStatus.Rejected, actor, note);
+        if (claimed == 0) throw new ApprovalConflictException("La solicitud ya fue resuelta por otra persona.");
+        Audit(db, actor, "approval.cancelled", request, $"Retirada por el solicitante: {SensitiveAction.Label(request.Action)} sobre {request.EntityLabel}. {note}");
+        await db.SaveChangesAsync();
+    }
+
     public async Task ApproveAsync(string id, string? note)
     {
         ApprovalRequest request;
