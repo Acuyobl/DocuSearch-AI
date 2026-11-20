@@ -7,7 +7,14 @@
     </ModuleHeading>
 <div class="segmented-control audit-tabs" role="tablist" aria-label="Secciones de auditoría">
     <button type="button" role="tab" aria-selected="@(tab == "log")" class="@(tab == "log" ? "active" : "")" @onclick="@(() => tab = "log")"><AppIcon Name="audit" />Bitácora</button>
-    <button type="button" role="tab" aria-selected="@(tab == "approvals")" class="@(tab == "approvals" ? "active" : "")" @onclick="@(() => tab = "approvals")"><AppIcon Name="lock" />Aprobaciones@if (pendingApprovals > 0) { <span class="tab-count">@pendingApprovals</span> }</button>
+    <button type="button" role="tab" aria-selected="@(tab == "approvals")" class="@(tab == "approvals" ? "active" : "")" @onclick="@(() => tab = "approvals")">
+        <AppIcon Name="lock" />
+        <span>Aprobaciones</span>
+        @if (pendingApprovals > 0)
+        {
+            <span class="tab-count">@pendingApprovals</span>
+        }
+    </button>
 </div>
 <div hidden="@(tab != "approvals")"><ApprovalsPanel OnPendingChanged="count => pendingApprovals = count" /></div>
 <div class="module-page" hidden="@(tab != "log")">
