@@ -28,6 +28,9 @@
     <Compile Remove="tests\**" />
     <Content Remove="tests\**" />
     <None Remove="tests\**" />
+    <Compile Remove="DocuSearch.Mcp\**" />
+    <Content Remove="DocuSearch.Mcp\**" />
+    <None Remove="DocuSearch.Mcp\**" />
     <EmbeddedResource Include="Data\seed.json" />
   </ItemGroup>
 

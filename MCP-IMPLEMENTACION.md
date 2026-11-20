@@ -1,5 +1,9 @@
 # MCP en DocuSearch AI — revisión, prompt y guía de implementación
 
+> **Estado: Fase 1 implementada.** Servidor `DocuSearch.Mcp` por stdio, read-only, con
+> identidad configurada en el servidor y RBAC reutilizado. Ver `DocuSearch.Mcp/README.md`
+> y `tests/mcp/smoke.py`. La Fase 2 (HTTP + bearer) sigue pendiente.
+
 ## 1. Qué es MCP
 
 **Model Context Protocol (MCP)** es un protocolo abierto, basado en JSON-RPC, que permite a un cliente de IA (Claude Desktop, OpenCode, Cursor, un agente propio) descubrir y ejecutar:

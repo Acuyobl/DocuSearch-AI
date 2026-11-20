@@ -1,0 +1,11 @@
+{
+  "mcp": {
+    "docusearch": {
+      "type": "local",
+      "command": [
+        "C:/Programación/DocuSearch-AI/DocuSearch.Mcp/bin/Debug/net10.0/DocuSearch.Mcp.exe"
+      ],
+      "enabled": true
+    }
+  }
+}
