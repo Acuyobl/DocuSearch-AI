@@ -807,6 +807,23 @@ td .text-button { max-width: 340px; }
 .agent-panel-note { margin: 14px 0 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
 @keyframes agentBlink { 0%, 100% { opacity: .28; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.12); box-shadow: 0 0 0 3px color-mix(in srgb, var(--p-500) 20%, transparent), 0 0 12px color-mix(in srgb, var(--p-500) 75%, transparent); } }
 @media (max-width: 640px) { .agent-panel-backdrop { padding: 10px; } .agent-panel { padding: 15px; } .agent-status-button span:last-child { display: none; } }
+/* Colores por agente y luces más grandes; solo parpadean las luces activas. */
+.agent-status-button .agent-lights i { width: 12px; height: 12px; }
+.agent-indicator .agent-lights i { width: 10px; height: 10px; }
+.agent-status-light { width: 14px; height: 14px; }
+.agent-lights i.agent-tone-03.on, .agent-status-light.agent-tone-03.on { background: #38bdf8; box-shadow: 0 0 0 3px #38bdf822, 0 0 10px #38bdf8cc; }
+.agent-lights i.agent-tone-04.on, .agent-status-light.agent-tone-04.on { background: #a78bfa; box-shadow: 0 0 0 3px #a78bfa22, 0 0 10px #a78bfacc; }
+.agent-lights i.agent-tone-02.on, .agent-status-light.agent-tone-02.on { background: #34d399; box-shadow: 0 0 0 3px #34d39922, 0 0 10px #34d399cc; }
+.agent-run-card.agent-tone-03.on { border-color: #38bdf8aa; background: #38bdf810; }
+.agent-run-card.agent-tone-04.on { border-color: #a78bfaaa; background: #a78bfa10; }
+.agent-run-card.agent-tone-02.on { border-color: #34d399aa; background: #34d39910; }
+.agent-run-card.agent-tone-03.on em { color: #38bdf8; }
+.agent-run-card.agent-tone-04.on em { color: #a78bfa; }
+.agent-run-card.agent-tone-02.on em { color: #34d399; }
+.agent-lights i.on, .agent-status-light.on { animation: agentPulse 1.8s ease-in-out infinite; }
+.agent-status-button.running .agent-lights i { animation-duration: .75s; }
+.agent-panel.running .agent-status-light.on { animation-duration: .75s; }
+@keyframes agentPulse { 0%, 100% { opacity: .38; transform: scale(.82); } 50% { opacity: 1; transform: scale(1.14); } }
 .answer-body { overflow-wrap: anywhere; }
 .answer-body > p { margin: 0 0 10px; }
 .answer-body > :last-child { margin-bottom: 0; }

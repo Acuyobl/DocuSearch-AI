@@ -34,7 +34,7 @@
             </select>
         }
         <button class="agent-status-button @(lastAgents.Count > 1 ? "multi" : "") @(State.Busy ? "running" : "")" @onclick="() => agentsOpen = true" title="Ver agentes que intervinieron en la última respuesta" aria-expanded="@agentsOpen">
-            <span class="agent-lights" aria-hidden="true">@foreach (var code in AgentCodes) { <i class="@(IsAgentActive(code) || State.Busy ? "on" : "")"></i> }</span>
+            <span class="agent-lights" aria-hidden="true">@foreach (var code in AgentCodes) { <i class="@(IsAgentActive(code) || State.Busy ? "on" : "") @AgentTone(code)"></i> }</span>
             <span>@(State.Busy ? "Ejecutando agentes…" : lastAgents.Count switch { 0 => "Agentes", 1 => "1 agente", _ => $"{lastAgents.Count} agentes" })</span>
         </button>
         <button class="icon-button" disabled="@State.Busy" @onclick="CheckConnection" title="Comprobar motores y actualizar documentos" aria-label="Comprobar motores y actualizar documentos"><AppIcon Name="refresh" /></button>
@@ -61,8 +61,8 @@ else if (!Active.Available)
                 @foreach (var code in AgentCodes)
                 {
                     var active = IsAgentActive(code) || State.Busy;
-                    <div class="agent-run-card @(active ? "on" : "")">
-                        <span class="agent-status-light @(active ? "on" : "")"></span>
+                    <div class="agent-run-card @(active ? "on" : "") @AgentTone(code)">
+                        <span class="agent-status-light @(active ? "on" : "") @AgentTone(code)"></span>
                         <div><strong>@AgentLabel(code)</strong><small>@AgentDescription(code)</small></div>
                         <em>@(State.Busy ? "ejecutando" : active ? "activo" : "en espera")</em>
                     </div>
@@ -97,7 +97,7 @@ else if (!Active.Available)
                         @if (message.AgentList.Count > 0)
                         {
                             <span class="agent-indicator @(message.AgentList.Count > 1 ? "multi" : "single")" title="@AgentNames(message.AgentList)">
-                                <span class="agent-lights" aria-hidden="true">@foreach (var code in AgentCodes) { <i class="@(IsAgentActive(message.AgentList, code) ? "on" : "")"></i> }</span>
+                                <span class="agent-lights" aria-hidden="true">@foreach (var code in AgentCodes) { <i class="@(IsAgentActive(message.AgentList, code) ? "on" : "") @AgentTone(code)"></i> }</span>
                                 @message.AgentList.Count @(message.AgentList.Count == 1 ? "agente" : "agentes")
                             </span>
                         }
@@ -340,6 +340,14 @@ else if (!Active.Available)
 
     private static string AgentLabel(string code) =>
         AgentCatalog.Active.FirstOrDefault(agent => agent.Code == code)?.Name ?? code;
+
+    private static string AgentTone(string code) => code switch
+    {
+        "AG-03" => "agent-tone-03",
+        "AG-04" => "agent-tone-04",
+        "AG-02" => "agent-tone-02",
+        _ => "agent-tone-default"
+    };
 
     private static string AgentDescription(string code) =>
         AgentCatalog.Active.FirstOrDefault(agent => agent.Code == code)?.Description ?? "";
