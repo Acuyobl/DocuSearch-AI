@@ -67,6 +67,16 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
             AutoReplenishment = true
         }));
+    var mcpLimit = builder.Configuration.GetValue("Mcp:RateLimitPerMinute", 60);
+    options.AddPolicy("mcp", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirstValue(ClaimTypes.Email) ?? context.Connection.RemoteIpAddress?.ToString() ?? "mcp",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = mcpLimit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
 });
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -152,6 +162,7 @@ builder.Services.AddScoped<RagIngestionService>();
 builder.Services.AddScoped<RagSourceStore>();
 builder.Services.AddScoped<RagQueryService>();
 builder.Services.AddScoped<LangGraphRagService>();
+builder.Services.AddSingleton<ILangGraphRunner, ProcessLangGraphRunner>();
 builder.Services.AddScoped<RagEvaluationService>();
 builder.Services.AddScoped<RagObservabilityService>();
 builder.Services.Configure<OpenCodeOptions>(builder.Configuration.GetSection("OpenCode"));
@@ -174,6 +185,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<McpHttpOptions>(builder.Configuration.GetSection("Mcp:Http"));
 builder.Services.AddScoped<McpIdentity>();
 builder.Services.AddScoped<ReadOnlyDocumentTools>();
+builder.Services.AddScoped<McpTokenService>();
 builder.Services.AddMcpServer().WithHttpTransport().WithToolsFromAssembly();
 
 var app = builder.Build();
@@ -556,7 +568,9 @@ app.Use(async (context, next) =>
     if (context.Request.Path.StartsWithSegments("/mcp"))
     {
         var options = context.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<McpHttpOptions>>().Value;
-        if (!McpHttpAuth.TryAuthenticate(context, options, out var principal))
+        var tokens = context.RequestServices.GetRequiredService<McpTokenService>();
+        var principal = await McpHttpAuth.AuthenticateAsync(context, options, tokens, context.RequestAborted);
+        if (principal is null)
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             context.Response.Headers.WWWAuthenticate = "Bearer";
@@ -788,7 +802,41 @@ app.MapPost("/api/rag/query", async (HttpContext context, LocalSession session, 
 }).RequireAuthorization();
 
 // MCP HTTP compartido con OpenCode/Claude/Cursor. El middleware anterior exige bearer.
-app.MapMcp("/mcp");
+app.MapMcp("/mcp").RequireRateLimiting("mcp");
+app.MapGet("/api/mcp/tokens", async (HttpContext context, LocalSession session, McpTokenService tokens) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
+    session.SignIn(context.User);
+    await using var db = await context.RequestServices.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContextAsync();
+    var actor = await db.Users.AsNoTracking().SingleOrDefaultAsync(user => user.Id == session.UserId);
+    if (actor is null || !Permissions.CanAdmin(actor)) return Results.Forbid();
+    return Results.Ok(await tokens.ListAsync(session.UserId));
+}).RequireAuthorization();
+
+app.MapPost("/api/mcp/tokens", async (HttpContext context, LocalSession session, McpTokenService tokens,
+    McpTokenCreateRequest request) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
+    session.SignIn(context.User);
+    await using var db = await context.RequestServices.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContextAsync();
+    var actor = await db.Users.SingleOrDefaultAsync(user => user.Id == session.UserId);
+    if (actor is null || !Permissions.CanAdmin(actor)) return Results.Forbid();
+    var target = request.UserId ?? actor.Id;
+    var (raw, token) = await tokens.CreateAsync(target, request.Name, request.ValidDays, actorName: actor.Name);
+    return Results.Ok(new { token = raw, access = token, warning = "Guarda el token: no se vuelve a mostrar." });
+}).RequireAuthorization();
+
+app.MapDelete("/api/mcp/tokens/{id}", async (HttpContext context, LocalSession session, string id,
+    McpTokenService tokens) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
+    session.SignIn(context.User);
+    await using var db = await context.RequestServices.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContextAsync();
+    var actor = await db.Users.SingleOrDefaultAsync(user => user.Id == session.UserId);
+    if (actor is null || !Permissions.CanAdmin(actor)) return Results.Forbid();
+    return await tokens.RevokeAsync(id, actorName: actor.Name) ? Results.NoContent() : Results.NotFound();
+}).RequireAuthorization();
+
 app.MapGovernanceApi();
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();

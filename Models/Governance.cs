@@ -84,3 +84,18 @@ public sealed class RoutineRun
     [MaxLength(2000)] public string Output { get; set; } = "";
     [MaxLength(200)] public string Trigger { get; set; } = "scheduler";
 }
+
+
+/// <summary>Token de acceso al endpoint MCP HTTP; se guarda solo su hash SHA-256.</summary>
+public sealed class McpApiToken
+{
+    [Key, MaxLength(40)] public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    [Required, MaxLength(100)] public string UserId { get; set; } = "";
+    [Required, MaxLength(120)] public string Name { get; set; } = "";
+    [Required, MaxLength(64)] public string TokenHash { get; set; } = "";
+    [Required, MaxLength(80)] public string Scopes { get; set; } = "documents:read";
+    public DateTimeOffset CreatedUtc { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ExpiresUtc { get; set; }
+    public DateTimeOffset? LastUsedUtc { get; set; }
+    public DateTimeOffset? RevokedUtc { get; set; }
+}

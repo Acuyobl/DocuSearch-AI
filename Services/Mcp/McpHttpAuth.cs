@@ -6,31 +6,48 @@ using Microsoft.AspNetCore.Http;
 namespace DocuSearch.Services.Mcp;
 
 /// <summary>
-/// Autenticación bearer del endpoint MCP. No usa cookies ni acepta la identidad en el cuerpo
-/// de una herramienta: el token se compara en tiempo constante y solo identifica al usuario
-/// configurado para este servidor.
+/// Autenticación bearer del endpoint MCP. El token principal se busca como hash en SQL;
+/// se mantiene un token de configuración solo como arranque local/legacy.
 /// </summary>
 public static class McpHttpAuth
 {
-    public static bool TryAuthenticate(HttpContext context, McpHttpOptions options, out ClaimsPrincipal principal)
+    public static async Task<ClaimsPrincipal?> AuthenticateAsync(HttpContext context, McpHttpOptions options,
+        McpTokenService tokens, CancellationToken cancellationToken = default)
     {
-        principal = new ClaimsPrincipal(new ClaimsIdentity());
-        if (!options.Enabled || string.IsNullOrWhiteSpace(options.User) || string.IsNullOrWhiteSpace(options.Token))
-            return false;
-
+        if (!options.Enabled) return null;
         var header = context.Request.Headers.Authorization.ToString();
-        if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return false;
+        if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return null;
         var supplied = header[7..].Trim();
-        if (!FixedTimeEquals(supplied, options.Token)) return false;
+        if (supplied.Length == 0) return null;
 
-        var claims = new[]
+        var authenticated = await tokens.AuthenticateAsync(supplied, cancellationToken);
+        if (authenticated is not null)
         {
-            new Claim(ClaimTypes.Email, options.User),
-            new Claim(ClaimTypes.Name, options.User),
-            new Claim("mcp", "http")
-        };
-        principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "McpBearer"));
-        return true;
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.Email, authenticated.User.Email),
+                new Claim(ClaimTypes.Name, authenticated.User.Name),
+                new Claim(ClaimTypes.Role, authenticated.User.Role),
+                new Claim("mcp", "http"),
+                new Claim("mcp_token_id", authenticated.TokenId)
+            };
+            return new ClaimsPrincipal(new ClaimsIdentity(claims, "McpBearer"));
+        }
+
+        // Compatibilidad de arranque: token de configuración, sin tabla SQL.
+        if (!string.IsNullOrWhiteSpace(options.User) && !string.IsNullOrWhiteSpace(options.Token) &&
+            FixedTimeEquals(supplied, options.Token))
+        {
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.Email, options.User),
+                new Claim(ClaimTypes.Name, options.User),
+                new Claim(ClaimTypes.Role, ""),
+                new Claim("mcp", "http")
+            };
+            return new ClaimsPrincipal(new ClaimsIdentity(claims, "McpBearer"));
+        }
+        return null;
     }
 
     private static bool FixedTimeEquals(string supplied, string expected)

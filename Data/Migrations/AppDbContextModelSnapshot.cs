@@ -585,6 +585,54 @@ namespace DocuSearch.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("DocuSearch.Models.McpApiToken", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("ExpiresUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("LastUsedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTimeOffset?>("RevokedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Scopes")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "RevokedUtc");
+
+                    b.ToTable("McpApiTokens", (string)null);
+                });
+
             modelBuilder.Entity("DocuSearch.Models.PageEmbedding", b =>
                 {
                     b.Property<string>("Id")
@@ -794,6 +842,15 @@ namespace DocuSearch.Data.Migrations
                         .HasForeignKey("Department")
                         .HasPrincipalKey("Name")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DocuSearch.Models.McpApiToken", b =>
+                {
+                    b.HasOne("DocuSearch.Models.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

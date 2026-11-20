@@ -3,36 +3,49 @@
 Dos transportes con el mismo contrato read-only:
 
 - **stdio**: proceso separado `DocuSearch.Mcp` para OpenCode/Claude Desktop local.
-- **HTTP**: endpoint `/mcp` de la app, autenticado con bearer. Ideal para clientes remotos.
+- **HTTP**: endpoint `/mcp` de la app, autenticado con bearer y tokens por usuario en SQL.
 
 ## Requisitos
 
 - .NET 10.
-- SQL Server con la base `DocuSearch` y el esquema migrado.
-- Variables de entorno:
-  - stdio: `DOCUSEARCH_MCP_USER` y `DOCUSEARCH_MCP_CONNECTION`.
-  - HTTP: `Mcp__Http__Enabled=true`, `Mcp__Http__User` y `Mcp__Http__Token`.
-- Permiso de lectura en SQL para ese usuario.
+- SQL Server con la base `DocuSearch` y las migraciones aplicadas (incluye `McpApiTokens`).
+- stdio: `DOCUSEARCH_MCP_USER` y `DOCUSEARCH_MCP_CONNECTION`.
+- HTTP: `Mcp__Http__Enabled=true` y un token creado por la API administrativa.
+- Permiso de lectura en SQL para el usuario.
 
-No se guardan credenciales en el repositorio. En `appsettings.json` la sección HTTP
-queda desactivada y vacía por defecto.
+No se guardan secretos en el repositorio. `appsettings.json` deja el HTTP desactivado.
 
 ## HTTP en la app
 
 ```powershell
 $env:Mcp__Http__Enabled = "true"
-$env:Mcp__Http__User = "usuario@example.test"
-$env:Mcp__Http__Token = "<token-largo-y-aleatorio>"
 ```
 
 El endpoint queda en `http://127.0.0.1:5068/mcp`.
 
-- Sin `Authorization: Bearer ...` responde **401**.
-- Con token incorrecto responde **401**.
-- Con token correcto acepta JSON-RPC MCP y resuelve el rol real del usuario en SQL.
+### Crear un token (administrador, cookie de sesión)
 
-> Esta es la Fase 2 MVP con un token de configuración por usuario. Los tokens multiusuario
-> hasheados en SQL y su UI de administración quedan como siguiente fase.
+```powershell
+curl.exe -s -b cookies.txt -H "Content-Type: application/json" `
+  -X POST http://127.0.0.1:5068/api/mcp/tokens `
+  --data '{"name":"OpenCode","validDays":90}'
+```
+
+La respuesta incluye `token` **una sola vez**. Se guarda solo su SHA-256.
+
+### Listar y revocar
+
+```powershell
+curl.exe -s -b cookies.txt http://127.0.0.1:5068/api/mcp/tokens
+curl.exe -s -b cookies.txt -X DELETE http://127.0.0.1:5068/api/mcp/tokens/<id>
+```
+
+- Sin token, token incorrecto, revocado o vencido: **401**.
+- Con token válido: JSON-RPC MCP y RBAC real del usuario.
+- Rate limit: `Mcp__RateLimitPerMinute` (60 por defecto), por usuario/IP.
+
+`Mcp__Http__User`/`Mcp__Http__Token` quedan solo como compatibilidad de arranque local.
+Los tokens nuevos deben crearse por la API y guardarse como un secreto.
 
 ## Compilar
 
@@ -42,7 +55,7 @@ dotnet build DocuSearch.Mcp/DocuSearch.Mcp.csproj -c Release
 
 ## Registrar en OpenCode
 
-En `~/.config/opencode/opencode.json`:
+### stdio
 
 ```json
 {
@@ -59,12 +72,12 @@ En `~/.config/opencode/opencode.json`:
 ```
 
 Arranca OpenCode desde una consola que tenga definidas `DOCUSEARCH_MCP_USER` y
-`DOCUSEARCH_MCP_CONNECTION`. Así las credenciales no quedan en el archivo de configuración.
+`DOCUSEARCH_MCP_CONNECTION`.
 
-## Registrar cliente remoto en OpenCode
+### HTTP
 
-Con `Mcp:Http` activo, usa `DocuSearch.Mcp/opencode.remote.sample.json` y sustituye el
-token. La URL es `http://127.0.0.1:5068/mcp`.
+Usa `DocuSearch.Mcp/opencode.remote.sample.json` y sustituye el token. La URL es
+`http://127.0.0.1:5068/mcp`.
 
 ## Tools
 
@@ -74,19 +87,24 @@ token. La URL es `http://127.0.0.1:5068/mcp`.
 - `rag_query(question)`: respuesta extractiva con citas; no llama a un LLM.
 
 Todas las tools:
-- resuelven identidad solo desde el entorno del servidor,
-- aplican `Permissions`/`DocumentService`,
-- registran `MCP_TOOL` en auditoría,
+
+- resuelven identidad desde el servidor o el token; nunca desde argumentos;
+- aplican `Permissions`/`DocumentService`;
+- registran `MCP_TOOL` en auditoría;
 - no escriben documentos ni exponen tools de administración.
 
-## Prueba de humo
-
-Con una base de prueba:
+## Pruebas
 
 ```powershell
+# stdio
 $env:DOCUSEARCH_MCP_CONNECTION = "Server=127.0.0.1,14331;Database=DocuSearch;User Id=sa;Password=<secreto>;TrustServerCertificate=True;Encrypt=False"
 $env:DOCUSEARCH_MCP_USER = "usuario@example.test"
 python tests/mcp/smoke.py
+
+# HTTP con token creado por la API
+$env:MCP_HTTP_URL = "http://127.0.0.1:5068/mcp"
+$env:MCP_HTTP_TOKEN = "<token>"
+python tests/mcp/http_smoke.py
 ```
 
 Prueba de rol bajo:
@@ -97,12 +115,9 @@ $env:MCP_PAGE_CODE = "REG-2026-55F63E9C1E3F"
 python tests/mcp/smoke.py
 ```
 
-El segundo caso exige que el usuario no vea documentos `Confidencial`/`Estrictamente Secreto`
-ni pueda leer la página restringida.
-
 ## Limitaciones
 
-- Un servidor = un usuario. Para multiusuario se necesita Fase 2 con HTTP y bearer tokens.
+- La API de tokens no tiene UI; se gestiona por endpoints administrativos.
 - `rag_query` es extractivo; no usa OpenCode/DeepSeek ni LangGraph.
 - No hay tools de escritura, aprobación, administración ni SQL libre.
-- El transporte es stdio; no abre puertos.
+- El transporte stdio no abre puertos.

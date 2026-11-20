@@ -19,6 +19,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<AgentTrace> AgentTraces => Set<AgentTrace>();
     public DbSet<PageEmbedding> PageEmbeddings => Set<PageEmbedding>();
     public DbSet<RagChunkRecord> RagChunks => Set<RagChunkRecord>();
+    public DbSet<McpApiToken> McpApiTokens => Set<McpApiToken>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -81,5 +82,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         model.Entity<AiBudgetPolicy>().ToTable("AiBudgetPolicies");
         model.Entity<AiBudgetIncident>().ToTable("AiBudgetIncidents");
         model.Entity<AiBudgetIncident>().HasIndex(item => new { item.Period, item.Kind }).IsUnique();
+        model.Entity<McpApiToken>().ToTable("McpApiTokens");
+        model.Entity<McpApiToken>().HasIndex(token => token.TokenHash).IsUnique();
+        model.Entity<McpApiToken>().HasIndex(token => new { token.UserId, token.RevokedUtc });
+        model.Entity<McpApiToken>().HasOne<AppUser>().WithMany()
+            .HasForeignKey(token => token.UserId).OnDelete(DeleteBehavior.Cascade);
     }
 }

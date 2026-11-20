@@ -1,9 +1,9 @@
 # MCP en DocuSearch AI — revisión, prompt y guía de implementación
 
-> **Estado: Fase 1 y Fase 2 MVP implementadas.** Servidor stdio `DocuSearch.Mcp`,
-> endpoint HTTP `/mcp` en la app y bearer configurado por entorno. El token HTTP es de
-> configuración (un usuario por proceso); los tokens multiusuario hasheados en SQL y su
-> UI de administración quedan pendientes. Ver `DocuSearch.Mcp/README.md`.
+> **Estado: Fase 1 y Fase 2 implementadas.** Servidor stdio `DocuSearch.Mcp`, endpoint
+> HTTP `/mcp`, tokens por usuario en SQL (`McpApiTokens`, hash SHA-256), expiración,
+> revocación, endpoints administrativos y rate limit. Ver `DocuSearch.Mcp/README.md`,
+> `tests/mcp/smoke.py` y `tests/mcp/http_smoke.py`.
 
 ## 1. Qué es MCP
 
@@ -274,5 +274,4 @@ No implementes la Fase 2 ni cambios de escritura sin autorización expresa.
 
 - **Fase 1 (recomendada):** stdio local, read-only, un usuario configurado.
 - **Fase 2:** HTTP + bearer tokens por usuario, scopes, rate limit, Claude Desktop/Cursor.
-- **Fase 3:** recursos/prompts MCP y métricas/auditoría read-only.
-- **Nunca:** escritura, aprobaciones, administración o SQL libre por MCP.
+- **Fase 3:** recursos/prompts MCP y métricas/auditoría read-only.- **Nunca:** escritura, aprobaciones, administración o SQL libre por MCP.
