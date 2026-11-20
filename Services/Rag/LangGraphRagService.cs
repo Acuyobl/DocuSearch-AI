@@ -30,7 +30,11 @@ public sealed class LangGraphRagService(
             string.IsNullOrWhiteSpace(profile.ProviderId) || string.IsNullOrWhiteSpace(profile.ModelId))
             return null;
 
-        var selected = sources.Take(Math.Clamp(settings.LangGraphMaxSources, 1, 6)).ToList();
+        var selected = sources
+            .Where(source => snapshot.Documents.Any(document => document.Id == source.Document.Id &&
+                Permissions.CanRead(snapshot.Actor, document)))
+            .Take(Math.Clamp(settings.LangGraphMaxSources, 1, 6)).ToList();
+        if (selected.Count == 0) return null;
         var request = new
         {
             base_url = openCode.BaseUrl,

@@ -27,6 +27,8 @@ public static class RagOutcome
     public const string VerificationFailed = "verification_failed";
     /// <summary>El índice por fragmentos no aportó fuentes autorizadas.</summary>
     public const string NoCoverage = "no_coverage";
+    /// <summary>El usuario perdió permiso sobre alguna fuente durante la consulta.</summary>
+    public const string AccessDenied = "access_denied";
 }
 
 /// <summary>Consulta RAG completa: retrieval híbrido, augmentación, generación y verificación.</summary>
@@ -63,7 +65,17 @@ public sealed class RagQueryService(
         try
         {
             var response = await AnswerAsync(question, generate, trace, timer, hint, cancellationToken);
-            trace.Status = response.Outcome == RagOutcome.NoCoverage ? "no_sources" : "success";
+            if (!await StillAuthorizedAsync(response.Sources, cancellationToken))
+            {
+                response = new RagQueryResponse(
+                    "No se muestran resultados: tu acceso a una de las fuentes cambió durante la consulta.",
+                    [], "acceso-denegado", timer.ElapsedMilliseconds, RagOutcome.AccessDenied);
+                trace.Status = "access_denied";
+            }
+            else
+            {
+                trace.Status = response.Outcome == RagOutcome.NoCoverage ? "no_sources" : "success";
+            }
             if (response.Outcome == RagOutcome.VerificationFailed) trace.ErrorCode = "verification_failed";
             await LogAsync(question, response);
             return response;
@@ -231,6 +243,15 @@ public sealed class RagQueryService(
         var citations = sources.Select(source => new RagCitation(source.Document.InternalCode, source.Document.Title,
             source.PageNumber, 0, source.Score / 100d, source.Snippet)).ToList();
         return new RagQueryResponse(answer.Text, citations, answer.Provider, timer.ElapsedMilliseconds, outcome);
+    }
+
+    private async Task<bool> StillAuthorizedAsync(IReadOnlyList<RagCitation> sources, CancellationToken cancellationToken)
+    {
+        if (sources.Count == 0) return true;
+        var current = await documents.LoadAsync();
+        var byCode = current.Documents.ToDictionary(document => document.InternalCode, StringComparer.OrdinalIgnoreCase);
+        return sources.All(source =>
+            byCode.TryGetValue(source.DocumentCode, out var document) && Permissions.CanRead(current.Actor, document));
     }
 
     /// <summary>
