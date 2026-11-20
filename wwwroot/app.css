@@ -753,10 +753,29 @@ td .text-button { max-width: 340px; }
 .answer-meta > span:first-child { color: var(--ink); font-weight: 600; }
 .answer-meta time { margin-left: auto; }
 .answer-engine { padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--elevated); font-size: 10px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agent-indicator { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--elevated); color: var(--muted); font-size: 10px; font-weight: 650; white-space: nowrap; }
+.agent-indicator { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--elevated); color: var(--muted); font-size: 10px; font-weight: 650; white-space: nowrap; }
 .agent-indicator svg { width: 12px; height: 12px; }
 .agent-indicator.multi { color: var(--brand); border-color: color-mix(in srgb, var(--p-500) 35%, transparent); background: color-mix(in srgb, var(--p-500) 10%, transparent); }
 .agent-indicator.single { color: var(--muted); }
+.agent-lights { display: inline-flex; align-items: center; gap: 3px; }
+.agent-lights i, .agent-status-light { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--line); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent); transition: background .2s, box-shadow .2s; }
+.agent-lights i.on, .agent-status-light.on { background: var(--p-500); box-shadow: 0 0 0 2px color-mix(in srgb, var(--p-500) 22%, transparent), 0 0 8px color-mix(in srgb, var(--p-500) 60%, transparent); }
+.agent-status-button { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--elevated); color: var(--muted); font-size: 10.5px; font-weight: 650; cursor: pointer; }
+.agent-status-button:hover { border-color: color-mix(in srgb, var(--p-500) 40%, var(--line)); color: var(--ink); }
+.agent-status-button.multi { color: var(--brand); border-color: color-mix(in srgb, var(--p-500) 40%, transparent); background: color-mix(in srgb, var(--p-500) 9%, var(--elevated)); }
+.agent-panel { border: 1px solid color-mix(in srgb, var(--p-500) 25%, var(--line)); border-radius: 14px; background: color-mix(in srgb, var(--p-500) 4%, var(--surface)); padding: 12px 14px; }
+.agent-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+.agent-panel-head strong { font-size: 12px; color: var(--ink); }
+.agent-panel-head span { font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-panel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.agent-card { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--elevated); opacity: .62; }
+.agent-card.on { opacity: 1; border-color: color-mix(in srgb, var(--p-500) 30%, var(--line)); }
+.agent-card > div { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.agent-card strong { font-size: 11px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-card small { font-size: 9.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-card em { margin-left: auto; font-size: 9px; font-style: normal; color: var(--muted); white-space: nowrap; }
+.agent-card.on em { color: var(--brand); font-weight: 700; }
+@media (max-width: 640px) { .agent-panel-grid { grid-template-columns: 1fr; } .agent-status-button span:last-child { display: none; } }
 .answer-body { overflow-wrap: anywhere; }
 .answer-body > p { margin: 0 0 10px; }
 .answer-body > :last-child { margin-bottom: 0; }

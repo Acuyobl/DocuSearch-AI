@@ -33,6 +33,10 @@
                 }
             </select>
         }
+        <button class="agent-status-button @(lastAgents.Count > 1 ? "multi" : "")" @onclick="() => agentsOpen = !agentsOpen" title="Ver agentes que intervinieron en la última respuesta" aria-expanded="@agentsOpen">
+            <span class="agent-lights" aria-hidden="true">@foreach (var code in AgentCodes) { <i class="@(IsAgentActive(code) ? "on" : "")"></i> }</span>
+            <span>@(lastAgents.Count switch { 0 => "Agentes", 1 => "1 agente", _ => $"{lastAgents.Count} agentes" })</span>
+        </button>
         <button class="icon-button" disabled="@State.Busy" @onclick="CheckConnection" title="Comprobar motores y actualizar documentos" aria-label="Comprobar motores y actualizar documentos"><AppIcon Name="refresh" /></button>
         <button class="icon-button" @onclick="Clear" disabled="@(State.Busy || messages.Count == 0)" title="Nueva conversación" aria-label="Nueva conversación"><AppIcon Name="delete" /></button>
     </div>
@@ -44,6 +48,23 @@
 else if (!Active.Available)
 {
     <div class="alert error" role="alert">El modelo «@Active.Label» está configurado pero su proveedor no está conectado. Revisa la conexión y vuelve a comprobar los motores.</div>
+}
+@if (agentsOpen)
+{
+    <section class="agent-panel" aria-label="Agentes de la última respuesta">
+        <div class="agent-panel-head"><strong>Agentes de la última respuesta</strong><span>@lastProvider</span></div>
+        <div class="agent-panel-grid">
+            @foreach (var code in AgentCodes)
+            {
+                var active = IsAgentActive(code);
+                <div class="agent-card @(active ? "on" : "")">
+                    <span class="agent-status-light @(active ? "on" : "")"></span>
+                    <div><strong>@AgentLabel(code)</strong><small>@AgentDescription(code)</small></div>
+                    <em>@(active ? "activo" : "en espera")</em>
+                </div>
+            }
+        </div>
+    </section>
 }
 <section class="conversation" @ref="conversation" aria-label="Conversación documental" aria-live="polite">
     @if (messages.Count == 0)
@@ -70,7 +91,8 @@ else if (!Active.Available)
                         @if (message.AgentList.Count > 0)
                         {
                             <span class="agent-indicator @(message.AgentList.Count > 1 ? "multi" : "single")" title="@AgentNames(message.AgentList)">
-                                <AppIcon Name="spark" />@message.AgentList.Count @(message.AgentList.Count == 1 ? "agente" : "agentes")
+                                <span class="agent-lights" aria-hidden="true">@foreach (var code in AgentCodes) { <i class="@(IsAgentActive(message.AgentList, code) ? "on" : "")"></i> }</span>
+                                @message.AgentList.Count @(message.AgentList.Count == 1 ? "agente" : "agentes")
                             </span>
                         }
                         <time>@message.At.ToLocalTime().ToString("HH:mm")</time>
@@ -101,6 +123,10 @@ else if (!Active.Available)
     [Inject] private LocalSession Session { get; set; } = default!;
     private string query = "";
     private string selectedProfile = "";
+    private bool agentsOpen;
+    private IReadOnlyList<string> lastAgents = [];
+    private string lastProvider = "";
+    private static readonly string[] AgentCodes = ["AG-03", "AG-04", "AG-02"];
     private ElementReference conversation;
     private ElementReference composer;
     private DotNetObjectReference<AgentChat>? enterBridge;
@@ -255,6 +281,8 @@ else if (!Active.Available)
             var reply = new ChatMessage(false, answer.Text, answer.Sources, answer.Provider, numbered, text,
                 AgentsFor(answer));
             messages.Add(reply);
+            lastAgents = reply.AgentList;
+            lastProvider = reply.Provider;
             Remember(reply);
             if (WantsPdf(text) && answer.Sources.Count > 0)
                 await DownloadPdf(reply);
@@ -299,6 +327,17 @@ else if (!Active.Available)
             AgentCatalog.Active.FirstOrDefault(info => agent.StartsWith(info.Code, StringComparison.OrdinalIgnoreCase))?.Name
             ?? agent));
 
+    private bool IsAgentActive(string code) => IsAgentActive(lastAgents, code);
+
+    private static bool IsAgentActive(IReadOnlyList<string> agents, string code) =>
+        agents.Any(agent => agent.StartsWith(code, StringComparison.OrdinalIgnoreCase));
+
+    private static string AgentLabel(string code) =>
+        AgentCatalog.Active.FirstOrDefault(agent => agent.Code == code)?.Name ?? code;
+
+    private static string AgentDescription(string code) =>
+        AgentCatalog.Active.FirstOrDefault(agent => agent.Code == code)?.Description ?? "";
+
     private static bool WantsPdf(string text) => System.Text.RegularExpressions.Regex.IsMatch(
         TextAnalysis.Normalize(text),
         @"\bpdf\b|\b(en|como) un documento\b|\bgenera (un|el) (documento|informe|archivo)\b");
@@ -311,6 +350,9 @@ else if (!Active.Available)
         Memory.ClearConversation(Session);
         expiresUtc = null;
         Session.LastDocumentCode = null;
+        lastAgents = [];
+        lastProvider = "";
+        agentsOpen = false;
         scrollPending = true;
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
