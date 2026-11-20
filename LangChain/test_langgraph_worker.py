@@ -18,7 +18,7 @@ class FakeModel:
         if "planificador" in prompt:
             self.calls.append("plan")
             return AIMessage('{"steps":["leer fuentes","redactar"]}')
-        if "crítico documental" in prompt:
+        if "revisor de calidad" in prompt:
             self.calls.append("critique")
             ok = self.critiques.pop(0) if self.critiques else True
             if ok:
@@ -57,25 +57,47 @@ class GraphTests(unittest.TestCase):
         self.assertEqual(result["steps"], ["prepare", "plan", "synthesize", "critique", "finalize"])
 
     def test_retry_after_invalid_critique(self):
-        class BadModel(FakeModel):
+        class RetryModel(FakeModel):
             def invoke(self, prompt: str):
+                if "planificador" in prompt:
+                    self.calls.append("plan")
+                    return AIMessage('{"steps":["leer fuentes"]}')
+                if "revisor de calidad" in prompt:
+                    self.calls.append("critique")
+                    return AIMessage('{"ok":true,"issues":[],"citations":[1]}' if self.calls.count("synthesize") > 1
+                                     else '{"ok":false,"issues":["reintentar"],"citations":[]}')
                 self.calls.append("synthesize")
-                if len(self.calls) == 1:
-                    return AIMessage('{"answer":"Sin citas","citations":[]}')
                 return AIMessage('{"answer":"Uruk fue un centro importante [1].","citations":[1]}')
 
-        model = BadModel()
+        model = RetryModel()
         result = worker.build_graph(model).invoke({"request": request()})
         self.assertEqual(result["final"], "Uruk fue un centro importante [1].")
         self.assertEqual(model.calls.count("synthesize"), 2)
+        self.assertEqual(model.calls.count("plan"), 1)
+
+    def test_critique_negative_after_retry_keeps_verifiable_answer(self):
+        class CriticalModel(FakeModel):
+            def invoke(self, prompt: str):
+                if "planificador" in prompt:
+                    self.calls.append("plan")
+                    return AIMessage('{"steps":["leer fuentes"]}')
+                if "revisor de calidad" in prompt:
+                    self.calls.append("critique")
+                    return AIMessage('{"ok":false,"issues":["parcial"],"citations":[]}')
+                self.calls.append("synthesize")
+                return AIMessage('{"answer":"Uruk fue un centro importante [1].","citations":[1]}')
+
+        result = worker.build_graph(CriticalModel()).invoke({"request": request()})
+        self.assertEqual(result["final"], "Uruk fue un centro importante [1].")
+        self.assertEqual(result["citations_final"], [1])
 
     def test_invalid_citation_fails(self):
         class BadModel(FakeModel):
             def invoke(self, prompt: str):
-                if "crítico documental" in prompt:
-                    return AIMessage('{"ok":true,"issues":[],"citations":[9]}')
                 if "planificador" in prompt:
-                    return AIMessage('{"steps":[]}')
+                    return AIMessage('{"steps":["leer fuentes"]}')
+                if "revisor de calidad" in prompt:
+                    return AIMessage('{"ok":true,"issues":[],"citations":[9]}')
                 return AIMessage('{"answer":"Inventado [9].","citations":[9]}')
 
         result = worker.build_graph(BadModel()).invoke({"request": request()})

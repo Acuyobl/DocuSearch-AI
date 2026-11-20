@@ -197,10 +197,25 @@ def build_graph(model: Any):
         return {"sources": sources, "question": request.question, "steps": ["prepare"], "model_calls": 0}
 
     def plan(state: GraphState) -> dict[str, Any]:
-        # El plan es determinista para que el MVP no gaste una llamada extra:
-        # la mejora frente al flujo anterior es el estado explícito y la crítica/reintento.
-        return {"plan": ["identificar los datos relevantes", "redactar una respuesta con citas"],
-                "steps": state.get("steps", []) + ["plan"]}
+        request = state["request"]
+        prompt = (
+            "Eres el planificador de un asistente documental. Diseña 2 o 3 pasos concretos "
+            "para responder con las fuentes. Devuelve SOLO JSON con {\"steps\": [\"...\"]}. "
+            "No inventes pasos que necesiten herramientas o internet.\n"
+            f"Pregunta: {request.question}\n"
+            f"Fuentes: {json.dumps(state['sources'], ensure_ascii=False)}"
+        )
+        try:
+            parsed = _json_object(_text(model.invoke(prompt)))
+            raw_steps = parsed.get("steps")
+            steps = [str(step)[:200] for step in raw_steps][:5] if isinstance(raw_steps, list) else []
+            if not steps:
+                raise ValueError("El plan no contiene pasos.")
+        except Exception:
+            # El plan no es bloqueante: si el modelo no devuelve JSON, se usa un plan mínimo.
+            steps = ["identificar los datos relevantes", "redactar una respuesta con citas"]
+        return {"plan": steps, "steps": state.get("steps", []) + ["plan"],
+                "model_calls": state.get("model_calls", 0) + 1}
 
     def synthesize(state: GraphState) -> dict[str, Any]:
         request = state["request"]
@@ -227,22 +242,37 @@ def build_graph(model: Any):
                     "model_calls": state.get("model_calls", 0) + 1}
 
     def critique(state: GraphState) -> dict[str, Any]:
-        # Crítica determinista: comprueba que haya borrador y citas dentro del conjunto.
-        # No gasta una segunda llamada al modelo; el resultado sigue pasando por AG-02 en C#.
+        request = state["request"]
+        prompt = (
+            "Eres el revisor de calidad de un asistente documental. Comprueba que el borrador "
+            "responda a la pregunta usando exclusivamente las fuentes y que las citas existan. "
+            "Devuelve SOLO JSON con {\"ok\": true|false, \"issues\": [\"...\"], \"citations\": [1,2]}. "
+            "Si falta información, no la inventes; marca ok=false.\n"
+            f"Pregunta: {request.question}\n"
+            f"Borrador: {state.get('draft', '')}\n"
+            f"Fuentes: {json.dumps(state['sources'], ensure_ascii=False)}"
+        )
         try:
-            clean = _valid_citations(state.get("citations"), len(state["sources"]))
-            ok = bool(state.get("draft")) and bool(clean)
-            return {"critique_ok": ok, "critique": "ok" if ok else "sin borrador o citas válidas",
-                    "citations": clean, "steps": state.get("steps", []) + ["critique"]}
-        except ValueError as error:
+            parsed = _json_object(_text(model.invoke(prompt)))
+            ok = bool(parsed.get("ok")) and bool(state.get("draft"))
+            citations = _valid_citations(parsed.get("citations"), len(state["sources"])) if ok else []
+            if not ok:
+                citations = state.get("citations", [])
+            return {"critique_ok": ok, "critique": json.dumps(parsed, ensure_ascii=False)[:1000],
+                    "citations": citations, "steps": state.get("steps", []) + ["critique"],
+                    "model_calls": state.get("model_calls", 0) + 1}
+        except Exception as error:
             return {"critique_ok": False, "critique": str(error)[:300],
-                    "steps": state.get("steps", []) + ["critique"]}
+                    "steps": state.get("steps", []) + ["critique"],
+                    "model_calls": state.get("model_calls", 0) + 1}
 
     def route(state: GraphState) -> str:
         attempts = state.get("steps", []).count("synthesize")
         return "synthesize" if not state.get("critique_ok") and attempts <= state["request"].max_retries else "finalize"
 
     def finalize(state: GraphState) -> dict[str, Any]:
+        # La crítica orienta el reintento, pero no descarta por sí sola un borrador con
+        # citas válidas: AG-02 en C# es la puerta final de seguridad.
         draft = state.get("draft", "").strip()
         citations = state.get("citations") or state.get("citations_final") or []
         if not draft or not citations:

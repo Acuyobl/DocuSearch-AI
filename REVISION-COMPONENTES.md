@@ -97,16 +97,16 @@ Eliminado:
 | Base .NET | **75/75** |
 | RAG .NET | **119/119** |
 | Verificador, inspector, catalogador y auditor | **107/107** |
-| Python LangGraph | **6/6** |
+| Python LangGraph | **7/7** |
 | Endpoint real | `LangGraph · OpenCode · deepseek/deepseek-flash` |
 | Health/login | `ready` / `200` |
 
 ## 9. Faltantes y observaciones honestas
 
-1. **LangGraph usa plan y crítica deterministas** para evitar tres llamadas al modelo; el prompt original pedía plan/crítica con LLM. Es una decisión de latencia, no un fallo.
-2. **No hay test C# automatizado con runner LangGraph falso**; hay build, prueba manual del endpoint y 6 pruebas Python.
-3. **Los embeddings ahora se envían a Pinecone Inference** (texto de fragmentos/páginas). Antes se calculaban localmente; es un cambio de privacidad/coste que debe aprobarse para datos reales.
-4. **Rendimiento**: LangGraph tarda decenas de segundos; el timeout actual es 240 s y usa 4 fuentes.
+1. **LangGraph usa plan, síntesis y crítica con LLM** (tres llamadas), con reintento acotado; la crítica no sustituye a AG-02.
+2. **No hay test C# automatizado con runner LangGraph falso**; hay build, prueba manual del endpoint y **7 pruebas Python**.
+3. **Los embeddings se envían a Pinecone Inference** (texto de fragmentos/páginas); es un cambio de privacidad/coste para datos reales.
+4. **Rendimiento**: LangGraph tarda decenas de segundos; el timeout actual es 240 s y usa 6 fuentes.
 5. **Documentación histórica** en `agente-ia/` y algunos documentos raíz puede mencionar Ollama; no es código ejecutable.
 6. **RAGAS** no está disponible en Python 3.14; DeepEval se usa con OpenCode/DeepSeek.
 7. La UI de luces está compilada y desplegada, pero no se automatizó una prueba E2E de navegador.

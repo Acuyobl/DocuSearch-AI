@@ -7,7 +7,7 @@
 | Pieza | Archivo | Estado |
 |---|---|---|
 | Grafo LangGraph | `LangChain/langgraph_worker.py` | Funcional |
-| Pruebas del grafo | `LangChain/test_langgraph_worker.py` | 6/6 |
+| Pruebas del grafo | `LangChain/test_langgraph_worker.py` | 7/7 |
 | Runner .NET | reutiliza `Services/LangChainRunner.cs` | Funcional |
 | Servicio C# | `Services/Rag/LangGraphRagService.cs` | Funcional |
 | Integración RAG | `Services/Rag/RagQueryService.cs` | Solo resumen/análisis |
@@ -22,10 +22,10 @@ Los embeddings usan **Pinecone Inference** (`multilingual-e5-large`, 1024 dimens
 
 ```text
 RagQueryService (C#): recupera y autoriza fuentes (AG-03)
-  → LangGraphRagService (C#): serializa hasta 4 fuentes, 800 caracteres
+  → LangGraphRagService (C#): serializa hasta 6 fuentes, 800 caracteres
   → langgraph_worker.py:
-       prepare → plan (determinista) → synthesize (1 llamada OpenCode/DeepSeek)
-       → critique (determinista) → finalize
+       prepare → plan (LLM) → synthesize (LLM OpenCode/DeepSeek)
+       → critique (LLM) → finalize
   → C#: AgentVerifier (AG-02)
   → respuesta o fallback al camino anterior
 ```
@@ -70,7 +70,7 @@ docker exec ds-app python3 /work/LangChain/langgraph_worker.py --check
 ## Evidencia
 
 - `--check`: `{"status":"ready","framework":"LangGraph","provider":"opencode-2"}`
-- Pruebas Python: **6/6**.
+- Pruebas Python: **7/7**.
 - Prueba C# completa con `/api/rag/query`:
   - `engine = LangGraph · OpenCode · deepseek/deepseek-flash`
   - respuesta con citas y fuentes.
@@ -79,9 +79,9 @@ docker exec ds-app python3 /work/LangChain/langgraph_worker.py --check
 ## Decisiones para el MVP
 
 - **OpenCode 2/DeepSeek** como proveedor; el worker no habla con Ollama.
-- **Plan y crítica deterministas** para gastar una sola llamada generativa.
-- **4 fuentes y 800 caracteres por fuente** para acotar latencia y contexto.
-- **LangGraph solo para resumen/análisis**; preguntas normales, catalogador, auditor, inspector y observador siguen en C#.
+- **Tres llamadas reales al modelo**: plan, síntesis y crítica; si la crítica pide cambios, hay un reintento acotado.
+- **6 fuentes y 800 caracteres por fuente** para acotar contexto.
+- **La crítica es asesora**: AG-02 en C# es la puerta final; una crítica negativa no descarta una respuesta con citas válidas.
 - **La bandera está apagada por defecto**; no se cambia el comportamiento si no se activa.
 
 ## Faltantes / próximos pasos
