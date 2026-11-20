@@ -139,20 +139,10 @@ def build_graph(model: Any):
         return {"sources": sources, "question": request.question, "steps": ["prepare"], "model_calls": 0}
 
     def plan(state: GraphState) -> dict[str, Any]:
-        request = state["request"]
-        prompt = (
-            "Eres un planificador documental. Devuelve SOLO JSON con {\"steps\": [\"...\"]}. "
-            "Diseña 2 o 3 pasos para responder usando exclusivamente las fuentes.\n"
-            f"Pregunta: {state['question']}\nFuentes: {json.dumps(state['sources'], ensure_ascii=False)}"
-        )
-        try:
-            parsed = _json_object(_text(model.invoke(prompt)))
-            steps = parsed.get("steps")
-            plan_steps = [str(step)[:200] for step in steps][:5] if isinstance(steps, list) else []
-        except Exception:
-            plan_steps = []
-        return {"plan": plan_steps, "steps": state.get("steps", []) + ["plan"],
-                "model_calls": state.get("model_calls", 0) + 1}
+        # El plan es determinista para que el MVP no gaste una llamada extra:
+        # la mejora frente al flujo anterior es el estado explícito y la crítica/reintento.
+        return {"plan": ["identificar los datos relevantes", "redactar una respuesta con citas"],
+                "steps": state.get("steps", []) + ["plan"]}
 
     def synthesize(state: GraphState) -> dict[str, Any]:
         request = state["request"]
@@ -179,25 +169,16 @@ def build_graph(model: Any):
                     "model_calls": state.get("model_calls", 0) + 1}
 
     def critique(state: GraphState) -> dict[str, Any]:
-        request = state["request"]
-        prompt = (
-            "Eres un crítico documental. Comprueba si el borrador responde con las fuentes. "
-            "Devuelve SOLO JSON con {\"ok\": true|false, \"issues\": [\"...\"], \"citations\": [1,2]}.\n"
-            f"Pregunta: {request.question}\n"
-            f"Borrador: {state.get('draft', '')}\n"
-            f"Fuentes: {json.dumps(state['sources'], ensure_ascii=False)}"
-        )
+        # Crítica determinista: comprueba que haya borrador y citas dentro del conjunto.
+        # No gasta una segunda llamada al modelo; el resultado sigue pasando por AG-02 en C#.
         try:
-            parsed = _json_object(_text(model.invoke(prompt)))
-            ok = bool(parsed.get("ok")) and bool(state.get("draft"))
-            citations = _valid_citations(parsed.get("citations"), len(state["sources"])) if ok else state.get("citations", [])
-            return {"critique_ok": ok, "critique": json.dumps(parsed, ensure_ascii=False)[:1000],
-                    "citations": citations, "steps": state.get("steps", []) + ["critique"],
-                    "model_calls": state.get("model_calls", 0) + 1}
-        except Exception as error:
+            clean = _valid_citations(state.get("citations"), len(state["sources"]))
+            ok = bool(state.get("draft")) and bool(clean)
+            return {"critique_ok": ok, "critique": "ok" if ok else "sin borrador o citas válidas",
+                    "citations": clean, "steps": state.get("steps", []) + ["critique"]}
+        except ValueError as error:
             return {"critique_ok": False, "critique": str(error)[:300],
-                    "steps": state.get("steps", []) + ["critique"],
-                    "model_calls": state.get("model_calls", 0) + 1}
+                    "steps": state.get("steps", []) + ["critique"]}
 
     def route(state: GraphState) -> str:
         attempts = state.get("steps", []).count("synthesize")

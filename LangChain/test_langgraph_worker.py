@@ -52,8 +52,15 @@ class GraphTests(unittest.TestCase):
         self.assertEqual(result["citations_final"], [1])
         self.assertEqual(result["steps"], ["prepare", "plan", "synthesize", "critique", "finalize"])
 
-    def test_retry_after_critique(self):
-        model = FakeModel([False, True])
+    def test_retry_after_invalid_critique(self):
+        class BadModel(FakeModel):
+            def invoke(self, prompt: str):
+                self.calls.append("synthesize")
+                if len(self.calls) == 1:
+                    return AIMessage('{"answer":"Sin citas","citations":[]}')
+                return AIMessage('{"answer":"Uruk fue un centro importante [1].","citations":[1]}')
+
+        model = BadModel()
         result = worker.build_graph(model).invoke({"request": request()})
         self.assertEqual(result["final"], "Uruk fue un centro importante [1].")
         self.assertEqual(model.calls.count("synthesize"), 2)

@@ -220,8 +220,10 @@ public sealed class RagQueryService(
         {
             trace.Engine = "rag-langgraph";
             trace.Model = TextAnalysis.Truncate(graphAnswer.Provider, 200);
-            var graphCitations = sources.Select(source => new RagCitation(source.Document.InternalCode, source.Document.Title,
-                source.PageNumber, 0, source.Score / 100d, source.Snippet)).ToList();
+            var graphCitations = graphAnswer.Sources
+                .DistinctBy(source => (source.Document.Id, source.PageNumber))
+                .Select(source => new RagCitation(source.Document.InternalCode, source.Document.Title,
+                    source.PageNumber, 0, source.Score / 100d, source.Snippet)).ToList();
             return new RagQueryResponse(graphAnswer.Text, graphCitations, graphAnswer.Provider,
                 timer.ElapsedMilliseconds, RagOutcome.Generated);
         }

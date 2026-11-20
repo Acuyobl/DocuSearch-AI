@@ -35,7 +35,7 @@ public sealed class LangGraphRagService(
                 code = source.Document.InternalCode,
                 title = source.Document.Title,
                 page = source.PageNumber,
-                text = TextAnalysis.Truncate(source.Snippet, 1500)
+                text = TextAnalysis.Truncate(source.Snippet, 800)
             }).ToArray(),
             system = AssistantPrompt.For(style),
             max_sources = selected.Count,
