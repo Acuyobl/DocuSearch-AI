@@ -1559,7 +1559,7 @@ if (args.Contains("--rag"))
     await Check("Síntesis: el prompt pide lenguaje natural y cabe en el límite de los workers", () => Sync(() =>
     {
         foreach (var style in Enum.GetValues<AnswerStyle>()) Assert(AssistantPrompt.For(style).Length < 4000, style.ToString());
-        Assert(AssistantPrompt.For(AnswerStyle.Summary).Contains("lenguaje natural") && AssistantPrompt.For(AnswerStyle.Analysis).Contains("Diferencias:"));
+        Assert(AssistantPrompt.For(AnswerStyle.Summary).Contains("Resumen general") && AssistantPrompt.For(AnswerStyle.Analysis).Contains("Comparación"));
         Assert(AssistantPrompt.For(AnswerStyle.Default).Contains("breve") && AssistantPrompt.For(AnswerStyle.Default).StartsWith(AssistantPrompt.System));
     }));
     await Check("Chat: el marcado de un documento se conserva como texto", () => Sync(() =>

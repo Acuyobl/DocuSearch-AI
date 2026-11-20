@@ -241,7 +241,7 @@ public static partial class AnswerFormatter
             else
             {
                 foreach (var number in match.Groups["index"].Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
-                    result.Add(new(AnswerInlineKind.Citation, number, Index: int.Parse(number)));
+                    result.Add(new(AnswerInlineKind.Citation, $"[{number}]", Index: int.Parse(number)));
             }
             last = match.Index + match.Length;
         }
