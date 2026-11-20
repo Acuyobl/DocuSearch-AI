@@ -40,7 +40,8 @@ public sealed class RagQueryService(
     ILogger<RagQueryService> logger,
     AgentObservability? observability = null,
     IOptions<RagOptions>? options = null,
-    IAiGovernance? aiGovernance = null)
+    IAiGovernance? aiGovernance = null,
+    LangGraphRagService? langGraph = null)
 {
     /// <summary>
     /// Motor informado cuando el índice por fragmentos no aporta ninguna fuente
@@ -214,6 +215,16 @@ public sealed class RagQueryService(
         var label = intent.Style == AnswerStyle.Analysis ? "análisis" : "resumen";
         var extractive = new AgentAnswer(DocumentSynthesis.Compose(intent.Style, targets, sources, overviewTotal), sources,
             $"Extractivo local · {label}");
+        if (generate && langGraph is not null &&
+            await langGraph.TryGenerateAsync(question, sources, snapshot, intent.Style, cancellationToken) is { } graphAnswer)
+        {
+            trace.Engine = "rag-langgraph";
+            trace.Model = TextAnalysis.Truncate(graphAnswer.Provider, 200);
+            var graphCitations = sources.Select(source => new RagCitation(source.Document.InternalCode, source.Document.Title,
+                source.PageNumber, 0, source.Score / 100d, source.Snippet)).ToList();
+            return new RagQueryResponse(graphAnswer.Text, graphCitations, graphAnswer.Provider,
+                timer.ElapsedMilliseconds, RagOutcome.Generated);
+        }
         var (answer, outcome) = await GenerateVerifiedAsync(question, sources, intent.Style, extractive, generate, trace, snapshot);
 
         var citations = sources.Select(source => new RagCitation(source.Document.InternalCode, source.Document.Title,

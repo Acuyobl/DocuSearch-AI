@@ -31,9 +31,9 @@ public sealed class OllamaClient
         settings = options.Value;
         if (!Uri.TryCreate(settings.BaseUrl, UriKind.Absolute, out var endpoint) ||
             endpoint.Scheme is not ("http" or "https") ||
-            !IPAddress.TryParse(endpoint.DnsSafeHost, out var address) || !IPAddress.IsLoopback(address) ||
+            !IsLoopbackOrDockerHost(endpoint) ||
             endpoint.AbsolutePath != "/" || endpoint.UserInfo.Length > 0 || endpoint.Query.Length > 0 || endpoint.Fragment.Length > 0)
-            throw new InvalidOperationException("Ollama:BaseUrl debe ser una dirección IP de loopback, por ejemplo http://127.0.0.1:11434. No se permiten servidores externos.");
+            throw new InvalidOperationException("Ollama:BaseUrl debe ser una dirección IP de loopback o host.docker.internal, por ejemplo http://127.0.0.1:11434. No se permiten servidores externos.");
         if (string.IsNullOrWhiteSpace(settings.Model) || settings.Model.Contains("cloud", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Configura un modelo Ollama descargado localmente; los modelos cloud no están permitidos.");
         if (settings.TimeoutSeconds is < 1 or > 600)
@@ -43,6 +43,10 @@ public sealed class OllamaClient
         http.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
         http.MaxResponseContentBufferSize = 2 * 1024 * 1024;
     }
+
+    private static bool IsLoopbackOrDockerHost(Uri endpoint) =>
+        endpoint.DnsSafeHost.Equals("host.docker.internal", StringComparison.OrdinalIgnoreCase) ||
+        (IPAddress.TryParse(endpoint.DnsSafeHost, out var address) && IPAddress.IsLoopback(address));
 
     /// <summary>Comprobación ligera para el catálogo: ¿responde Ollama en su endpoint?</summary>
     public async Task<bool> IsReachableAsync()

@@ -35,6 +35,11 @@ public sealed class AssistantOptions
     public bool IncludeLocalModels { get; set; }
     /// <summary>Máximo de modelos de pago listados por proveedor conectado (0 = ocultar).</summary>
     public int MaxPaidModels { get; set; } = 10;
+    /// <summary>Usa el grafo LangGraph solo para resumen/análisis; si falla, vuelve al camino actual.</summary>
+    public bool UseLangGraph { get; set; }
+    public int LangGraphTimeoutSeconds { get; set; } = 90;
+    public int LangGraphMaxSources { get; set; } = 6;
+    public int LangGraphMaxRetries { get; set; } = 1;
 }
 
 /// <summary>

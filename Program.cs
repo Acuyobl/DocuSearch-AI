@@ -150,6 +150,7 @@ builder.Services.AddScoped<IRagRetriever, HybridRagRetriever>();
 builder.Services.AddScoped<RagIngestionService>();
 builder.Services.AddScoped<RagSourceStore>();
 builder.Services.AddScoped<RagQueryService>();
+builder.Services.AddScoped<LangGraphRagService>();
 builder.Services.AddScoped<RagEvaluationService>();
 builder.Services.AddScoped<RagObservabilityService>();
 builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection("Ollama"));
