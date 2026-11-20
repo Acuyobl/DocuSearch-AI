@@ -111,8 +111,8 @@ python -m venv .venv-ragas
 
 # Ejecuta con DeepSeek como juez (30 casos).
 # ATENCIÓN: envía preguntas, respuestas y contextos (texto de los expedientes) a
-# api.deepseek.com. Úsalo solo con documentos de prueba; el juez local (Ollama,
-# por defecto) no saca datos de la máquina.
+# api.deepseek.com. Úsalo solo con documentos de prueba. El juez por defecto es
+# OpenCode local, no Ollama.
 $env:JUDGE = "deepseek"
 $env:ALLOW_EXTERNAL_JUDGE = "1"     # confirmación explícita del envío externo
 $env:DEEPSEEK_API_KEY = "<clave>"   # no versionar

@@ -1,6 +1,6 @@
-# Pruebas E2E del panel de agentes
+# Pruebas E2E de DocuSearch
 
-Suite Playwright para el indicador visual del Asistente IA.
+Suite Playwright para el panel de agentes, aprobaciones y RBAC.
 
 ## Requisitos
 
@@ -8,9 +8,12 @@ Suite Playwright para el indicador visual del Asistente IA.
 - OpenCode/DeepSeek disponible para el resumen.
 - `Assistant:UseLangGraph=true` en el entorno de la app.
 - Chrome instalado (la suite usa `channel: "chrome"`).
+- Una solicitud de aprobación pendiente para `approvals.spec.js`.
 - Variables de entorno:
   - `E2E_EMAIL`: usuario de prueba.
   - `E2E_TOTP_SECRET`: secreto TOTP del usuario.
+  - `E2E_AUDITOR_EMAIL` / `E2E_AUDITOR_TOTP_SECRET`: auditor para aprobaciones.
+  - `E2E_LOW_EMAIL` / `E2E_LOW_TOTP_SECRET`: usuario `consultor` para RBAC.
   - `E2E_BASE_URL` (opcional): por defecto `http://127.0.0.1:5068`.
 
 No se guardan credenciales ni secretos en el repositorio.
@@ -22,6 +25,8 @@ cd tests/e2e
 npm install
 $env:E2E_EMAIL = "usuario@example.test"
 $env:E2E_TOTP_SECRET = "<secreto-totp>"
+$env:E2E_AUDITOR_EMAIL = "auditor@example.test"
+$env:E2E_AUDITOR_TOTP_SECRET = "<secreto-auditor>"
 npx playwright test
 ```
 
@@ -47,11 +52,21 @@ Los fallos dejan captura, traza y contexto en `test-results/`.
    - Termina con **1 agente**.
    - Solo se enciende **una luz**.
 
+3. **Aprobaciones**
+   - El solicitante ve su solicitud pendiente y **Cancelar solicitud**.
+   - No ve aprobar su propia solicitud.
+   - El auditor ve **Aprobar y ejecutar** y **Rechazar**.
+
+4. **Rol bajo**
+   - El `consultor` puede iniciar sesión.
+   - El asistente no devuelve el expediente `Confidencial` ni su código en las fuentes.
+
 ## Resultado actual
 
 ```text
-Running 2 tests using 1 worker
-ok  resumen activa 3 agentes, colores distintos y modal visible
-ok  una consulta normal muestra un solo agente
-2 passed
+agent-lights.spec.js: 2 passed
+approvals.spec.js:    2 passed
+low-role.spec.js:     1 passed
 ```
+
+Nota: el login tiene rate limit por IP. Si se repiten suites en pocos minutos, espera antes de reintentar.
