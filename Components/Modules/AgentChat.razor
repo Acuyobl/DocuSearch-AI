@@ -61,7 +61,20 @@ else if (!Active.Available)
             <article class="chat-turn assistant">
                 <span class="chat-avatar"><AppIcon Name="agent" /></span>
                 <div class="message">
-                    <div class="answer-meta"><span>Asistente</span>@if (!string.IsNullOrWhiteSpace(message.Provider)) { <span class="answer-engine">@message.Provider</span> }<time>@message.At.ToLocalTime().ToString("HH:mm")</time></div>
+                    <div class="answer-meta">
+                        <span>Asistente</span>
+                        @if (!string.IsNullOrWhiteSpace(message.Provider))
+                        {
+                            <span class="answer-engine">@message.Provider</span>
+                        }
+                        @if (message.AgentList.Count > 0)
+                        {
+                            <span class="agent-indicator @(message.AgentList.Count > 1 ? "multi" : "single")" title="@AgentNames(message.AgentList)">
+                                <AppIcon Name="spark" />@message.AgentList.Count @(message.AgentList.Count == 1 ? "agente" : "agentes")
+                            </span>
+                        }
+                        <time>@message.At.ToLocalTime().ToString("HH:mm")</time>
+                    </div>
                     <ChatAnswer Text="@message.Text" Sources="message.Sources" NumberedSources="message.Numbered" Documents="State.Data.Documents" OnView="OnView" />
                     @if (message.Sources.Count > 0)
                     {
@@ -110,8 +123,9 @@ else if (!Active.Available)
         _ => "Respuestas extractivas, sin modelo generativo."
     };
     private sealed record ChatMessage(bool IsUser, string Text, List<SearchHit> Sources, string Provider = "", bool Numbered = false,
-        string Question = "")
+        string Question = "", IReadOnlyList<string>? Agents = null)
     {
+        public IReadOnlyList<string> AgentList => Agents ?? [];
         public DateTimeOffset At { get; init; } = DateTimeOffset.UtcNow;
     }
     protected override async Task OnInitializedAsync()
@@ -177,7 +191,8 @@ else if (!Active.Available)
             }
             messages.Add(revoked && !turn.IsUser
                 ? new(false, "Respuesta oculta: ya no tienes acceso a alguna de sus fuentes.", [], turn.Provider) { At = turn.At }
-                : new(turn.IsUser, turn.Text, sources, turn.Provider, turn.Numbered) { At = turn.At });
+                : new(turn.IsUser, turn.Text, sources, turn.Provider, turn.Numbered,
+                    Agents: turn.IsUser ? null : AgentsForProvider(turn.Provider)) { At = turn.At });
         }
         if (saved.FocusDocumentCode is not null) Session.LastDocumentCode = saved.FocusDocumentCode;
         scrollPending = messages.Count > 0;
@@ -237,7 +252,8 @@ else if (!Active.Available)
             {
                 answer = await Agent.AskAsync(text);
             }
-            var reply = new ChatMessage(false, answer.Text, answer.Sources, answer.Provider, numbered, text);
+            var reply = new ChatMessage(false, answer.Text, answer.Sources, answer.Provider, numbered, text,
+                AgentsFor(answer));
             messages.Add(reply);
             Remember(reply);
             if (WantsPdf(text) && answer.Sources.Count > 0)
@@ -269,6 +285,19 @@ else if (!Active.Available)
         var filename = $"docusearch-{slug}-{DateTime.Now:yyyyMMdd-HHmm}.pdf";
         await JS.InvokeVoidAsync("docusearch.downloadBase64", Convert.ToBase64String(bytes), filename, "application/pdf");
     }
+
+    private static IReadOnlyList<string> AgentsFor(AgentAnswer answer) =>
+        answer.Agents is { Count: > 0 } listed ? listed : AgentsForProvider(answer.Provider);
+
+    private static IReadOnlyList<string> AgentsForProvider(string provider) =>
+        provider.Contains("LangGraph", StringComparison.OrdinalIgnoreCase)
+            ? ["AG-03 Recuperador", "AG-04 Redactor", "AG-02 Verificador"]
+            : ["AG-04 Redactor"];
+
+    private static string AgentNames(IReadOnlyList<string> agents) =>
+        string.Join(" · ", agents.Select(agent =>
+            AgentCatalog.Active.FirstOrDefault(info => agent.StartsWith(info.Code, StringComparison.OrdinalIgnoreCase))?.Name
+            ?? agent));
 
     private static bool WantsPdf(string text) => System.Text.RegularExpressions.Regex.IsMatch(
         TextAnalysis.Normalize(text),

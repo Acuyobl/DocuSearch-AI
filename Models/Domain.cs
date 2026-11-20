@@ -113,7 +113,7 @@ public sealed record AppSnapshot(AppUser Actor, List<DocumentItem> Documents, Li
     List<DepartmentInfo> Departments, List<AuditEvent> Audit);
 public sealed record SearchHit(DocumentItem Document, int PageNumber, string Snippet, int Score);
 public sealed record AgentAnswer(string Text, List<SearchHit> Sources, string Provider = "Extractivo local",
-    long? InputTokens = null, long? OutputTokens = null);
+    long? InputTokens = null, long? OutputTokens = null, IReadOnlyList<string>? Agents = null);
 public sealed class SeedData
 {
     public List<DocumentItem> Documents { get; set; } = [];

@@ -753,6 +753,10 @@ td .text-button { max-width: 340px; }
 .answer-meta > span:first-child { color: var(--ink); font-weight: 600; }
 .answer-meta time { margin-left: auto; }
 .answer-engine { padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--elevated); font-size: 10px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-indicator { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--elevated); color: var(--muted); font-size: 10px; font-weight: 650; white-space: nowrap; }
+.agent-indicator svg { width: 12px; height: 12px; }
+.agent-indicator.multi { color: var(--brand); border-color: color-mix(in srgb, var(--p-500) 35%, transparent); background: color-mix(in srgb, var(--p-500) 10%, transparent); }
+.agent-indicator.single { color: var(--muted); }
 .answer-body { overflow-wrap: anywhere; }
 .answer-body > p { margin: 0 0 10px; }
 .answer-body > :last-child { margin-bottom: 0; }

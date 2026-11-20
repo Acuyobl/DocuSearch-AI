@@ -66,7 +66,8 @@ public sealed class LangGraphRagService(
                 .Select(id => selected[id - 1]).ToList();
             if (cited.Count == 0) return null;
             var answer = new AgentAnswer(result.Answer, cited,
-                $"LangGraph · OpenCode · {profile.ProviderId}/{profile.ModelId}", null, null);
+                $"LangGraph · OpenCode · {profile.ProviderId}/{profile.ModelId}", null, null,
+                ["AG-03 Recuperador", "AG-04 Redactor", "AG-02 Verificador"]);
             if (!AgentVerifier.Verify(answer, snapshot.Documents, snapshot.Actor).IsValid)
             {
                 logger.LogWarning("LangGraph: AG-02 rechazó la respuesta; se usará el camino anterior.");
