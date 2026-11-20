@@ -776,6 +776,37 @@ td .text-button { max-width: 340px; }
 .agent-card em { margin-left: auto; font-size: 9px; font-style: normal; color: var(--muted); white-space: nowrap; }
 .agent-card.on em { color: var(--brand); font-weight: 700; }
 @media (max-width: 640px) { .agent-panel-grid { grid-template-columns: 1fr; } .agent-status-button span:last-child { display: none; } }
+/* Indicador de agentes: botón grande, luces y panel modal. */
+.agent-status-button { padding: 9px 14px; font-size: 12px; gap: 9px; }
+.agent-status-button .agent-lights { gap: 4px; }
+.agent-status-button .agent-lights i { width: 9px; height: 9px; }
+.agent-status-button.running { color: var(--brand); border-color: color-mix(in srgb, var(--p-500) 45%, var(--line)); }
+.agent-status-button.running .agent-lights i { animation: agentBlink 1s ease-in-out infinite; }
+.agent-status-button.running .agent-lights i:nth-child(2) { animation-delay: .18s; }
+.agent-status-button.running .agent-lights i:nth-child(3) { animation-delay: .36s; }
+.agent-indicator { font-size: 11px; padding: 3px 9px; gap: 5px; }
+.agent-indicator .agent-lights i { width: 8px; height: 8px; }
+.agent-panel-backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 20px; background: #05070c99; backdrop-filter: blur(5px); }
+.agent-panel { width: min(570px, 100%); max-height: min(82vh, 620px); overflow-y: auto; padding: 20px; border-radius: 18px; border: 1px solid color-mix(in srgb, var(--p-500) 35%, var(--line)); background: var(--surface); box-shadow: 0 28px 80px #00000055; }
+.agent-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+.agent-panel-head > div { display: flex; flex-direction: column; min-width: 0; gap: 4px; }
+.agent-panel-head strong { font-size: 16px; color: var(--ink); }
+.agent-panel-head span { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-panel-head .icon-button { flex: none; }
+.agent-panel-grid { display: grid; grid-template-columns: 1fr; gap: 9px; }
+.agent-run-card { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--elevated); opacity: .6; }
+.agent-run-card.on { opacity: 1; border-color: color-mix(in srgb, var(--p-500) 45%, var(--line)); background: color-mix(in srgb, var(--p-500) 7%, var(--elevated)); }
+.agent-run-card > div { display: flex; flex-direction: column; min-width: 0; gap: 3px; flex: 1; }
+.agent-run-card strong { font-size: 13px; color: var(--ink); }
+.agent-run-card small { font-size: 11px; color: var(--muted); line-height: 1.35; }
+.agent-run-card em { font-size: 10px; font-style: normal; color: var(--muted); white-space: nowrap; }
+.agent-run-card.on em { color: var(--brand); font-weight: 700; }
+.agent-status-light { width: 11px; height: 11px; flex: none; background: var(--line); }
+.agent-status-light.on { background: var(--p-500); box-shadow: 0 0 0 3px color-mix(in srgb, var(--p-500) 20%, transparent), 0 0 12px color-mix(in srgb, var(--p-500) 65%, transparent); }
+.agent-panel.running .agent-status-light.on { animation: agentBlink 1s ease-in-out infinite; }
+.agent-panel-note { margin: 14px 0 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
+@keyframes agentBlink { 0%, 100% { opacity: .28; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.12); box-shadow: 0 0 0 3px color-mix(in srgb, var(--p-500) 20%, transparent), 0 0 12px color-mix(in srgb, var(--p-500) 75%, transparent); } }
+@media (max-width: 640px) { .agent-panel-backdrop { padding: 10px; } .agent-panel { padding: 15px; } .agent-status-button span:last-child { display: none; } }
 .answer-body { overflow-wrap: anywhere; }
 .answer-body > p { margin: 0 0 10px; }
 .answer-body > :last-child { margin-bottom: 0; }

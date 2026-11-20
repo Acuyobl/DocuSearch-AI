@@ -33,9 +33,9 @@
                 }
             </select>
         }
-        <button class="agent-status-button @(lastAgents.Count > 1 ? "multi" : "")" @onclick="() => agentsOpen = !agentsOpen" title="Ver agentes que intervinieron en la última respuesta" aria-expanded="@agentsOpen">
-            <span class="agent-lights" aria-hidden="true">@foreach (var code in AgentCodes) { <i class="@(IsAgentActive(code) ? "on" : "")"></i> }</span>
-            <span>@(lastAgents.Count switch { 0 => "Agentes", 1 => "1 agente", _ => $"{lastAgents.Count} agentes" })</span>
+        <button class="agent-status-button @(lastAgents.Count > 1 ? "multi" : "") @(State.Busy ? "running" : "")" @onclick="() => agentsOpen = true" title="Ver agentes que intervinieron en la última respuesta" aria-expanded="@agentsOpen">
+            <span class="agent-lights" aria-hidden="true">@foreach (var code in AgentCodes) { <i class="@(IsAgentActive(code) || State.Busy ? "on" : "")"></i> }</span>
+            <span>@(State.Busy ? "Ejecutando agentes…" : lastAgents.Count switch { 0 => "Agentes", 1 => "1 agente", _ => $"{lastAgents.Count} agentes" })</span>
         </button>
         <button class="icon-button" disabled="@State.Busy" @onclick="CheckConnection" title="Comprobar motores y actualizar documentos" aria-label="Comprobar motores y actualizar documentos"><AppIcon Name="refresh" /></button>
         <button class="icon-button" @onclick="Clear" disabled="@(State.Busy || messages.Count == 0)" title="Nueva conversación" aria-label="Nueva conversación"><AppIcon Name="delete" /></button>
@@ -51,20 +51,26 @@ else if (!Active.Available)
 }
 @if (agentsOpen)
 {
-    <section class="agent-panel" aria-label="Agentes de la última respuesta">
-        <div class="agent-panel-head"><strong>Agentes de la última respuesta</strong><span>@lastProvider</span></div>
-        <div class="agent-panel-grid">
-            @foreach (var code in AgentCodes)
-            {
-                var active = IsAgentActive(code);
-                <div class="agent-card @(active ? "on" : "")">
-                    <span class="agent-status-light @(active ? "on" : "")"></span>
-                    <div><strong>@AgentLabel(code)</strong><small>@AgentDescription(code)</small></div>
-                    <em>@(active ? "activo" : "en espera")</em>
-                </div>
-            }
-        </div>
-    </section>
+    <div class="agent-panel-backdrop" @onclick="() => agentsOpen = false">
+        <section class="agent-panel @(State.Busy ? "running" : "")" aria-label="Agentes de la última respuesta" @onclick:stopPropagation>
+            <div class="agent-panel-head">
+                <div><strong>@(State.Busy ? "Pipeline en ejecución" : "Agentes de la última respuesta")</strong><span>@lastProvider</span></div>
+                <button class="icon-button" @onclick="() => agentsOpen = false" aria-label="Cerrar panel de agentes"><AppIcon Name="close" /></button>
+            </div>
+            <div class="agent-panel-grid">
+                @foreach (var code in AgentCodes)
+                {
+                    var active = IsAgentActive(code) || State.Busy;
+                    <div class="agent-run-card @(active ? "on" : "")">
+                        <span class="agent-status-light @(active ? "on" : "")"></span>
+                        <div><strong>@AgentLabel(code)</strong><small>@AgentDescription(code)</small></div>
+                        <em>@(State.Busy ? "ejecutando" : active ? "activo" : "en espera")</em>
+                    </div>
+                }
+            </div>
+            <p class="agent-panel-note">@(lastAgents.Count > 1 ? "Esta respuesta usó varios agentes coordinados por LangGraph." : "Las luces indican qué agentes intervinieron en la última consulta.")</p>
+        </section>
+    </div>
 }
 <section class="conversation" @ref="conversation" aria-label="Conversación documental" aria-live="polite">
     @if (messages.Count == 0)
