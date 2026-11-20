@@ -7,7 +7,7 @@ public sealed class AssistantProfile
 {
     public string Id { get; set; } = "";
     public string Label { get; set; } = "";
-    /// <summary>opencode | ollama | extractive</summary>
+    /// <summary>opencode | extractive</summary>
     public string Engine { get; set; } = "opencode";
     public string ProviderId { get; set; } = "";
     public string ModelId { get; set; } = "";
@@ -44,15 +44,13 @@ public sealed class AssistantOptions
 
 /// <summary>
 /// Catálogo dinámico de motores: consulta el servidor OpenCode de cada equipo y
-/// publica dos grupos, <b>Locales</b> (proveedores locales como Ollama/LM Studio)
-/// y <b>Gratis</b> (modelos con coste 0 de proveedores conectados). Si OpenCode no
-/// está disponible, el asistente queda en modo extractivo. No hay modelos
-/// hardcodeados: la lista depende de la configuración de OpenCode de cada usuario.
+/// publica modelos locales y gratuitos. Si OpenCode no está disponible, el asistente
+/// queda en modo extractivo. No hay modelos hardcodeados.
 /// </summary>
 public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCodeClient openCode,
-    ILogger<AssistantRuntime> logger, OllamaClient? ollama = null)
+    ILogger<AssistantRuntime> logger)
 {
-    private static readonly string[] LocalProviders = ["ollama", "lmstudio", "llamacpp"];
+    private static readonly string[] LocalProviders = ["lmstudio", "llamacpp"];
     private static readonly string[] PreferredFreeModels = ["deepseek-v4.1-flash-free", "nemotron-3.5-lightning-free"];
     private static readonly string[] PreferredPaidModels = ["deepseek-flash", "deepseek-v4-pro"];
 
@@ -137,13 +135,10 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
                     }
                 }
             }
-            else if (ollama is not { Enabled: true })
+            else
             {
-                error = "OpenCode y Ollama están desactivados; solo está disponible el modo extractivo.";
+                error = "OpenCode está desactivado; solo está disponible el modo extractivo.";
             }
-
-            if (settings.IncludeLocalModels && ollama is { Enabled: true })
-                built.Add(await BuildOllamaProfileAsync());
 
             built.Add(ExtractiveProfile());
             built = built
@@ -161,22 +156,6 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
         }
     }
 
-    private async Task<AssistantProfile> BuildOllamaProfileAsync()
-    {
-        var available = await ollama!.IsReachableAsync();
-        var label = ollama.UseLangChain ? $"LangChain · Ollama local · {ollama.Model}" : $"Ollama directo · {ollama.Model}";
-        return new AssistantProfile
-        {
-            Id = "ollama:local",
-            Label = label + (available ? "" : " (sin conexión)"),
-            Engine = "ollama",
-            ProviderId = "ollama",
-            ModelId = ollama.Model,
-            Group = "Locales",
-            Available = available
-        };
-    }
-
     public bool TrySelect(string? id, out AssistantProfile? profile)
     {
         profile = Profiles.FirstOrDefault(candidate => string.Equals(candidate.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -192,7 +171,6 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
     public string Describe(AssistantProfile profile) => profile.Engine.ToLowerInvariant() switch
     {
         "opencode" => (openCode.UseLangChain ? "LangChain · " : "") + $"OpenCode · {profile.ProviderId}/{profile.ModelId}" + (IsRemote(profile) ? " · remoto" : " · local"),
-        "ollama" => "Ollama · LangChain local",
         _ => "Sin LLM · extractivo"
     };
 

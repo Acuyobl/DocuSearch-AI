@@ -99,7 +99,7 @@ DocuSearch AI es una plataforma web corporativa diseñada para organizaciones p�
 ¦        WORKERS ASÍNCRONOS OCR & AI   ¦ ¦     ALMACENAMIENTO PERSISTENTE   ¦
 ¦ - Motor OCR: Tesseract 5 / Azure DI  ¦ ¦ - PostgreSQL 16 + pgvector       ¦
 ¦ - Embeddings: OpenAI text-embed-3 /  ¦ ¦   (Embeddings 1,536 dim, HNSW)   ¦
-¦   Vertex AI / HuggingFace BGE-M3     ¦ ¦ - Object Storage: S3 / Azure Blob¦
+¦   Vertex AI / HuggingFace multilingual-e5-large     ¦ ¦ - Object Storage: S3 / Azure Blob¦
 ¦ - LLM Resumen/NER: Claude / Gemini / ¦ ¦ - Redis 7: Caché de sesiones y   ¦
 ¦   GPT-4o                             ¦ ¦   consultas frecuentes           ¦
 +--------------------------------------+ +----------------------------------+
@@ -208,7 +208,7 @@ Extracción OCR y Bounding Boxes: Worker analiza cada página y extrae el texto 
 Análisis por LLM (Resumen + NER):
 Resumen ejecutivo de 100-150 palabras.
 Extracción de entidades estructuradas: Personas, Fechas, Montos monetarios, Organizaciones y Artículos/Leyes.
-Generación de Embeddings: Conversión de cada página/párrafo a un vector de 1,536 dimensiones mediante modelo de lenguaje denso (text-embedding-3-small o bge-m3).
+Generación de Embeddings: Conversión de cada página/párrafo a un vector de 1,536 dimensiones mediante modelo de lenguaje denso (text-embedding-3-small o multilingual-e5-large).
 Almacenamiento en pgvector: Inserción con índice HNSW.
 4.2. Consulta SQL de Búsqueda Vectorial por Coseno:
 code
@@ -1022,7 +1022,7 @@ CREATE TABLE audit_logs (
    - Resumen ejecutivo de 100-150 palabras.
    - Lista de entidades clave (Persona, Organización, Fecha, Monto, Norma Legal).
    - Sugerencia de tags y categoría.
-5. **Vectorización y Chunking**: Por cada página o párrafo, se computa un vector embedding de 1,536 dimensiones mediante modelo de lenguaje denso (\`text-embedding-3-small\` o local \`bge-m3\`).
+5. **Vectorización y Chunking**: Por cada página o párrafo, se computa un vector embedding de 1,536 dimensiones mediante modelo de lenguaje denso (\`text-embedding-3-small\` o local \`multilingual-e5-large\`).
 6. **Indexación**: Los vectores se almacenan en la tabla \`document_pages\` indexados con HNSW.
 
 ### 4.2. Algoritmo de Búsqueda Semántica Vectorial

@@ -22,7 +22,6 @@ public sealed record CatalogSuggestion(
 /// </summary>
 public sealed class CatalogSuggester(
     DocumentService documents,
-    OllamaClient ollama,
     AgentObservability observability,
     OpenCodeClient? opencode = null,
     AssistantRuntime? assistant = null,
@@ -48,38 +47,32 @@ public sealed class CatalogSuggester(
         if (assistant is not null) await assistant.EnsureLoadedAsync();
         var profile = assistant?.Active;
         var engine = profile?.Engine?.ToLowerInvariant()
-            ?? (opencode is { Enabled: true } ? "opencode" : ollama.Enabled ? "ollama" : "extractive");
-        if (engine is not ("opencode" or "ollama"))
-            throw new InvalidOperationException("No hay un motor generativo activo; revisa la ficha manualmente.");
+            ?? (opencode is { Enabled: true } ? "opencode" : "extractive");
+        if (engine != "opencode")
+            throw new InvalidOperationException("No hay un motor generativo OpenCode activo; revisa la ficha manualmente.");
         if (!consent)
             throw new InvalidOperationException("Autoriza el envío de fragmentos del expediente al motor seleccionado antes de sugerir la ficha.");
-        if (engine == "opencode" && opencode is not { Enabled: true })
+        if (opencode is not { Enabled: true })
             throw new InvalidOperationException("OpenCode está desactivado en la configuración.");
-        if (engine == "opencode" && opencode!.IsRemote &&
-            document.Confidentiality is "Confidencial" or "Estrictamente Secreto")
+        if (opencode.IsRemote && document.Confidentiality is "Confidencial" or "Estrictamente Secreto")
             throw new InvalidOperationException("Este expediente es confidencial y el motor activo es remoto. Usa un modelo local o revisa la ficha manualmente.");
-        if (engine == "ollama" && !ollama.Enabled)
-            throw new InvalidOperationException("Ollama está desactivado en la configuración.");
 
         var trace = new AgentTrace
         {
-            Engine = engine,
-            Model = engine == "opencode"
-                ? $"{profile?.ProviderId}/{profile?.ModelId}"
-                : ollama.Model
+            Engine = "opencode",
+            Model = $"{profile?.ProviderId}/{profile?.ModelId}"
         };
         var timer = Stopwatch.StartNew();
         try
         {
             var query = BuildQuery(document, snapshot.Departments);
-            var provider = engine == "opencode" ? profile?.ProviderId ?? "" : "ollama";
-            var model = engine == "opencode" ? profile?.ModelId ?? "" : ollama.Model;
-            var context = new AiCallContext("catalog_suggestion", engine, provider, model, "catalog.suggest",
+            var provider = profile?.ProviderId ?? "";
+            var model = profile?.ModelId ?? "";
+            var context = new AiCallContext("catalog_suggestion", "opencode", provider, model, "catalog.suggest",
                 AssistantPrompt.For(AnswerStyle.Default), query + "\n" + string.Join("\n", sources.Select(source => source.Snippet)),
-                aiGovernance?.ResolvePricing(engine, provider, model, profile) ?? AiPricing.Free, 600, nameof(DocumentItem), document.Id);
-            AgentAnswer answer = await AiCallGuard.RunAsync(aiGovernance, context, () => engine == "opencode"
-                ? opencode!.GenerateAsync(query, sources, profile?.ProviderId, profile?.ModelId, profile?.Agent)
-                : ollama.GenerateAsync(query, sources));
+                aiGovernance?.ResolvePricing("opencode", provider, model, profile) ?? AiPricing.Free, 600, nameof(DocumentItem), document.Id);
+            AgentAnswer answer = await AiCallGuard.RunAsync(aiGovernance, context,
+                () => opencode.GenerateAsync(query, sources, profile?.ProviderId, profile?.ModelId, profile?.Agent));
 
             // AG-02: la propuesta también pasa por el verificador antes de llegar al formulario.
             var verification = AgentVerifier.Verify(answer, snapshot.Documents, snapshot.Actor);

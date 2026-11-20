@@ -30,7 +30,7 @@ public sealed record DuplicateDocumentGroup(string Sha256Hash, IReadOnlyList<str
 /// <summary>
 /// Agente Verificador (AG-02). Determinista: no llama al modelo, no escribe, no usa red.
 /// Revisa la respuesta generada antes de mostrarla y centraliza la validación de citas
-/// que antes estaba duplicada en OpenCode y Ollama.
+/// que antes estaba duplicada en cada motor de generación.
 /// </summary>
 public static class AgentVerifier
 {

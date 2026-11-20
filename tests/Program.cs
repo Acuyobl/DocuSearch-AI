@@ -74,8 +74,7 @@ var contract = seed.Documents.Single(d => d.InternalCode == "CNT-2025-0892");
 var policy = seed.Documents.Single(d => d.InternalCode == "POL-2025-0012");
 var pdf = PdfFixture.Create("Cloud contract SLA 99.99%. Annual price $450000 USD.");
 var processor = new PdfProcessor();
-OllamaClient Ollama(HttpClient http, bool enabled = true) => new(http, Options.Create(new OllamaOptions { Enabled = enabled }));
-OpenCodeClient OpenCodeFor(HttpClient http, bool enabled = true, string password = "secreto", string provider = "ollama", string model = "qwen3:4b", string agent = "zodiac-asistente") =>
+OpenCodeClient OpenCodeFor(HttpClient http, bool enabled = true, string password = "secreto", string provider = "deepseek", string model = "deepseek-flash", string agent = "zodiac-asistente") =>
     new(http, Options.Create(new OpenCodeOptions
     {
         Enabled = enabled, BaseUrl = "http://127.0.0.1:4097", Password = password,
@@ -117,14 +116,14 @@ HttpClient OpenCodeCatalogMock(string providerJson, string modelJson) =>
 const string catalogProvidersJson = """
     {"data":[
       {"id":"opencode","name":"OpenCode","settings":{"baseURL":""}},
-      {"id":"ollama","name":"Ollama (local)","settings":{"baseURL":"http://127.0.0.1:11434/v1"}}
+      {"id":"deepseek","name":"DeepSeek","settings":{"baseURL":"https://api.deepseek.com"}}
     ]}
     """;
 const string catalogModelsJson = """
     {"data":[
       {"id":"free-model","modelID":"free-model","providerID":"opencode","name":"Free Model","cost":[{"input":0,"output":0}],"status":"active","enabled":true},
       {"id":"paid-model","modelID":"paid-model","providerID":"opencode","name":"Paid Model","cost":[{"input":1,"output":2}],"status":"active","enabled":true},
-      {"id":"qwen3:4b","modelID":"qwen3:4b","providerID":"ollama","name":"Qwen3 4B","cost":[{"input":0,"output":0}],"status":"active","enabled":true}
+      {"id":"deepseek-flash","modelID":"deepseek-flash","providerID":"deepseek","name":"DeepSeek Flash","cost":[{"input":0,"output":0}],"status":"active","enabled":true}
     ]}
     """;
 const string localModelJson = """{"details":{"format":"gguf"},"capabilities":["completion"]}""";
@@ -334,106 +333,6 @@ await Check("Error SQL Server envuelto se informa en español y libera estado oc
     Assert(!state.Busy && state.Data is null && state.Error!.StartsWith("No se pudo completar la operación en SQL Server"));
 });
 
-await Check("Ollama: listas, páginas y entidades conservan su respuesta exacta", () => Sync(() =>
-{
-    Assert(new[] { "Lista documentos internos", "Página 4 de CNT-2025-0892", "Extrae montos", "Autor de POL-2025-0012", "CNT-2025-0892" }.All(LocalAgent.IsExactRequest));
-    Assert(!LocalAgent.IsExactRequest("Resume POL-2025-0012") && !LocalAgent.IsExactRequest("¿Qué SLA garantiza el contrato?"));
-}));
-await Check("Ollama: un fallo libera la interfaz y muestra el error", async () =>
-{
-    var factory = new TestFactory(new DbContextOptionsBuilder<AppDbContext>().UseSqlServer("Server=localhost;Database=offline;Integrated Security=True", sql => sql.UseCompatibilityLevel(150)).Options);
-    var state = new WorkspaceState(new DocumentService(factory, Session(), processor), Microsoft.Extensions.Logging.Abstractions.NullLogger<WorkspaceState>.Instance);
-    using var http = new HttpClient(new TestHttpHandler((_, _) => Task.FromException<HttpResponseMessage>(new HttpRequestException())));
-    await state.RunAsync(() => Ollama(http).CheckAsync());
-    Assert(!state.Busy && state.Notice is null && state.Error!.Contains("Ollama local"));
-});
-await Check("Ollama: bloquea servidores externos, credenciales y modelos cloud", () => Sync(() =>
-{
-    foreach (var url in new[] { "https://ollama.com", "http://192.168.1.1:11434", "http://localhost:11434", "http://user:pass@127.0.0.1:11434", "http://127.0.0.1:11434/remote" })
-    {
-        using var http = new HttpClient();
-        Throws<InvalidOperationException>(() => new OllamaClient(http, Options.Create(new OllamaOptions { BaseUrl = url })));
-    }
-    using var client = new HttpClient();
-    Throws<InvalidOperationException>(() => new OllamaClient(client, Options.Create(new OllamaOptions { Model = "qwen:cloud" })));
-}));
-await Check("Ollama: rechaza metadatos remotos o no locales antes de enviar documentos", async () =>
-{
-    foreach (var metadata in new[]
-    {
-        """{"details":{"format":"gguf"},"capabilities":["completion"],"remote_host":"https://ollama.com"}""",
-        """{"details":{"format":"gguf"},"capabilities":["completion"],"remote_model":"remote-name"}""",
-        """{"details":{"format":""},"capabilities":["completion"]}""",
-        """{"details":{"format":"gguf"},"capabilities":["embedding"]}"""
-    })
-    {
-        var calls = 0;
-        using var http = new HttpClient(new TestHttpHandler((request, _) => { calls++; Assert(request.RequestUri!.AbsolutePath == "/api/show"); return Task.FromResult(JsonResponse(metadata)); }));
-        await ThrowsAsync<InvalidOperationException>(() => Ollama(http).GenerateAsync("Resumen", [new(contract, 1, "Texto autorizado", 100)]));
-        Assert(calls == 1);
-    }
-});
-await Check("Ollama: contexto acotado, sin herramientas y citas validadas", async () =>
-{
-    JsonElement payload = default;
-    using var http = new HttpClient(new TestHttpHandler(async (request, _) =>
-    {
-        if (request.RequestUri!.AbsolutePath == "/api/show") return JsonResponse(localModelJson);
-        Assert(request.RequestUri.AbsolutePath == "/api/chat");
-        using var json = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
-        payload = json.RootElement.Clone();
-        return JsonResponse(ChatJson("""{"answer":"Respuesta documentada","citations":[2,1,2]}"""));
-    }));
-    var sources = Enumerable.Range(1, 10).Select(page => new SearchHit(contract, page, new string('x', 3000), 100)).ToList();
-    var result = await Ollama(http).GenerateAsync("Consulta", sources);
-    Assert(result.Sources.Select(s => s.PageNumber).SequenceEqual([2, 1]) && result.Provider.Contains("Ollama local"));
-    Assert(!payload.GetProperty("stream").GetBoolean() && !payload.TryGetProperty("tools", out _));
-    var context = JsonDocument.Parse(payload.GetProperty("messages")[1].GetProperty("content").GetString()!);
-    using (context)
-    {
-        var sent = context.RootElement.GetProperty("sources").EnumerateArray().ToList();
-        Assert(sent.Count == 6 && sent.All(s => s.GetProperty("text").GetString()!.Length <= 1001));
-        Assert(sent.All(s => s.GetProperty("code").GetString() == contract.InternalCode));
-    }
-});
-await Check("Ollama: no acepta citas inventadas, respuesta vacía ni JSON incorrecto", async () =>
-{
-    foreach (var content in new[] { """{"answer":"Texto","citations":[0]}""", """{"answer":"Texto","citations":[2]}""", """{"answer":"Texto","citations":[]}""", """{"answer":"","citations":[1]}""", "not JSON" })
-    {
-        using var http = new HttpClient(new TestHttpHandler((request, _) => Task.FromResult(JsonResponse(request.RequestUri!.AbsolutePath == "/api/show" ? localModelJson : ChatJson(content)))));
-        await ThrowsAsync<InvalidOperationException>(() => Ollama(http).GenerateAsync("Resumen", [new(contract, 1, "Texto autorizado", 100)]));
-    }
-});
-await Check("Ollama: no genera respuestas sin fuentes ni llamadas al desactivarlo", async () =>
-{
-    var calls = 0;
-    using var http = new HttpClient(new TestHttpHandler((_, _) => { calls++; return Task.FromResult(JsonResponse(localModelJson)); }));
-    await Ollama(http, false).CheckAsync();
-    await ThrowsAsync<InvalidOperationException>(() => Ollama(http).GenerateAsync("Pregunta", []));
-    Assert(calls == 0);
-});
-await Check("Ollama: errores HTTP, HTML y timeout se notifican sin fallback", async () =>
-{
-    foreach (var failure in new[] { "http", "html", "timeout", "connection" })
-    {
-        using var http = new HttpClient(new TestHttpHandler((_, _) => failure switch
-        {
-            "http" => Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)),
-            "html" => Task.FromResult(JsonResponse("<html>No API</html>")),
-            "timeout" => Task.FromException<HttpResponseMessage>(new TaskCanceledException()),
-            _ => Task.FromException<HttpResponseMessage>(new HttpRequestException())
-        }));
-        await ThrowsAsync<InvalidOperationException>(() => Ollama(http).CheckAsync());
-    }
-});
-await Check("Ollama: respuestas truncadas o incompletas no parecen exitosas", async () =>
-{
-    foreach (var done in new[] { true, false })
-    {
-        using var http = new HttpClient(new TestHttpHandler((request, _) => Task.FromResult(JsonResponse(request.RequestUri!.AbsolutePath == "/api/show" ? localModelJson : ChatJson("""{"answer":"Texto","citations":[1]}""", done, "length")))));
-        await ThrowsAsync<InvalidOperationException>(() => Ollama(http).GenerateAsync("Pregunta", [new(contract, 1, "Texto", 100)]));
-    }
-});
 await Check("Observabilidad: esquema sin contenido ni identidad", () => Sync(() =>
 {
     var names = typeof(AgentTrace).GetProperties().Select(p => p.Name).Order().ToArray();
@@ -447,49 +346,6 @@ await Check("Observabilidad: errores categorizados sin mensaje sensible", () => 
     Assert(AgentObservability.ErrorCode(new InvalidOperationException("secret", new TaskCanceledException("secret"))) == "timeout");
     Assert(AgentObservability.ErrorCode(new InvalidOperationException("secret", new HttpRequestException("secret"))) == "connection");
 }));
-await Check("Observabilidad: tokens directos reportados, no estimados", async () =>
-{
-    using var http = new HttpClient(new TestHttpHandler((request, _) => Task.FromResult(JsonResponse(
-        request.RequestUri!.AbsolutePath == "/api/show" ? localModelJson :
-        """{"done":true,"done_reason":"stop","message":{"content":"{\"answer\":\"Test\",\"citations\":[1]}"},"prompt_eval_count":123,"eval_count":45}"""))));
-    var answer = await Ollama(http).GenerateAsync("Pregunta", [new(contract, 1, "Texto", 100)]);
-    Assert(answer.InputTokens == 123 && answer.OutputTokens == 45);
-});
-await Check("LangChain: Python ausente falla explícitamente, sin fallback", async () =>
-{
-    var options = new OllamaOptions { UseLangChain = true, PythonExecutable = @"C:\DocuSearch-missing-runtime\python.exe" };
-    await ThrowsAsync<InvalidOperationException>(() => LangChainRunner.RunAsync(options));
-});
-if (args.Contains("--langchain"))
-{
-    await Check("LangChain real: worker disponible e identificado", async () =>
-    {
-        using var result = JsonDocument.Parse(await LangChainRunner.RunAsync(new OllamaOptions()));
-        Assert(result.RootElement.GetProperty("framework").GetString() == "LangChain" &&
-            result.RootElement.GetProperty("status").GetString() == "ready");
-    });
-    await Check("LangChain real: rechaza endpoint remoto antes de generar", async () =>
-    {
-        await ThrowsAsync<InvalidOperationException>(() => LangChainRunner.RunAsync(new OllamaOptions(), new
-        {
-            base_url = "https://ollama.com", model = "qwen2.5-coder:7b", timeout = 5,
-            question = "Pregunta", sources = new[] { new { id = 1, code = "TEST", title = "Test", page = 1, text = "Test" } },
-            system = "Only local"
-        }));
-    });
-    await Check("LangChain real: C# a Python a Ollama con cita validada", async () =>
-    {
-        using var http = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false });
-        var client = new OllamaClient(http, Options.Create(new OllamaOptions { Enabled = true, UseLangChain = true }));
-        var document = new DocumentItem { InternalCode = "TEST-2026-LOCAL", Title = "Prueba sintética LangChain" };
-        var answer = await client.GenerateAsync("¿Qué disponibilidad garantiza el contrato?",
-            [new(document, 1, "El contrato garantiza una disponibilidad SLA de 99.99%.", 100)]);
-        Assert(!answer.Text.Contains('\uFFFD') && (answer.Text.Contains("99.99") || answer.Text.Contains("99,99")) &&
-            answer.Sources.Single().Document.Id == document.Id && answer.Provider.Contains("LangChain") &&
-            answer.InputTokens > 0 && answer.OutputTokens > 0);
-        Console.WriteLine($"INFO LangChain real: {answer.Provider}; {answer.Text}");
-    });
-}
 if (args.Contains("--opencode"))
 {
     var url = Environment.GetEnvironmentVariable("DOCUSEARCH_OPENCODE_URL")
@@ -514,10 +370,10 @@ if (args.Contains("--opencode"))
         var catalog = await client.FetchCatalogAsync();
         var connected = catalog.Connected.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var locals = catalog.Providers
-            .Where(provider => provider.Id is "ollama" or "lmstudio" or "llamacpp")
+            .Where(provider => provider.Id is "lmstudio" or "llamacpp")
             .SelectMany(provider => provider.Models).Count();
         var free = catalog.Providers
-            .Where(provider => connected.Contains(provider.Id) && provider.Id is not ("ollama" or "lmstudio" or "llamacpp"))
+            .Where(provider => connected.Contains(provider.Id) && provider.Id is not ("lmstudio" or "llamacpp"))
             .SelectMany(provider => provider.Models)
             .Count(candidate => candidate.InputCost == 0 && candidate.OutputCost == 0);
         Assert(free > 0 || locals > 0);
@@ -547,7 +403,7 @@ if (args.Contains("--langchain-opencode"))
         ProviderId = provider, ModelId = model, TimeoutSeconds = 180,
         UseLangChain = true, PythonExecutable = python
     }));
-    await Check("LangChain + OpenCode real: genera con citas sin Ollama", async () =>
+    await Check("LangChain + OpenCode real: genera con citas y OpenCode", async () =>
     {
         await client.CheckAsync();
         var document = new DocumentItem { InternalCode = "TEST-2026-LANGCHAIN", Title = "Prueba LangChain" };
@@ -556,17 +412,6 @@ if (args.Contains("--langchain-opencode"))
         Assert(answer.Text.Length > 0 && answer.Provider.Contains("LangChain", StringComparison.Ordinal) &&
             answer.Sources.Single().Document.Id == document.Id);
         Console.WriteLine($"INFO LangChain + OpenCode real: {answer.Provider}; respuesta: {answer.Text}");
-    });
-}
-if (args.Contains("--ollama"))
-{
-    await Check("Ollama real: modelo local genera respuesta con cita autorizada", async () =>
-    {
-        using var http = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false });
-        var document = new DocumentItem { InternalCode = "TEST-2026-LOCAL", Title = "Prueba sintética local" };
-        var answer = await Ollama(http).GenerateAsync("¿Qué disponibilidad garantiza el contrato?", [new(document, 1, "El contrato garantiza una disponibilidad SLA de 99.99%.", 100)]);
-        Assert((answer.Text.Contains("99.99") || answer.Text.Contains("99,99")) && answer.Sources.Single().Document.Id == document.Id);
-        Console.WriteLine($"INFO Modelo real: {answer.Provider}; respuesta: {answer.Text}");
     });
 }
 await Check("TOTP: vectores RFC 6238 con 6 dígitos", () => Sync(() =>
@@ -682,8 +527,8 @@ await Check("OpenCode: genera respuesta con citas, tokens y autenticación", asy
     Assert(answer.Text == "ok" && answer.Sources.Single().PageNumber == 4);
     Assert(answer.Provider.Contains("OpenCode", StringComparison.Ordinal) && answer.InputTokens == 10 && answer.OutputTokens == 5);
     Assert(sessionBody is not null && sessionBody.Contains("\"agent\":\"zodiac-asistente\"", StringComparison.Ordinal) &&
-        sessionBody.Contains("\"providerID\":\"ollama\"", StringComparison.Ordinal) &&
-        sessionBody.Contains("\"id\":\"qwen3:4b\"", StringComparison.Ordinal) &&
+        sessionBody.Contains("\"providerID\":\"deepseek\"", StringComparison.Ordinal) &&
+        sessionBody.Contains("\"id\":\"deepseek-flash\"", StringComparison.Ordinal) &&
         sessionBody.Contains("\"effect\":\"deny\"", StringComparison.Ordinal));
     Assert(promptBody is not null && promptBody.Contains("SLA", StringComparison.Ordinal) &&
         promptBody.Contains("CNT-2025-0892", StringComparison.Ordinal));
@@ -753,8 +598,8 @@ await Check("Asistente: catálogo dinámico separa gratis, pago y oculta locales
         Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
     await withFree.RefreshAsync(force: true);
     var freeEnabled = withFree.Profiles.Where(profile => profile.Group == "Gratis").ToList();
-    Assert(freeEnabled.Count == 1 && freeEnabled[0].ModelId == "free-model");
-    Assert(withFree.TrySelect(freeEnabled[0].Id, out var selected) && selected!.ModelId == "free-model");
+    Assert(freeEnabled.Count == 2 && freeEnabled.Any(p => p.ModelId == "free-model") && freeEnabled.Any(p => p.ModelId == "deepseek-flash"));
+    Assert(withFree.TrySelect(freeEnabled[0].Id, out var selected) && selected!.Group == "Gratis");
 
     Assert(!runtime.TrySelect("local:no/existe", out _));
     Assert(runtime.Profiles.Any(profile => profile.Engine == "extractive"));
@@ -818,35 +663,6 @@ await Check("OpenCode: el modo LangChain se refleja en el motor", () => Sync(() 
     }));
     Assert(client.UseLangChain && client.Engine.Contains("LangChain", StringComparison.Ordinal));
 }));
-await Check("Asistente: incluye LangChain/Ollama local en el catálogo", async () =>
-{
-    HttpClient OllamaMock() => new(new TestHttpHandler((request, _) =>
-        Task.FromResult(request.RequestUri!.AbsolutePath.EndsWith("/api/tags", StringComparison.Ordinal)
-            ? JsonResponse("""{"models":[]}""")
-            : new HttpResponseMessage(HttpStatusCode.NotFound))));
-    using var ollamaHttp = OllamaMock();
-    var ollamaClient = new OllamaClient(ollamaHttp, Options.Create(new OllamaOptions
-    {
-        Enabled = true, UseLangChain = true, BaseUrl = "http://127.0.0.1:11434", Model = "qwen3:4b"
-    }));
-    var runtime = new AssistantRuntime(Options.Create(new AssistantOptions { IncludeLocalModels = true }), OpenCodeFor(OpenCodeCatalogMock(catalogProvidersJson, catalogModelsJson)),
-        Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance, ollamaClient);
-    await runtime.RefreshAsync(force: true);
-    var langchain = runtime.Profiles.SingleOrDefault(profile => profile.Id == "ollama:local");
-    Assert(langchain is not null && langchain.Engine == "ollama" && langchain.Group == "Locales" &&
-        langchain.Available && langchain.Label.Contains("LangChain", StringComparison.Ordinal));
-
-    using var offlineOllamaHttp = OllamaMock();
-    var offlineOllama = new OllamaClient(offlineOllamaHttp, Options.Create(new OllamaOptions
-    {
-        Enabled = true, UseLangChain = true, BaseUrl = "http://127.0.0.1:11434", Model = "qwen3:4b"
-    }));
-    var withoutOpenCode = new AssistantRuntime(Options.Create(new AssistantOptions { IncludeLocalModels = true }), OpenCodeFor(new HttpClient(), enabled: false),
-        Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance, offlineOllama);
-    await withoutOpenCode.RefreshAsync(force: true);
-    Assert(withoutOpenCode.Profiles.Any(profile => profile.Engine == "ollama") &&
-        withoutOpenCode.Profiles.Any(profile => profile.Engine == "extractive"));
-});
 if (args.Contains("--verifier"))
 {
     var verifierDocument = new DocumentItem
@@ -996,11 +812,11 @@ if (args.Contains("--inspector"))
     var ragDocuments = new List<DocumentItem> { ragOk, ragGap, ragMissing, ragOtherModel, ragNoModel, ragStale, ragScanned };
     var ragStats = new List<RagPageStat>
     {
-        new(ragOk.Id, 1, "bge-m3", 1024, 2, indexedAt), new(ragOk.Id, 2, "bge-m3", 1024, 1, indexedAt),
-        new(ragGap.Id, 1, "bge-m3", 1024, 1, indexedAt),
+        new(ragOk.Id, 1, "multilingual-e5-large", 1024, 2, indexedAt), new(ragOk.Id, 2, "multilingual-e5-large", 1024, 1, indexedAt),
+        new(ragGap.Id, 1, "multilingual-e5-large", 1024, 1, indexedAt),
         new(ragOtherModel.Id, 1, "nomic-embed-text", 768, 3, indexedAt),
         new(ragNoModel.Id, 1, "", 1024, 2, indexedAt),
-        new(ragStale.Id, 1, "bge-m3", 1024, 1, indexedAt)
+        new(ragStale.Id, 1, "multilingual-e5-large", 1024, 1, indexedAt)
     };
     var ragChanges = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase)
     {
@@ -1008,7 +824,7 @@ if (args.Contains("--inspector"))
         ["RAG-STALE"] = indexedAt.AddDays(2)
     };
     var pageIndexed = ragDocuments.Where(document => document != ragGap).Select(document => document.Id).ToHashSet();
-    var ragIndex = RagIndexInspector.Analyze(ragDocuments, ragStats, ragChanges, pageIndexed, "bge-m3", 1024);
+    var ragIndex = RagIndexInspector.Analyze(ragDocuments, ragStats, ragChanges, pageIndexed, "multilingual-e5-large", 1024);
     IEnumerable<InspectionFinding> RagFindings(string code) => ragIndex.Findings.Where(finding => finding.DocumentCode == code);
 
     await Check("Inspector RAG: expediente con texto sin fragmentos es un error", () => Sync(() =>
@@ -1044,14 +860,14 @@ if (args.Contains("--inspector"))
     {
         Assert(ragIndex.ReindexDocumentIds.Count == 5 && !ragIndex.ReindexDocumentIds.Contains(ragOk.Id));
         Assert(ragIndex.Recommendation.Contains("Reindexa 5"), ragIndex.Recommendation);
-        var healthy = RagIndexInspector.Analyze([ragOk], ragStats, ragChanges, pageIndexed, "bge-m3", 1024);
+        var healthy = RagIndexInspector.Analyze([ragOk], ragStats, ragChanges, pageIndexed, "multilingual-e5-large", 1024);
         Assert(healthy.Findings.Count == 0 && healthy.Recommendation.StartsWith("Índice correcto"), healthy.Recommendation);
-        Assert(RagIndexInspector.Analyze([ragOk], ragStats, null, null, "bge-m3", 1024, embeddingsEnabled: false)
+        Assert(RagIndexInspector.Analyze([ragOk], ragStats, null, null, "multilingual-e5-large", 1024, embeddingsEnabled: false)
             .Recommendation.Contains("desactivados"));
     }));
     await Check("Inspector RAG: un escaneado con fragmentos antiguos se marca como desfasado", () => Sync(() =>
     {
-        var report = RagIndexInspector.Analyze([ragScanned], [new(ragScanned.Id, 1, "bge-m3", 1024, 4, indexedAt)], null, null, "bge-m3", 1024);
+        var report = RagIndexInspector.Analyze([ragScanned], [new(ragScanned.Id, 1, "multilingual-e5-large", 1024, 4, indexedAt)], null, null, "multilingual-e5-large", 1024);
         Assert(report.Findings.Single().Kind == "rag-stale" && report.ReindexDocumentIds.Single() == ragScanned.Id);
     }));
 }
@@ -1368,12 +1184,12 @@ if (args.Contains("--rag"))
     });
     await Check("RAG store: ignora fragmentos de otro modelo o dimensiones", () => Sync(() =>
     {
-        var record = new RagChunkRecord { Model = "bge-m3", Dimensions = 1024 };
-        Assert(SqlRagVectorStore.IsCompatible(record, 1024, "bge-m3"));
-        Assert(SqlRagVectorStore.IsCompatible(record, 1024, "BGE-M3"));
-        Assert(!SqlRagVectorStore.IsCompatible(record, 768, "bge-m3"));
+        var record = new RagChunkRecord { Model = "multilingual-e5-large", Dimensions = 1024 };
+        Assert(SqlRagVectorStore.IsCompatible(record, 1024, "multilingual-e5-large"));
+        Assert(SqlRagVectorStore.IsCompatible(record, 1024, "MULTILINGUAL-E5-LARGE"));
+        Assert(!SqlRagVectorStore.IsCompatible(record, 768, "multilingual-e5-large"));
         Assert(!SqlRagVectorStore.IsCompatible(record, 1024, "nomic-embed-text"));
-        Assert(SqlRagVectorStore.IsCompatible(new RagChunkRecord { Model = "", Dimensions = 1024 }, 1024, "bge-m3"),
+        Assert(SqlRagVectorStore.IsCompatible(new RagChunkRecord { Model = "", Dimensions = 1024 }, 1024, "multilingual-e5-large"),
             "Los registros anteriores sin modelo se aceptan hasta reindexar");
     }));
     await Check("RAG embedder: la caché LRU desaloja el menos usado", () => Sync(() =>
@@ -1463,7 +1279,7 @@ if (args.Contains("--rag"))
 
     RagQueryResponse Response(string outcome, long latency, params (string Code, double Score)[] sources) =>
         new(new string('r', 3000), sources.Select((source, index) => new RagCitation(source.Code, "t", 1, index, source.Score, "")).ToList(),
-            outcome == RagOutcome.NoCoverage ? RagQueryService.NoCoverageEngine : "Ollama", latency, outcome);
+            outcome == RagOutcome.NoCoverage ? RagQueryService.NoCoverageEngine : "OpenCode", latency, outcome);
     var observedNow = new DateTimeOffset(2026, 11, 10, 12, 0, 0, TimeSpan.Zero);
     AuditEvent RagEvent(string question, RagQueryResponse response, int minutesAgo, bool content = true) => new()
     {
@@ -1531,8 +1347,8 @@ if (args.Contains("--rag"))
     }));
     await Check("RAG Observador: latencia p50/p95 por motor y serie diaria", () => Sync(() =>
     {
-        var ollama = observed.Latency.Single(engine => engine.Engine == "Ollama");
-        Assert(ollama.Queries == 3 && ollama.P50Ms == 900 && ollama.P95Ms == 1000, ollama.ToString());
+        var opencode = observed.Latency.Single(engine => engine.Engine == "OpenCode");
+        Assert(opencode.Queries == 3 && opencode.P50Ms == 900 && opencode.P95Ms == 1000, opencode.ToString());
         Assert(observed.Daily.Sum(day => day.Queries) == 7 && observed.Daily.Sum(day => day.NoCoverage) == 3);
     }));
     await Check("Chat: el formato extractivo se convierte en fragmentos citados y aviso", () => Sync(() =>
@@ -1936,7 +1752,7 @@ if (args.Contains("--ai"))
     await Check("Consumo IA: precio local gratis, catálogo de OpenCode y configuración", () => Sync(() =>
     {
         var paid = new AssistantProfile { Group = "Pago", InputCostPerMillion = 0.27m, OutputCostPerMillion = 1.10m };
-        Assert(Governance().ResolvePricing("ollama", "ollama", "qwen", null).IsFree);
+        Assert(Governance().ResolvePricing("opencode", "lmstudio", "qwen", null).IsFree);
         Assert(Governance().ResolvePricing("opencode", "lmstudio", "m", new AssistantProfile { Group = "Locales", InputCostPerMillion = 9 }).IsFree);
         Assert(Governance().ResolvePricing("opencode", "deepseek", "flash", paid) == new AiPricing(0.00027m, 0.0011m));
         var configured = new AiGovernanceOptions { UsdPer1kInput = 0.001m, UsdPer1kOutput = 0.002m };
@@ -2022,7 +1838,7 @@ if (args.Contains("--database"))
     var service = new DocumentService(factory, session, processor);
     using var offlineHttp = new HttpClient();
     var telemetry = new AgentObservability(factory, session, Microsoft.Extensions.Logging.Abstractions.NullLogger<AgentObservability>.Instance);
-    var agent = new LocalAgent(service, session, Ollama(offlineHttp, false), telemetry);
+    var agent = new LocalAgent(service, session, telemetry);
     await Check("SQL Server: esquema e inicialización idempotente", async () =>
     {
         await using var db = await factory.CreateDbContextAsync();
@@ -2083,7 +1899,7 @@ if (args.Contains("--database"))
         var runtime = new AssistantRuntime(Options.Create(new AssistantOptions()), failing,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
         await runtime.RefreshAsync(force: true);
-        var fallbackAgent = new LocalAgent(service, session, Ollama(new HttpClient(), false), telemetry, failing, runtime,
+        var fallbackAgent = new LocalAgent(service, session, telemetry, failing, runtime,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<LocalAgent>.Instance);
         var answer = await fallbackAgent.AskAsync("Resume POL-2025-0012");
         Assert(answer.Provider.Contains("extractiva", StringComparison.Ordinal) && answer.Sources.Count > 0);
@@ -2101,7 +1917,7 @@ if (args.Contains("--database"))
         await service.SwitchProfileAsync(admin.Id);
         Assert((await service.ExportAuditAsync()).Any(a => a.Action == "ACCESS_DENIED"));
     });
-    await Check("SQL Server + Ollama: solo se envían fuentes autorizadas al consultor", async () =>
+    await Check("SQL Server + OpenCode: solo se envían fuentes autorizadas al consultor", async () =>
     {
         await service.SwitchProfileAsync(consultant.Id);
         try
@@ -2117,12 +1933,12 @@ if (args.Contains("--database"))
                 generated = true;
                 return JsonResponse(ChatJson("""{"answer":"Resumen autorizado","citations":[1]}"""));
             }));
-            var answer = await new LocalAgent(service, session, Ollama(http), telemetry).AskAsync("Resume POL-2025-0012");
-            Assert(generated && answer.Provider.Contains("Ollama") && answer.Sources.All(s => readable.Contains(s.Document.InternalCode)));
+            var answer = await new LocalAgent(service, session, telemetry, OpenCodeFor(http)).AskAsync("Resume POL-2025-0012");
+            Assert(generated && answer.Provider.Contains("OpenCode") && answer.Sources.All(s => readable.Contains(s.Document.InternalCode)));
         }
         finally { await service.SwitchProfileAsync(admin.Id); }
     });
-    await Check("SQL Server + Ollama: revocación durante generación bloquea respuesta", async () =>
+    await Check("SQL Server + OpenCode: revocación durante generación bloquea respuesta", async () =>
     {
         try
         {
@@ -2132,7 +1948,7 @@ if (args.Contains("--database"))
                 await service.SwitchProfileAsync(consultant.Id);
                 return JsonResponse(ChatJson("""{"answer":"Respuesta ahora revocada","citations":[1]}"""));
             }));
-            await ThrowsAsync<UnauthorizedAccessException>(() => new LocalAgent(service, session, Ollama(http), telemetry).AskAsync("Resume FIN-2024-Q4-01"));
+            await ThrowsAsync<UnauthorizedAccessException>(() => new LocalAgent(service, session, telemetry, OpenCodeFor(http)).AskAsync("Resume FIN-2024-Q4-01"));
         }
         finally { await service.SwitchProfileAsync(admin.Id); }
     });

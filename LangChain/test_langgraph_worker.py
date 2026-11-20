@@ -91,7 +91,7 @@ class GraphTests(unittest.TestCase):
 
     def test_rejects_remote_endpoint(self):
         with self.assertRaises(Exception):
-            request(base_url="http://192.168.1.4:11434")
+            request(base_url="http://192.168.1.4:4097")
 
     def test_request_is_json_serializable(self):
         self.assertIn("sources", json.loads(request().model_dump_json()))

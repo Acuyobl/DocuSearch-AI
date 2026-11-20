@@ -1,6 +1,6 @@
 namespace DocuSearch.Services;
 
-/// <summary>Instrucciones compartidas por los motores generativos (Ollama/LangChain y OpenCode).</summary>
+/// <summary>Instrucciones compartidas por los motores generativos (OpenCode y DeepSeek).</summary>
 public static class AssistantPrompt
 {
     public const string System = """

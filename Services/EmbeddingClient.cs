@@ -21,7 +21,7 @@ public sealed class EmbeddingOptions
 }
 
 /// <summary>
-/// Embeddings con Pinecone Inference. No usa Ollama ni envía documentos a otro
+/// Embeddings con Pinecone Inference. No envía documentos a otro
 /// proveedor: el texto se envía únicamente al endpoint de inferencia de Pinecone.
 /// </summary>
 public sealed class EmbeddingClient(HttpClient http, IOptions<EmbeddingOptions> options, ILogger<EmbeddingClient> logger)

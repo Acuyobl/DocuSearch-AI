@@ -36,7 +36,6 @@ public sealed class RagQueryService(
     IRagEmbedder embedder,
     AssistantRuntime assistant,
     OpenCodeClient? opencode,
-    OllamaClient ollama,
     ILogger<RagQueryService> logger,
     AgentObservability? observability = null,
     IOptions<RagOptions>? options = null,
@@ -257,15 +256,6 @@ public sealed class RagQueryService(
                     answer = await AiCallGuard.RunAsync(aiGovernance,
                         CallContext("opencode", profile.ProviderId, profile.ModelId, profile, style, question, sources, trace.Id),
                         () => opencode.GenerateAsync(question, sources, profile.ProviderId, profile.ModelId, profile.Agent, style));
-                    outcome = RagOutcome.Generated;
-                }
-                else if (ollama.Enabled)
-                {
-                    trace.Engine = "rag-ollama";
-                    trace.Model = TextAnalysis.Truncate(ollama.Model, 200);
-                    answer = await AiCallGuard.RunAsync(aiGovernance,
-                        CallContext("ollama", "ollama", ollama.Model, profile, style, question, sources, trace.Id),
-                        () => ollama.GenerateAsync(question, sources, style));
                     outcome = RagOutcome.Generated;
                 }
             }

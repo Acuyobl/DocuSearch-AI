@@ -31,7 +31,7 @@ public static class LocalSearch
             });
         }).ToList();
 
-        // Compuerta de relevancia: bge-m3 tiene una línea base de coseno alta entre textos
+        // Compuerta de relevancia: los embeddings de Pinecone tienen una línea base de coseno alta entre textos
         // no relacionados. Solo se usa el vector si el mejor candidato supera 0.40.
         var useVector = false;
         if (!exact && queryVector is { Length: > 0 })
@@ -97,7 +97,7 @@ public static class LocalSearch
     }
 }
 
-public sealed class LocalAgent(DocumentService documents, LocalSession session, OllamaClient ollama,
+public sealed class LocalAgent(DocumentService documents, LocalSession session,
     AgentObservability observability, OpenCodeClient? opencode = null, AssistantRuntime? assistant = null,
     ILogger<LocalAgent>? logger = null, EmbeddingClient? embeddings = null, PineconeRetriever? pinecone = null,
     IAiGovernance? aiGovernance = null)
@@ -142,35 +142,21 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
         var extracted = AnswerFromSources(query, snapshot.Documents, session, queryVector, externalScores);
         if (assistant is not null) await assistant.EnsureLoadedAsync();
         var profile = assistant?.Active;
-        var engine = profile?.Engine?.ToLowerInvariant()
-            ?? (UseOpenCode ? "opencode" : ollama.Enabled ? "ollama" : "extractive");
-        if (engine is not ("opencode" or "ollama") || extracted.Sources.Count == 0 || IsExactRequest(query)) return extracted;
+        var engine = profile?.Engine?.ToLowerInvariant() ?? (UseOpenCode ? "opencode" : "extractive");
+        if (engine != "opencode" || extracted.Sources.Count == 0 || IsExactRequest(query)) return extracted;
         AgentAnswer answer;
         var generated = false;
-        var engineLabel = engine == "opencode" ? "OpenCode" : "Ollama";
+        var engineLabel = "OpenCode";
         try
         {
-            if (engine == "opencode")
-            {
-                if (!UseOpenCode)
-                    throw new InvalidOperationException("El motor OpenCode está seleccionado en la interfaz, pero OpenCode:Enabled está desactivado en la configuración.");
-                trace.Engine = "opencode";
-                trace.Model = $"{profile?.ProviderId}/{profile?.ModelId} ({profile?.Agent})";
-                answer = await AiCallGuard.RunAsync(aiGovernance,
-                    LegacyContext("opencode", profile?.ProviderId ?? "", profile?.ModelId ?? "", profile, query, extracted.Sources, trace.Id),
-                    () => opencode!.GenerateAsync(query, extracted.Sources, profile?.ProviderId, profile?.ModelId, profile?.Agent));
-                generated = true;
-            }
-            else
-            {
-                if (!ollama.Enabled) return extracted;
-                trace.Engine = ollama.UseLangChain ? "langchain-ollama" : "ollama";
-                trace.Model = ollama.Model;
-                answer = await AiCallGuard.RunAsync(aiGovernance,
-                    LegacyContext("ollama", "ollama", ollama.Model, profile, query, extracted.Sources, trace.Id),
-                    () => ollama.GenerateAsync(query, extracted.Sources));
-                generated = true;
-            }
+            if (!UseOpenCode)
+                throw new InvalidOperationException("El motor OpenCode está seleccionado en la interfaz, pero OpenCode:Enabled está desactivado en la configuración.");
+            trace.Engine = "opencode";
+            trace.Model = $"{profile?.ProviderId}/{profile?.ModelId} ({profile?.Agent})";
+            answer = await AiCallGuard.RunAsync(aiGovernance,
+                LegacyContext("opencode", profile?.ProviderId ?? "", profile?.ModelId ?? "", profile, query, extracted.Sources, trace.Id),
+                () => opencode!.GenerateAsync(query, extracted.Sources, profile?.ProviderId, profile?.ModelId, profile?.Agent));
+            generated = true;
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
         {

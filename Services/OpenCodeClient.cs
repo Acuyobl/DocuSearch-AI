@@ -18,8 +18,8 @@ public sealed class OpenCodeOptions
     public string Password { get; set; } = "";
     /// <summary>Agente de OpenCode. Debe tener las herramientas desactivadas para uso documental.</summary>
     public string Agent { get; set; } = "";
-    public string ProviderId { get; set; } = "ollama";
-    public string ModelId { get; set; } = "qwen3:4b";
+    public string ProviderId { get; set; } = "deepseek";
+    public string ModelId { get; set; } = "deepseek-flash";
     public int TimeoutSeconds { get; set; } = 120;
     /// <summary>Permite un servidor OpenCode fuera de loopback (p. ej. host.docker.internal).</summary>
     public bool AllowNonLoopback { get; set; }
@@ -36,7 +36,7 @@ public sealed class OpenCodeOptions
 /// </summary>
 public sealed class OpenCodeClient
 {
-    private static readonly string[] LocalProviders = ["ollama", "lmstudio", "llamacpp"];
+    private static readonly string[] LocalProviders = ["lmstudio", "llamacpp"];
     private readonly HttpClient http;
     private readonly OpenCodeOptions settings;
     private readonly AgentResilience resilience;

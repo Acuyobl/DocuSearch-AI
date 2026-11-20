@@ -153,13 +153,6 @@ builder.Services.AddScoped<RagQueryService>();
 builder.Services.AddScoped<LangGraphRagService>();
 builder.Services.AddScoped<RagEvaluationService>();
 builder.Services.AddScoped<RagObservabilityService>();
-builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection("Ollama"));
-builder.Services.AddHttpClient<OllamaClient>().ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-{
-    AllowAutoRedirect = false,
-    UseProxy = false,
-    ConnectTimeout = TimeSpan.FromSeconds(5)
-});
 builder.Services.Configure<OpenCodeOptions>(builder.Configuration.GetSection("OpenCode"));
 builder.Services.Configure<ResilienceOptions>(builder.Configuration.GetSection("Resilience"));
 builder.Services.Configure<AssistantOptions>(builder.Configuration.GetSection("Assistant"));
@@ -432,7 +425,7 @@ if (args.Contains("--search", StringComparer.Ordinal))
         var hits = LocalSearch.Search(documents.Documents, query, minimum: 20, queryVector: queryVector,
             externalScores: externalScores).Take(5).ToList();
         Console.WriteLine($"Consulta: {query}");
-        Console.WriteLine(queryVector is null ? "Vector: no disponible (recuperación léxica)." : "Vector: bge-m3 (búsqueda híbrida).");
+        Console.WriteLine(queryVector is null ? "Vector: no disponible (recuperación léxica)." : "Vector: Pinecone e5 (búsqueda híbrida).");
         Console.WriteLine(pinecone.Enabled ? "Pinecone: consultado." : "Pinecone: desactivado.");
         Console.WriteLine($"Resultados: {hits.Count}");
         foreach (var hit in hits)
@@ -700,7 +693,6 @@ app.MapGet("/health", async (IDbContextFactory<AppDbContext> factory, ILogger<Pr
         var engine = active.Engine.ToLowerInvariant() switch
         {
             "opencode" => (openCodeOptions.Value.UseLangChain ? "langchain+opencode:" : "opencode:") + $"{active.ProviderId}/{active.ModelId}",
-            "ollama" => "ollama-local",
             _ => "local-extractive"
         };
         return Results.Ok(new { status = "ready", database = "SQL Server", assistant = engine, profile = active.Id });

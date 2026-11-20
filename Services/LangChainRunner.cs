@@ -7,9 +7,6 @@ namespace DocuSearch.Services;
 
 public static class LangChainRunner
 {
-    public static Task<string> RunAsync(OllamaOptions options, object? request = null) =>
-        RunAsync(options.PythonExecutable, "worker.py", options.TimeoutSeconds, request);
-
     public static async Task<string> RunAsync(string pythonExecutable, string scriptFile, int timeoutSeconds, object? request = null)
     {
         var executable = Environment.ExpandEnvironmentVariables(pythonExecutable);

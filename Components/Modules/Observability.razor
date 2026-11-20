@@ -22,7 +22,7 @@
     <AiUsagePanel />
 }
 <section class="panel" hidden="@(tab != "traces")">
-    <p>Últimas 500 consultas. Se registran al terminar, incluidas las fallidas. Sin preguntas, respuestas, nombres, códigos ni fragmentos. Los tokens son los reportados por Ollama; «—» significa que no están disponibles, no cero.</p>
+    <p>Últimas 500 consultas. Se registran al terminar, incluidas las fallidas. Sin preguntas, respuestas, nombres, códigos ni fragmentos. Los tokens son los reportados por el motor; «—» significa que no están disponibles, no cero.</p>
     @if (traces.Count == 0)
     {
         <p class="empty">No hay trazas disponibles todavía. Realiza una consulta en el asistente y actualiza las métricas.</p>

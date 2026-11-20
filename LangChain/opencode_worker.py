@@ -1,4 +1,4 @@
-"""Generación con OpenCode 2 orquestada por LangChain (sin Ollama).
+"""Generación con OpenCode 2 orquestada por LangChain.
 
 LangChain se usa para la plantilla de mensajes, la cadena de Runnables y la
 salida estructurada. El modelo se invoca en el servidor OpenCode 2 local

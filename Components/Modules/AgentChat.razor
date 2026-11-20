@@ -1,7 +1,6 @@
 @inject WorkspaceState State
 @inject LocalAgent Agent
 @inject IJSRuntime JS
-@inject OllamaClient Ollama
 @inject OpenCodeClient OpenCode
 @inject AssistantRuntime Runtime
 @inject RagQueryService Rag
@@ -146,12 +145,11 @@ else if (!Active.Available)
     private string EngineShort => Active.Engine.ToLowerInvariant() switch
     {
         "opencode" => string.IsNullOrWhiteSpace(Active.ModelId) ? "OpenCode" : Active.ModelId,
-        "ollama" => "Ollama local",
         _ => "Extractivo local"
     } + (modelVerified ? "" : " · sin verificar");
     private string EngineDisclaimer => Active.Engine.ToLowerInvariant() switch
     {
-        "opencode" or "ollama" => "La IA puede cometer errores: verifica las citas.",
+        "opencode" => "La IA puede cometer errores: verifica las citas.",
         _ => "Respuestas extractivas, sin modelo generativo."
     };
     private sealed record ChatMessage(bool IsUser, string Text, List<SearchHit> Sources, string Provider = "", bool Numbered = false,
@@ -186,10 +184,6 @@ else if (!Active.Available)
             case "opencode":
                 if (!OpenCode.Enabled) throw new InvalidOperationException("OpenCode está desactivado en la configuración (OpenCode:Enabled).");
                 await OpenCode.CheckAsync(Active.Agent);
-                break;
-            case "ollama":
-                if (!Ollama.Enabled) throw new InvalidOperationException("Ollama está desactivado en la configuración (Ollama:Enabled).");
-                await Ollama.CheckAsync();
                 break;
         }
         modelVerified = true;

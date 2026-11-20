@@ -77,7 +77,7 @@ public sealed class HybridRagRetriever(
     }
 }
 
-/// <summary>Reranker semántico basado en bge-m3 para reordenar los candidatos.</summary>
+/// <summary>Reranker semántico basado en Pinecone/e5 para reordenar los candidatos.</summary>
 public sealed class SemanticRagReranker(IRagEmbedder embedder) : IRagReranker
 {
     public async Task<IReadOnlyList<RagHit>> RerankAsync(string query, IReadOnlyList<RagHit> candidates,
