@@ -16,6 +16,8 @@ $suites = @(
     [pscustomobject]@{ Name = 'AG-05 Auditor'; Args = @('--audit') },
     [pscustomobject]@{ Name = 'Bloqueo de login'; Args = @('--auth') },
     [pscustomobject]@{ Name = 'RAG híbrido'; Args = @('--rag') },
+    [pscustomobject]@{ Name = 'LangGraph C#'; Args = @('--langgraph') },
+    [pscustomobject]@{ Name = 'MCP'; Args = @('--mcp') },
     [pscustomobject]@{ Name = 'Gobernanza'; Args = @('--governance') },
     [pscustomobject]@{ Name = 'Consumo de IA'; Args = @('--ai') }
 )

@@ -1826,6 +1826,85 @@ if (args.Contains("--ai"))
     }));
 }
 
+if (args.Contains("--mcp"))
+{
+    await Check("MCP: el hash de token es estable y no reversible", () => Sync(() =>
+    {
+        var first = McpTokenService.Hash("dsmcp_token_de_prueba");
+        var second = McpTokenService.Hash("dsmcp_token_de_prueba");
+        var other = McpTokenService.Hash("dsmcp_otro");
+        Assert(first == second && first.Length == 64 && first != other);
+        Assert(!first.Contains("token_de_prueba", StringComparison.Ordinal));
+    }));
+}
+
+if (args.Contains("--langgraph"))
+{
+    var graphOptions = Options.Create(new AssistantOptions
+    {
+        UseLangGraph = true, LangGraphMaxSources = 6, LangGraphMaxRetries = 1, LangGraphTimeoutSeconds = 30
+    });
+    var graphOpenCode = Options.Create(new OpenCodeOptions
+    {
+        Enabled = true, BaseUrl = "http://127.0.0.1:4097", Password = "secreto",
+        PythonExecutable = "python", Agent = "zodiac-asistente"
+    });
+    var graphRuntime = new AssistantRuntime(Options.Create(new AssistantOptions()),
+        OpenCodeFor(OpenCodeCatalogMock(catalogProvidersJson, catalogModelsJson)),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
+    await graphRuntime.RefreshAsync(force: true);
+    var graphDocument = seed.Documents.First(document => document.Pages.Count > 0);
+    var graphPage = graphDocument.Pages.First();
+    var graphHit = new SearchHit(graphDocument, graphPage.PageNumber, graphPage.ExtractedText, 100);
+    var graphSnapshot = new AppSnapshot(admin, seed.Documents, seed.Users, seed.Departments, []);
+    LangGraphRagService Graph(FakeLangGraphRunner runner, bool enabled = true) =>
+        new(enabled ? graphOptions : Options.Create(new AssistantOptions { UseLangGraph = false }),
+            graphOpenCode, graphRuntime, runner,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<LangGraphRagService>.Instance);
+
+    await Check("LangGraph C#: respuesta válida con runner falso", async () =>
+    {
+        var runner = new FakeLangGraphRunner
+        {
+            Response = "{\"status\":\"ok\",\"answer\":\"Resumen verificado [1].\",\"citations\":[1]}"
+        };
+        var answer = await Graph(runner).TryGenerateAsync("Resume el documento", [graphHit], graphSnapshot,
+            AnswerStyle.Summary, default);
+        Assert(answer is not null && answer.Text.Contains("Resumen verificado") &&
+               answer.Sources.Single().Document.InternalCode == graphDocument.InternalCode);
+        Assert(answer!.Provider.Contains("LangGraph", StringComparison.Ordinal));
+        Assert(runner.Calls == 1 && runner.LastRequest!.Contains("\"max_sources\"", StringComparison.Ordinal));
+    });
+    await Check("LangGraph C#: cita fuera de rango se rechaza sin lanzar", async () =>
+    {
+        var runner = new FakeLangGraphRunner
+        {
+            Response = "{\"status\":\"ok\",\"answer\":\"Inventado [9].\",\"citations\":[9]}"
+        };
+        Assert(await Graph(runner).TryGenerateAsync("Resume", [graphHit], graphSnapshot,
+            AnswerStyle.Summary, default) is null);
+    });
+    await Check("LangGraph C#: error del runner cae al camino anterior", async () =>
+    {
+        var runner = new FakeLangGraphRunner { Failure = new InvalidOperationException("timeout") };
+        Assert(await Graph(runner).TryGenerateAsync("Resume", [graphHit], graphSnapshot,
+            AnswerStyle.Summary, default) is null);
+    });
+    await Check("LangGraph C#: bandera apagada no llama al runner", async () =>
+    {
+        var runner = new FakeLangGraphRunner { Response = "{}" };
+        Assert(await Graph(runner, enabled: false).TryGenerateAsync("Resume", [graphHit], graphSnapshot,
+            AnswerStyle.Summary, default) is null && runner.Calls == 0);
+    });
+    await Check("LangGraph C#: fuente no autorizada no se envía", async () =>
+    {
+        var runner = new FakeLangGraphRunner { Response = "{}" };
+        var empty = new AppSnapshot(admin, [], seed.Users, seed.Departments, []);
+        Assert(await Graph(runner).TryGenerateAsync("Resume", [graphHit], empty,
+            AnswerStyle.Summary, default) is null && runner.Calls == 0);
+    });
+}
+
 if (args.Contains("--database"))
 {
     var connection = Environment.GetEnvironmentVariable("DOCUSEARCH_TEST_CONNECTION")
@@ -2267,4 +2346,21 @@ internal sealed class ReversingReranker : IRagReranker
 internal sealed class TestHttpHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request, cancellationToken);
+}
+
+
+internal sealed class FakeLangGraphRunner : ILangGraphRunner
+{
+    public string Response { get; set; } = "{}";
+    public Exception? Failure { get; set; }
+    public int Calls { get; private set; }
+    public string? LastRequest { get; private set; }
+
+    public Task<string> RunAsync(string pythonExecutable, string scriptFile, int timeoutSeconds,
+        object? request = null, CancellationToken cancellationToken = default)
+    {
+        Calls++;
+        LastRequest = JsonSerializer.Serialize(request);
+        return Failure is null ? Task.FromResult(Response) : Task.FromException<string>(Failure);
+    }
 }

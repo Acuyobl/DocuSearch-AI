@@ -69,6 +69,14 @@ jobs:
       - name: Ejecutar checks de RAG híbrido
         run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --rag
 
+      # LangGraph: seam ILangGraphRunner y pruebas con runner falso, sin Python ni red.
+      - name: Ejecutar checks C# de LangGraph
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --langgraph
+
+      # MCP: hash determinista de tokens; no requiere SQL ni red.
+      - name: Ejecutar checks MCP
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --mcp
+
       # Verificación de higiene: los secretos TOTP viven en user-secrets, nunca en el repositorio.
       - name: Verificar que no haya secretos TOTP versionados
         shell: bash

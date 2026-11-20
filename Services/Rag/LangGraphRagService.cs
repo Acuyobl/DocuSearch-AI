@@ -4,6 +4,22 @@ using Microsoft.Extensions.Options;
 
 namespace DocuSearch.Services.Rag;
 
+/// <summary>Seam de prueba para el worker LangGraph; en producción ejecuta Python aislado.</summary>
+public interface ILangGraphRunner
+{
+    Task<string> RunAsync(string pythonExecutable, string scriptFile, int timeoutSeconds,
+        object? request = null, CancellationToken cancellationToken = default);
+}
+
+public sealed class ProcessLangGraphRunner : ILangGraphRunner
+{
+    public Task<string> RunAsync(string pythonExecutable, string scriptFile, int timeoutSeconds,
+        object? request = null, CancellationToken cancellationToken = default) =>
+        LangChainRunner.RunAsync(pythonExecutable, scriptFile, timeoutSeconds, request);
+}
+
+
+
 /// <summary>
 /// Integración LangGraph para resumen/análisis. Recibe fuentes ya autorizadas, llama a
 /// un worker Python aislado que usa OpenCode 2/DeepSeek y vuelve a aplicar AG-02 en C#.
@@ -13,6 +29,7 @@ public sealed class LangGraphRagService(
     IOptions<AssistantOptions> assistantOptions,
     IOptions<OpenCodeOptions> openCodeOptions,
     AssistantRuntime assistant,
+    ILangGraphRunner runner,
     ILogger<LangGraphRagService> logger)
 {
     private readonly AssistantOptions settings = assistantOptions.Value;
@@ -60,8 +77,8 @@ public sealed class LangGraphRagService(
 
         try
         {
-            var raw = await LangChainRunner.RunAsync(openCode.PythonExecutable, "langgraph_worker.py",
-                request.timeout, request);
+            var raw = await runner.RunAsync(openCode.PythonExecutable, "langgraph_worker.py",
+                request.timeout, request, cancellationToken);
             var result = JsonSerializer.Deserialize<LangGraphResponse>(raw,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             if (result?.Status != "ok" || string.IsNullOrWhiteSpace(result.Answer) ||
