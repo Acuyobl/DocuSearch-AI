@@ -84,7 +84,7 @@ public sealed class SemanticRagReranker(IRagEmbedder embedder) : IRagReranker
         CancellationToken cancellationToken = default)
     {
         if (!embedder.Enabled || candidates.Count <= 1) return candidates;
-        var queryVector = await embedder.EmbedAsync(query, cancellationToken);
+        var queryVector = await embedder.EmbedQueryAsync(query, cancellationToken);
         var scores = new List<RagHit>(candidates.Count);
         foreach (var candidate in candidates)
         {

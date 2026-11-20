@@ -71,6 +71,9 @@ public interface IRagEmbedder
     bool Enabled { get; }
     string Model { get; }
     Task<float[]> EmbedAsync(string text, CancellationToken cancellationToken = default);
+    /// <summary>Embedding de consulta; e5 distingue query de passage.</summary>
+    Task<float[]> EmbedQueryAsync(string text, CancellationToken cancellationToken = default) =>
+        EmbedAsync(text, cancellationToken);
     Task<IReadOnlyList<float[]>> EmbedBatchAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default);
     /// <summary>Embedding de un texto efímero que no merece ocupar la caché (p. ej. consulta + fragmento).</summary>
     Task<float[]> EmbedUncachedAsync(string text, CancellationToken cancellationToken = default) =>

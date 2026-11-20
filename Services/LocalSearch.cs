@@ -135,7 +135,7 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session, 
         await documents.LogQueryAsync("AGENT_QUERY", "Consulta del asistente; contenido omitido por privacidad.");
         float[]? queryVector = null;
         if (embeddings is { Enabled: true })
-            queryVector = await embeddings.TryEmbedAsync(query);
+            queryVector = await embeddings.TryEmbedAsync(query, isQuery: true);
         IReadOnlyDictionary<(string DocumentId, int PageNumber), double>? externalScores = null;
         if (queryVector is not null && pinecone is { Enabled: true })
             externalScores = await pinecone.SearchAsync(queryVector, snapshot.Documents.Select(document => document.Id).ToArray());

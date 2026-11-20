@@ -44,7 +44,7 @@ public sealed class EmbeddingIndexer(
             float[]? vector;
             try
             {
-                vector = await client.TryEmbedAsync(source, cancellationToken);
+                vector = await client.TryEmbedAsync(source, cancellationToken: cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

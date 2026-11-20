@@ -104,9 +104,9 @@ builder.Services.AddScoped<DocumentService>();
 builder.Services.AddScoped<DocumentQualityService>();
 builder.Services.AddScoped<CatalogSuggester>();
 builder.Services.Configure<EmbeddingOptions>(builder.Configuration.GetSection("Embeddings"));
-var embeddingBase = builder.Configuration["Embeddings:BaseUrl"] ?? "http://127.0.0.1:11434";
+var embeddingBase = builder.Configuration["Embeddings:BaseUrl"] ?? "https://api.pinecone.io";
 if (!Uri.TryCreate(embeddingBase, UriKind.Absolute, out var embeddingUri) || embeddingUri.Scheme is not ("http" or "https"))
-    throw new InvalidOperationException("Embeddings:BaseUrl debe ser una URL HTTP como http://127.0.0.1:11434.");
+    throw new InvalidOperationException("Embeddings:BaseUrl debe ser una URL HTTP, por ejemplo https://api.pinecone.io.");
 builder.Services.AddHttpClient<EmbeddingClient>(client =>
 {
     client.BaseAddress = new Uri(embeddingUri.AbsoluteUri.TrimEnd('/') + "/");
@@ -130,7 +130,7 @@ builder.Services.Configure<RagOptions>(builder.Configuration.GetSection("Rag"));
 builder.Services.AddScoped<FixedRagChunker>();
 builder.Services.AddScoped<SemanticRagChunker>();
 builder.Services.AddScoped<IRagChunker>(provider => provider.GetRequiredService<FixedRagChunker>());
-builder.Services.AddScoped<IRagEmbedder, BgeM3RagEmbedder>();
+builder.Services.AddScoped<IRagEmbedder, PineconeRagEmbedder>();
 builder.Services.AddScoped<SqlRagVectorStore>();
 builder.Services.AddScoped<PineconeRagVectorStore>();
 builder.Services.AddScoped<IRagVectorStore>(provider =>

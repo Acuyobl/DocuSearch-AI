@@ -16,6 +16,8 @@
 | Proveedor | OpenCode 2 | `deepseek/deepseek-flash` |
 | Dependencia | `LangChain/requirements.txt` | `langgraph==1.2.23` |
 
+Los embeddings usan **Pinecone Inference** (`multilingual-e5-large`, 1024 dimensiones), no Ollama.
+
 ## Flujo
 
 ```text

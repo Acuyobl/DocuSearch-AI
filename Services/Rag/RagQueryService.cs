@@ -87,7 +87,7 @@ public sealed class RagQueryService(
     {
         var snapshot = await documents.LoadAsync();
         var retrievalQuery = hint?.RetrievalQuery ?? question;
-        var queryVector = await embedder.EmbedAsync(retrievalQuery, cancellationToken);
+        var queryVector = await embedder.EmbedQueryAsync(retrievalQuery, cancellationToken);
         var generationQuestion = hint?.GenerationQuestion ?? question;
 
         // «Resumen», «análisis», «compara…»: síntesis en lenguaje natural de uno o varios documentos.
@@ -155,7 +155,7 @@ public sealed class RagQueryService(
         var searchQuery = string.IsNullOrWhiteSpace(topicQuery) ? retrievalQuery : topicQuery;
         var searchVector = string.Equals(searchQuery, retrievalQuery, StringComparison.Ordinal)
             ? queryVector
-            : await embedder.EmbedAsync(searchQuery, cancellationToken);
+            : await embedder.EmbedQueryAsync(searchQuery, cancellationToken);
         DocumentItem? Find(string code) => readable.FirstOrDefault(document => document.InternalCode.Equals(code, StringComparison.OrdinalIgnoreCase));
         var targets = new List<DocumentItem>();
         var hitsByDocument = new Dictionary<string, IReadOnlyList<RagHit>>(StringComparer.Ordinal);
@@ -197,7 +197,7 @@ public sealed class RagQueryService(
             var others = readable.Where(document => targets.All(target => target.Id != document.Id)).Select(document => document.Id).ToArray();
             if (others.Length > 0)
             {
-                var related = await retriever.RetrieveAsync(seedText, await embedder.EmbedAsync(seedText, cancellationToken), others, cancellationToken);
+                var related = await retriever.RetrieveAsync(seedText, await embedder.EmbedQueryAsync(seedText, cancellationToken), others, cancellationToken);
                 Remember(related);
                 targets.AddRange(DocumentSynthesis.RankDocuments(related, DocumentSynthesis.MaxDocuments - targets.Count, 0.75)
                     .Select(id => readable.First(document => document.Id == id)));

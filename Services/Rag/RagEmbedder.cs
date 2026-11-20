@@ -3,8 +3,8 @@ using System.Text;
 
 namespace DocuSearch.Services.Rag;
 
-/// <summary>Embedder bge-m3 con caché LRU acotada por hash de texto.</summary>
-public sealed class BgeM3RagEmbedder(EmbeddingClient client, ILogger<BgeM3RagEmbedder> logger) : IRagEmbedder
+/// <summary>Embedder Pinecone/e5 con caché LRU acotada por hash de texto.</summary>
+public sealed class PineconeRagEmbedder(EmbeddingClient client, ILogger<PineconeRagEmbedder> logger) : IRagEmbedder
 {
     /// <summary>Entradas máximas en caché (~4 MB con vectores de 1024 floats).</summary>
     public const int CacheCapacity = 1000;
@@ -16,9 +16,19 @@ public sealed class BgeM3RagEmbedder(EmbeddingClient client, ILogger<BgeM3RagEmb
     public async Task<float[]> EmbedAsync(string text, CancellationToken cancellationToken = default)
     {
         if (!Enabled) throw new InvalidOperationException("Los embeddings están desactivados.");
-        var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
+        var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes("passage\n" + text)));
         if (cache.TryGet(key, out var cached)) return cached;
-        var vector = await client.EmbedAsync(text, cancellationToken);
+        var vector = await client.EmbedAsync(text, false, cancellationToken);
+        cache.Set(key, vector);
+        return vector;
+    }
+
+    public async Task<float[]> EmbedQueryAsync(string text, CancellationToken cancellationToken = default)
+    {
+        if (!Enabled) throw new InvalidOperationException("Los embeddings están desactivados.");
+        var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes("query\n" + text)));
+        if (cache.TryGet(key, out var cached)) return cached;
+        var vector = await client.EmbedAsync(text, true, cancellationToken);
         cache.Set(key, vector);
         return vector;
     }
@@ -26,20 +36,21 @@ public sealed class BgeM3RagEmbedder(EmbeddingClient client, ILogger<BgeM3RagEmb
     public Task<float[]> EmbedUncachedAsync(string text, CancellationToken cancellationToken = default)
     {
         if (!Enabled) throw new InvalidOperationException("Los embeddings están desactivados.");
-        return client.EmbedAsync(text, cancellationToken);
+        return client.EmbedAsync(text, false, cancellationToken);
     }
 
     public async Task<IReadOnlyList<float[]>> EmbedBatchAsync(IReadOnlyList<string> texts,
         CancellationToken cancellationToken = default)
     {
-        var result = new List<float[]>(texts.Count);
-        foreach (var text in texts)
+        if (!Enabled) throw new InvalidOperationException("Los embeddings están desactivados.");
+        var vectors = await client.EmbedBatchAsync(texts, false, cancellationToken);
+        for (var index = 0; index < Math.Min(texts.Count, vectors.Count); index++)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            result.Add(await EmbedAsync(text, cancellationToken));
+            var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes("passage\n" + texts[index])));
+            cache.Set(key, vectors[index]);
         }
         logger.LogDebug("Embeddings de fragmentos: {Count} textos, caché {Cache}.", texts.Count, cache.Count);
-        return result;
+        return vectors;
     }
 }
 
