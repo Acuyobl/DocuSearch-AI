@@ -48,3 +48,33 @@ Resultado esperado:
 - las suites no fallan.
 
 No guardar usuarios ni secretos de prueba en el repositorio.
+
+## Arnés pytest
+
+Instala y ejecuta:
+
+```powershell
+python -m pip install -r tests/mcp/requirements.txt
+
+Set-Location "D:\Programación\DocuSearch-AI"
+$env:DOCUSEARCH_MCP_CONNECTION = "Server=127.0.0.1,14331;Database=DocuSearch;User Id=sa;Password=<secreto>;TrustServerCertificate=True;Encrypt=False"
+$env:DOCUSEARCH_MCP_USER = "acuyobl@gmail.com"
+$env:MCP_LOW_USER = "consultor.demo@example.test"
+$env:MCP_RESTRICTED_DOCUMENT_CODE = "REG-2026-55F63E9C1E3F"
+
+python -m pytest tests/mcp -q
+```
+
+Para HTTP y ciclo de tokens:
+
+```powershell
+$env:MCP_HTTP_URL = "http://127.0.0.1:5068/mcp"
+$env:MCP_HTTP_TOKEN = "<token>"
+$env:MCP_ADMIN_EMAIL = "acuyobl@gmail.com"
+$env:MCP_ADMIN_TOTP_SECRET = "<secreto-totp>"
+python -m pytest tests/mcp -q
+```
+
+- Sin `MCP_HTTP_TOKEN`, las pruebas HTTP se omiten.
+- Sin `MCP_ADMIN_*`, el ciclo de revocación y auditoría se omiten.
+- Fallos de snippet/página revelan regresiones reales del contrato.

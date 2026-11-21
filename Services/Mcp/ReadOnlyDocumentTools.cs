@@ -64,7 +64,7 @@ public sealed class ReadOnlyDocumentTools(
                     hit.Document.InternalCode,
                     hit.Document.Title,
                     hit.PageNumber,
-                    Snippet = TextAnalysis.Truncate(hit.Snippet, MaxSnippetChars),
+                    Snippet = Limit(hit.Snippet, MaxSnippetChars),
                     hit.Score
                 });
             return Json(hits);
@@ -92,7 +92,7 @@ public sealed class ReadOnlyDocumentTools(
                 document.InternalCode,
                 document.Title,
                 documentPage.PageNumber,
-                Text = TextAnalysis.Truncate(documentPage.ExtractedText, MaxPageChars)
+                Text = Limit(documentPage.ExtractedText, MaxPageChars)
             });
         }, cancellationToken);
     }
@@ -115,7 +115,7 @@ public sealed class ReadOnlyDocumentTools(
                     source.Document.InternalCode,
                     source.Document.Title,
                     source.PageNumber,
-                    Snippet = TextAnalysis.Truncate(source.Snippet, MaxSnippetChars),
+                    Snippet = Limit(source.Snippet, MaxSnippetChars),
                     source.Score
                 })
             });
@@ -164,6 +164,12 @@ public sealed class ReadOnlyDocumentTools(
                 logger.LogWarning("MCP {Tool}: no se pudo auditar ({Error}).", tool, ex.GetType().Name);
             }
         }
+    }
+
+    private static string Limit(string value, int maximum)
+    {
+        var truncated = TextAnalysis.Truncate(value, maximum);
+        return truncated.Length <= maximum ? truncated : truncated[..maximum];
     }
 
     private static string Json(object value) => JsonSerializer.Serialize(value, new JsonSerializerOptions
