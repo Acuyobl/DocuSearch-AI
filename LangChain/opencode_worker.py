@@ -152,9 +152,39 @@ def call_opencode(request: Request, prompt_value) -> tuple[str, dict]:
 def _call_open_code_2(
     client: httpx.Client, request: Request, system: str, human: str
 ) -> tuple[str, dict]:
-    info = client.get("/api/info")
-    if info.status_code != 200:
-        raise ValueError("OpenCode 2 no está disponible en /api/info.")
+    # API nueva (OpenCode 1.19+/2.x): sesión síncrona con /session/{id}/message.
+    created = client.post("/session", json={
+        "title": "DocuSearch LangChain",
+        "model": {"id": request.model_id, "providerID": request.provider_id},
+        **({"agent": request.agent} if request.agent else {}),
+        "permissions": [{"action": "*", "resource": "*", "effect": "deny"}],
+    })
+    if created.status_code in (200, 201):
+        data = created.json()
+        session_id = data.get("id") or (data.get("data") or {}).get("id")
+        if session_id:
+            try:
+                message = client.post(f"/session/{session_id}/message", json={
+                    "model": {"providerID": request.provider_id, "modelID": request.model_id},
+                    "parts": [{"type": "text", "text": system + "\n\n" + human}],
+                })
+                if message.status_code == 200:
+                    payload = message.json()
+                    text = "".join(
+                        part.get("text", "") for part in (payload.get("parts") or [])
+                        if part.get("type") == "text" and part.get("text"))
+                    if text:
+                        info = payload.get("info") or {}
+                        return text, info.get("tokens") or {}
+                if message.status_code not in (404, 405):
+                    raise ValueError(f"OpenCode respondió HTTP {message.status_code} al prompt.")
+            finally:
+                try:
+                    client.delete(f"/session/{session_id}")
+                except httpx.HTTPError:
+                    pass
+
+    # Fallback para servidores que solo exponen la API clásica /api.
     body: dict = {
         "title": "DocuSearch LangChain",
         "model": {"id": request.model_id, "providerID": request.provider_id},

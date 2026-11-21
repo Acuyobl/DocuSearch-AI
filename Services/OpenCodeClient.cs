@@ -117,6 +117,21 @@ public sealed class OpenCodeClient
                     return;
             }
             catch (JsonException) { }
+
+            // Algunas versiones del servidor devuelven la UI web en /api/info. La API v2
+            // sigue disponible en /api/agent; se valida ahí antes de declarar incompatible.
+            using var agents = await http.GetAsync("api/agent", cancellationToken);
+            if (!agents.IsSuccessStatusCode)
+                throw new InvalidOperationException("El servidor no respondió como OpenCode 2. Inicia la versión 2 de OpenCode y revisa OpenCode:BaseUrl.");
+            try
+            {
+                using var agentDocument = JsonDocument.Parse(await agents.Content.ReadAsStringAsync(cancellationToken));
+                if (agentDocument.RootElement.ValueKind == JsonValueKind.Object &&
+                    agentDocument.RootElement.TryGetProperty("data", out var agentData) &&
+                    agentData.ValueKind == JsonValueKind.Array)
+                    return;
+            }
+            catch (JsonException) { }
             throw new InvalidOperationException("El servidor respondió pero no es compatible con OpenCode 2. Revisa la versión del CLI/servidor OpenCode y OpenCode:BaseUrl.");
         }
         catch (HttpRequestException ex)

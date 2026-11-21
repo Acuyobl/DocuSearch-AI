@@ -95,6 +95,38 @@ class OpenCodeChat:
             base_url=request.base_url, auth=self.auth, timeout=request.timeout,
             trust_env=False, follow_redirects=False,
         ) as client:
+            # OpenCode 1.19+/2.x usa /session y /session/{id}/message (síncrono).
+            created = client.post("/session", json={
+                "title": "DocuSearch LangGraph",
+                "model": {"id": request.model_id, "providerID": request.provider_id},
+                **({"agent": request.agent} if request.agent else {}),
+                "permissions": [{"action": "*", "resource": "*", "effect": "deny"}],
+            })
+            if created.status_code in (200, 201):
+                data = created.json()
+                session_id = data.get("id") or (data.get("data") or {}).get("id")
+                if session_id:
+                    try:
+                        message = client.post(f"/session/{session_id}/message", json={
+                            "model": {"providerID": request.provider_id, "modelID": request.model_id},
+                            "parts": [{"type": "text", "text": prompt}],
+                        })
+                        if message.status_code == 200:
+                            payload = message.json()
+                            text = "".join(
+                                part.get("text", "") for part in (payload.get("parts") or [])
+                                if part.get("type") == "text" and part.get("text"))
+                            if text:
+                                return AIMessage(text)
+                        if message.status_code not in (404, 405):
+                            raise ValueError(f"OpenCode respondió HTTP {message.status_code} al prompt.")
+                    finally:
+                        try:
+                            client.delete(f"/session/{session_id}")
+                        except httpx.HTTPError:
+                            pass
+
+            # Fallback para servidores que solo exponen la API clásica /api.
             body: dict[str, Any] = {
                 "title": "DocuSearch LangGraph",
                 "model": {"id": request.model_id, "providerID": request.provider_id},
@@ -132,7 +164,6 @@ class OpenCodeChat:
                     client.delete(f"/api/session/{session_id}")
                 except httpx.HTTPError:
                     pass
-
 
 class GraphState(TypedDict, total=False):
     request: Request
