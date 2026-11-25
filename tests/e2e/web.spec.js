@@ -36,19 +36,30 @@ test("la página Web permite buscar y usar el asistente", async ({ page }) => {
   await page.goto("/web");
   await expect(page.locator(".web-topbar")).toBeVisible();
   await expect(page.locator(".web-connected")).toContainText("Conectado");
+  await expect(page.locator(".web-sidebar")).toBeVisible();
   await expect(page.locator(".agent-status-button")).toBeVisible();
   await expect(page.locator("textarea")).toBeVisible();
   await expect(page.locator(".engine-status")).toBeHidden();
   await expect(page.locator(".assistant-title")).toBeHidden();
   await expect(page.locator(".search-panel")).toBeHidden();
   await expect(page.locator(".search-hero h1")).toBeHidden();
+  await expect(page.locator(".search-modes")).toBeHidden();
 
-  // La pestaña de búsqueda documental sigue disponible.
-  await page.getByRole("button", { name: /Buscar documentos/i }).click();
+  // El compositor queda por encima de la conversación, tipo buscador.
+  const composerBox = await page.locator("form.chat-composer").boundingBox();
+  const conversationBox = await page.locator(".conversation").boundingBox();
+  expect(composerBox.y).toBeLessThan(conversationBox.y);
+  await expect(page.locator(".conversation")).toHaveCSS("border-top-width", "0px");
+
+  // Menú lateral: cambiar de modo y ocultarlo.
+  await page.locator(".web-sidebar").getByRole("button", { name: "Documentos" }).click();
   await expect(page.locator(".central-search input")).toBeVisible();
+  await page.locator(".web-sidebar").getByRole("button", { name: "Asistente" }).click();
+  await expect(page.locator("textarea")).toBeVisible();
+  await page.locator(".web-sidebar-toggle").click();
+  await expect(page.locator(".web-sidebar")).toHaveClass(/collapsed/);
 
   // Y el asistente responde desde la página independiente.
-  await page.getByRole("button", { name: /Asistente IA/i }).click();
   await page.locator("textarea").fill("¿Cuántos documentos hay?");
   await page.getByRole("button", { name: /^Consultar$/ }).click();
   await expect(page.locator(".chat-turn.assistant .answer-body")).toBeVisible({ timeout: 90_000 });

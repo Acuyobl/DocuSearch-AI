@@ -114,6 +114,20 @@
         showAssistant = value;
         assistantOpened |= value;
     }
+
+    /// <summary>Control externo para la página /web: abre el asistente.</summary>
+    public Task ShowAssistantAsync() => InvokeAsync(() =>
+    {
+        SelectAssistant(true);
+        StateHasChanged();
+    });
+
+    /// <summary>Control externo para la página /web: abre la búsqueda documental.</summary>
+    public Task ShowDocumentsAsync() => InvokeAsync(() =>
+    {
+        SelectAssistant(false);
+        StateHasChanged();
+    });
     private async Task SetMode(bool value)
     {
         exact = value;

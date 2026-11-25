@@ -25,19 +25,33 @@
         </div>
     </header>
 
-    <main class="web-main">
-        @if (State.Data is null)
-        {
-            <section class="panel">
-                <h1>Preparando el buscador…</h1>
-                <p>@(State.Error ?? "Cargando expedientes autorizados.")</p>
-            </section>
-        }
-        else
-        {
-            <Search OnView="OpenHit" OpenAssistant="true" />
-        }
-    </main>
+    <div class="web-body">
+        <aside class="web-sidebar @(sidebarCollapsed ? "collapsed" : "")" aria-label="Menú del buscador">
+            <button class="icon-button web-sidebar-toggle" title="@(sidebarCollapsed ? "Mostrar menú" : "Ocultar menú")" aria-label="@(sidebarCollapsed ? "Mostrar menú" : "Ocultar menú")" aria-expanded="@(!sidebarCollapsed)" @onclick="ToggleSidebar"><AppIcon Name="menu" /></button>
+            <nav class="web-sidebar-nav">
+                <button type="button" @onclick="ShowAssistant" title="Asistente IA"><AppIcon Name="agent" /><span class="web-sidebar-label">Asistente</span></button>
+                <button type="button" @onclick="ShowDocuments" title="Buscar documentos"><AppIcon Name="search" /><span class="web-sidebar-label">Documentos</span></button>
+                <a href="/" title="Volver al panel"><AppIcon Name="dashboard" /><span class="web-sidebar-label">Panel</span></a>
+                @if (State.Data is { } snapshot && Permissions.CanAdmin(snapshot.Actor))
+                {
+                    <a href="/rbac" title="Administración"><AppIcon Name="rbac" /><span class="web-sidebar-label">Administración</span></a>
+                }
+            </nav>
+        </aside>
+        <main class="web-main">
+            @if (State.Data is null)
+            {
+                <section class="panel">
+                    <h1>Preparando el buscador…</h1>
+                    <p>@(State.Error ?? "Cargando expedientes autorizados.")</p>
+                </section>
+            }
+            else
+            {
+                <Search @ref="search" OnView="OpenHit" OpenAssistant="true" />
+            }
+        </main>
+    </div>
 </div>
 
 @if (viewing is not null)
@@ -49,6 +63,8 @@
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
     private DocumentItem? viewing;
     private int viewPage = 1;
+    private Search? search;
+    private bool sidebarCollapsed;
 
     protected override async Task OnInitializedAsync()
     {
@@ -71,6 +87,18 @@
         }
         State.Changed += OnChanged;
         await State.RunAsync(State.RefreshAsync);
+    }
+
+    private void ToggleSidebar() => sidebarCollapsed = !sidebarCollapsed;
+
+    private async Task ShowAssistant()
+    {
+        if (search is not null) await search.ShowAssistantAsync();
+    }
+
+    private async Task ShowDocuments()
+    {
+        if (search is not null) await search.ShowDocumentsAsync();
     }
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);

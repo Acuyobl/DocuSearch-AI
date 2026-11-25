@@ -1093,3 +1093,30 @@ nav a.has-agent:hover .agent-mark, nav a.has-agent.active .agent-mark { backgrou
 .web-main .conversation { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: var(--surface-glass); max-height: 58vh; overflow-y: auto; }
 .web-main .chat-composer { margin-top: 10px; }
 @media (max-width: 720px) { .web-connected { padding: 4px 8px; font-size: 10px; } .web-main .search-modes .nav-label { display: none; } }
+
+/* /web: consulta arriba, resultados en la página y menú lateral. */
+.web-body { display: flex; align-items: stretch; min-height: calc(100vh - 61px); }
+.web-sidebar { position: sticky; top: 61px; align-self: flex-start; display: flex; flex-direction: column; gap: 6px; width: 190px; flex: 0 0 190px; min-height: calc(100vh - 61px); padding: 12px 10px; border-right: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 70%, transparent); transition: width .2s, flex-basis .2s; }
+.web-sidebar.collapsed { width: 58px; flex-basis: 58px; }
+.web-sidebar-toggle { align-self: flex-end; width: 34px; min-height: 34px; padding: 0; }
+.web-sidebar-nav { display: flex; flex-direction: column; gap: 4px; }
+.web-sidebar-nav button, .web-sidebar-nav a { justify-content: flex-start; width: 100%; min-height: 38px; padding: 8px 10px; border: 0; background: transparent; color: var(--muted); text-decoration: none; font-size: 12px; }
+.web-sidebar-nav button:hover, .web-sidebar-nav a:hover { color: var(--ink); background: var(--elevated); }
+.web-sidebar-nav .app-icon { width: 17px; height: 17px; flex: none; }
+.web-sidebar.collapsed .web-sidebar-label { display: none; }
+.web-sidebar.collapsed .web-sidebar-nav button, .web-sidebar.collapsed .web-sidebar-nav a { justify-content: center; padding-inline: 0; }
+.web-main { flex: 1; min-width: 0; max-width: none; padding: 24px 30px 48px; }
+.web-main .smart-search { max-width: 940px; }
+.web-main .assistant-page { height: auto; min-height: 0; max-width: none; gap: 0; display: flex; flex-direction: column; }
+.web-main .assistant-page > .assistant-bar { order: 0; margin-bottom: 6px; }
+.web-main .assistant-page > form.chat-composer { order: 1; position: static; z-index: auto; width: 100%; margin: 0 0 22px; border-radius: 16px; padding: 8px 10px; background: var(--surface); box-shadow: 0 8px 28px color-mix(in srgb, var(--p-500) 9%, transparent); }
+.web-main .assistant-page > .conversation { order: 2; flex: none; max-height: none; min-height: 0; overflow: visible; padding: 0; border: 0; border-radius: 0; background: none; }
+.web-main .assistant-page > .assistant-disclaimer { display: none; }
+.web-main .chat-turn { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid color-mix(in srgb, var(--line) 65%, transparent); }
+.web-main .chat-turn:last-child { border-bottom: 0; }
+.web-main .chat-turn .message { max-width: 92%; }
+.web-main .chat-turn.user .message { max-width: 78%; }
+.web-main .result { margin: 0; padding: 18px 0; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 65%, transparent); border-radius: 0; background: none; box-shadow: none; }
+.web-main .result:last-of-type { border-bottom: 0; }
+.web-main .search-modes { display: none; }
+@media (max-width: 760px) { .web-sidebar { width: 58px; flex-basis: 58px; } .web-sidebar .web-sidebar-label { display: none; } .web-main { padding: 14px; } .web-main .assistant-page > form.chat-composer { margin-bottom: 14px; } }
