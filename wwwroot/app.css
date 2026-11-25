@@ -315,6 +315,12 @@ td .text-button { max-width: 340px; }
 .repository-filter-summary details > label { margin-top: 10px; }
 .repository-table { overflow: hidden; box-shadow: 0 12px 25px #00000014; }
 .repository-table table { font-size: 12px; min-width: 1030px; table-layout: fixed; }
+.repository-table .table-sort { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: inherit; text-align: left; }
+.repository-table .table-sort:hover { color: var(--brand); }
+.repository-table .table-sort span { font-size: 9px; color: var(--muted); }
+.agent-panel { container-type: inline-size; }
+@container (min-width: 460px) { .agent-panel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (min-width: 760px) { .agent-panel-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .repository-table th { padding: 14px 16px; font-size: 12px; letter-spacing: .6px; font-weight: 600; background: var(--app); border-bottom: 1px solid var(--line); }
 .repository-table th:nth-child(1) { width: 23%; }
 .repository-table th:nth-child(2) { width: 15%; }

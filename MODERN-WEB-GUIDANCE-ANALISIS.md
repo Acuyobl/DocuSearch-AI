@@ -232,3 +232,13 @@ Fases 2 y 3 quedan pendientes: `<dialog>` nativo, tabs con teclado, drawer, tabl
 - [x] Pestañas de Auditoría con `aria-controls`, `tabpanel`, `tabindex` y navegación Arrow/Home/End.
 - [x] Pruebas E2E actualizadas: `agent-lights` 2/2 y regresión de tabs.
 - [ ] Drawer móvil, tabla ordenable y toasts: fases siguientes.
+
+
+## 12. Estado aplicado (Fase 3 parcial)
+
+- [x] Tabla de documentos ordenable con `aria-sort`, botones de encabezado y flecha de dirección.
+- [x] Container query en el panel de agentes para distribuir tarjetas según el ancho del componente.
+- [x] E2E de ordenación de tabla.
+- [ ] Toasts persistentes y drawer móvil: se dejan para una fase posterior por no ser críticos.
+
+La app queda operativa; no se modificó RBAC, MCP ni el pipeline RAG en esta fase.

@@ -357,11 +357,11 @@ else if (!Active.Available)
         {
             await JS.InvokeVoidAsync("docusearch.openDialog", "agent-dialog");
         }
-        catch (JSException ex)
+        catch (JSException)
         {
             agentsOpen = false;
         }
-        catch (JSDisconnectedException ex)
+        catch (JSDisconnectedException)
         {
             agentsOpen = false;
         }

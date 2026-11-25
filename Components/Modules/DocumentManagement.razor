@@ -25,7 +25,15 @@
     </section>
     <section class="repository-table" aria-label="Catálogo documental">
     <div class="table-scroll"><table>
-        <thead><tr><th>Código / Título</th><th>Autor &amp; Fecha</th><th>Departamento</th><th>Categoría</th><th>Confidencialidad</th><th>Estado OCR</th><th>Acciones</th></tr></thead>
+        <thead><tr>
+            <th scope="col" aria-sort="@AriaSort("title")"><button type="button" class="table-sort" @onclick='() => SortBy("title")'>Código / Título <span aria-hidden="true">@SortGlyph("title")</span></button></th>
+            <th scope="col" aria-sort="@AriaSort("author")"><button type="button" class="table-sort" @onclick='() => SortBy("author")'>Autor &amp; Fecha <span aria-hidden="true">@SortGlyph("author")</span></button></th>
+            <th scope="col" aria-sort="@AriaSort("department")"><button type="button" class="table-sort" @onclick='() => SortBy("department")'>Departamento <span aria-hidden="true">@SortGlyph("department")</span></button></th>
+            <th scope="col" aria-sort="@AriaSort("category")"><button type="button" class="table-sort" @onclick='() => SortBy("category")'>Categoría <span aria-hidden="true">@SortGlyph("category")</span></button></th>
+            <th scope="col" aria-sort="@AriaSort("level")"><button type="button" class="table-sort" @onclick='() => SortBy("level")'>Confidencialidad <span aria-hidden="true">@SortGlyph("level")</span></button></th>
+            <th scope="col" aria-sort="@AriaSort("ocr")"><button type="button" class="table-sort" @onclick='() => SortBy("ocr")'>Estado OCR <span aria-hidden="true">@SortGlyph("ocr")</span></button></th>
+            <th scope="col">Acciones</th>
+        </tr></thead>
         <tbody>
         @foreach (var doc in Filtered.Skip((page - 1) * 10).Take(10))
         {
@@ -57,7 +65,38 @@
     [Parameter] public EventCallback OnUpload { get; set; }
     private DocumentFilter filter = new();
     private int page = 1;
-    private List<DocumentItem> Filtered => filter.Apply(State.Data!.Documents).ToList();
+    private string sortColumn = "";
+    private bool sortAscending = true;
+
+    private List<DocumentItem> Filtered
+    {
+        get
+        {
+            var items = filter.Apply(State.Data!.Documents).ToList();
+            if (string.IsNullOrEmpty(sortColumn)) return items;
+            Func<DocumentItem, object> key = sortColumn switch
+            {
+                "title" => document => document.Title,
+                "author" => document => document.Author,
+                "department" => document => document.Department,
+                "category" => document => document.Category,
+                "level" => document => document.Confidentiality,
+                "ocr" => document => document.OcrStatus,
+                _ => document => document.Title
+            };
+            return (sortAscending ? items.OrderBy(key) : items.OrderByDescending(key)).ToList();
+        }
+    }
+
+    private void SortBy(string column)
+    {
+        if (sortColumn == column) sortAscending = !sortAscending;
+        else { sortColumn = column; sortAscending = true; }
+        page = 1;
+    }
+
+    private string AriaSort(string column) => sortColumn != column ? "none" : sortAscending ? "ascending" : "descending";
+    private string SortGlyph(string column) => sortColumn != column ? "" : sortAscending ? "▲" : "▼";
     private bool HasFilters => filter.Text.Length > 0 || filter.Department.Length > 0 || filter.Category.Length > 0 || filter.Level.Length > 0 || filter.Year.Length > 0;
     protected override Task OnInitializedAsync() => Refresh();
     private Dictionary<string, string> pendingByDocument = [];
