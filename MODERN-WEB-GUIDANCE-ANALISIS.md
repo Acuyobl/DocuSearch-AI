@@ -207,3 +207,18 @@ Sí hay valor, pero **no como dependencia de la app**. El mayor retorno está en
 5. rendimiento de listas largas.
 
 WebMCP y Built-in AI deben esperar: la app ya tiene MCP backend y un pipeline RAG auditado; añadirlos ahora aumentaría riesgo sin beneficio claro.
+
+
+## 10. Estado aplicado (Fase 1)
+
+- [x] `<meta name="color-scheme">` + sincronización en `toggleTheme()`.
+- [x] Script inline mínimo para evitar FOUC del tema.
+- [x] `color-scheme` coherente con `data-theme`.
+- [x] `text-wrap: balance` en títulos y `pretty` en respuestas.
+- [x] `:user-invalid` para validación nativa.
+- [x] `field-sizing: content` en el composer.
+- [x] `scrollbar-color`/`scrollbar-width` progresivos.
+- [x] `content-visibility` progresivo en filas de auditoría y repositorio.
+- [x] Prueba E2E `tests/e2e/theme.spec.js` (pasa).
+
+Fases 2 y 3 quedan pendientes: `<dialog>` nativo, tabs con teclado, drawer, tabla ordenable, toasts y container queries.

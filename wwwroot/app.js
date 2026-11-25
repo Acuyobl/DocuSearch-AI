@@ -5,6 +5,8 @@ window.docusearch = {
     toggleTheme() {
         const theme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
         document.documentElement.dataset.theme = theme;
+        const meta = document.querySelector('meta[name="color-scheme"]');
+        if (meta) meta.content = theme;
         try {
             localStorage.setItem("docusearch-theme", theme);
         } catch (error) {
