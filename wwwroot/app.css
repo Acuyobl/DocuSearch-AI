@@ -1142,3 +1142,10 @@ nav a.has-agent:hover .agent-mark, nav a.has-agent.active .agent-mark { backgrou
     .web-shell.web-scroll .web-main .search-hero .central-search { left: 14px; right: 14px; max-width: none; }
     .web-shell.web-scroll .web-main { padding-bottom: 104px; }
 }
+
+.web-user { display: inline-flex; align-items: center; gap: 8px; padding: 4px 9px 4px 5px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.web-user .profile-avatar { width: 28px; height: 28px; }
+.web-user-copy { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.web-user-copy strong { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--ink); }
+.web-user-copy small { font-size: 9.5px; color: var(--muted); white-space: nowrap; }
+@media (max-width: 720px) { .web-user-copy { display: none; } .web-user { padding: 4px; } }

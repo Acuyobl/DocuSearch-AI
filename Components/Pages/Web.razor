@@ -21,7 +21,13 @@
         <div class="web-topbar-actions">
             <span class="web-connected" role="status"><span class="status-dot"></span>Conectado</span>
             <button class="icon-button" title="Modo claro u oscuro" aria-label="Alternar modo claro u oscuro" @onclick="ToggleTheme"><AppIcon Name="theme" /></button>
-            <a class="button" href="/">Volver al panel</a>
+            @if (State.Data is { } sessionUser)
+            {
+                <span class="web-user" title="@sessionUser.Actor.Email">
+                    <span class="profile-avatar"><AppIcon Name="user" /></span>
+                    <span class="web-user-copy"><strong>@sessionUser.Actor.Name</strong><small>@Catalog.RoleLabel(sessionUser.Actor.Role)</small></span>
+                </span>
+            }
         </div>
     </header>
 

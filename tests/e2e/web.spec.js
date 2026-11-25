@@ -36,6 +36,8 @@ test("la página Web permite buscar y usar el asistente", async ({ page }) => {
   await page.goto("/web");
   await expect(page.locator(".web-topbar")).toBeVisible();
   await expect(page.locator(".web-connected")).toContainText("Conectado");
+  await expect(page.locator(".web-user")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Volver al panel/i })).toHaveCount(0);
   await expect(page.locator(".web-sidebar")).toBeVisible();
   await expect(page.locator(".agent-status-button")).toBeVisible();
   await expect(page.locator("textarea")).toBeVisible();
