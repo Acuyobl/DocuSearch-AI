@@ -1060,3 +1060,17 @@ nav a.has-agent:hover .agent-mark, nav a.has-agent.active .agent-mark { backgrou
 .ai-budget-form > small { display: block; color: var(--muted); font-size: 11px; margin-bottom: 12px; }
 .observability-tabs { width: fit-content; max-width: 100%; overflow-x: auto; }
 .observability-tabs button { white-space: nowrap; }
+
+/* Página web independiente: buscador + asistente */
+.web-shell { min-height: 100vh; background: var(--app); color: var(--ink); }
+.web-topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 12px 24px; border-bottom: 1px solid var(--line); background: var(--surface-glass); backdrop-filter: blur(12px); }
+.web-topbar .brand { display: inline-flex; align-items: center; gap: 11px; color: inherit; text-decoration: none; }
+.web-topbar .brand-mark { width: 34px; height: 34px; }
+.web-topbar .brand strong { display: block; font-size: 15px; }
+.web-topbar .brand em { color: var(--brand); font-style: normal; }
+.web-topbar .brand small { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+.web-topbar-actions { display: flex; align-items: center; gap: 8px; }
+.web-main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.admin-heading-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.web-link { white-space: nowrap; }
+@media (max-width: 720px) { .web-topbar { padding: 10px 14px; } .web-main { padding: 14px; } .web-topbar .button { display: none; } .admin-heading-tools { width: 100%; } }

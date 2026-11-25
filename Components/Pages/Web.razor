@@ -1,0 +1,108 @@
+@page "/web"
+@attribute [Authorize]
+@implements IDisposable
+@inject WorkspaceState State
+@inject DocumentService Documents
+@inject LocalSession Session
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Buscador Web — DocuSearch AI</PageTitle>
+
+<div class="web-shell">
+    <header class="web-topbar">
+        <a class="brand" href="/" title="Volver al panel">
+            <span class="brand-mark"><AppIcon Name="document" /></span>
+            <span>
+                <strong>DocuSearch <em>AI</em></strong>
+                <small><span class="status-dot"></span> Buscador Web</small>
+            </span>
+        </a>
+        <div class="web-topbar-actions">
+            <button class="icon-button" title="Modo claro u oscuro" aria-label="Alternar modo claro u oscuro" @onclick="ToggleTheme"><AppIcon Name="theme" /></button>
+            <a class="button" href="/">Volver al panel</a>
+        </div>
+    </header>
+
+    <main class="web-main">
+        @if (State.Data is null)
+        {
+            <section class="panel">
+                <h1>Preparando el buscador…</h1>
+                <p>@(State.Error ?? "Cargando expedientes autorizados.")</p>
+            </section>
+        }
+        else
+        {
+            <Search OnView="OpenHit" OpenAssistant="true" />
+        }
+    </main>
+</div>
+
+@if (viewing is not null)
+{
+    <DocumentViewer @key="viewing.Id" Document="viewing" InitialPage="viewPage" OnClose="CloseViewer" OnRefreshed="RefreshViewer" />
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+    private DocumentItem? viewing;
+    private int viewPage = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthenticationStateTask is null)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+        var principal = (await AuthenticationStateTask).User;
+        if (principal.Identity?.IsAuthenticated != true)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+        try { Session.SignIn(principal); }
+        catch (InvalidOperationException)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+        State.Changed += OnChanged;
+        await State.RunAsync(State.RefreshAsync);
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task OpenHit(SearchHit hit)
+    {
+        if (State.Data is null) return;
+        try
+        {
+            viewing = await Documents.ViewAsync(hit.Document.Id);
+            viewPage = hit.PageNumber;
+            await State.RefreshAsync();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // El documento pudo perder permisos: no se abre y se mantiene el buscador.
+        }
+    }
+
+    private void CloseViewer() => viewing = null;
+
+    private void RefreshViewer()
+    {
+        if (viewing is null || State.Data is null) return;
+        viewing = State.Data.Documents.FirstOrDefault(document => document.Id == viewing.Id) ?? viewing;
+    }
+
+    private async Task ToggleTheme()
+    {
+        try { await JS.InvokeVoidAsync("docusearch.toggleTheme"); }
+        catch (JSDisconnectedException) { }
+        catch (JSException) { }
+    }
+
+    public void Dispose() => State.Changed -= OnChanged;
+}

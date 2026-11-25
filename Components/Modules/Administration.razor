@@ -6,9 +6,12 @@
 @{ var snapshot = State.Data ?? throw new InvalidOperationException("No hay datos de administración cargados."); }
 <div class="module-page administration-page">
 <ModuleHeading Banner="true" Icon="rbac" Badge="Centro de Gobernanza Corporativa & Seguridad" Title="Administración de Usuarios, RBAC & Departamentos" Description="Gestión de perfiles locales, asignación de privilegios y límites de almacenamiento.">
-<div class="segmented-control admin-tabs">
-    @foreach (var tab in new[] { "Usuarios", "Departamentos", "Permisos", "Gobernanza", "Migración y datos" })
-    { <button aria-pressed="@(active == tab)" class="@(active == tab ? "active" : "")" @onclick="() => active = tab"><AppIcon Name="@(tab == "Usuarios" ? "rbac" : tab == "Departamentos" ? "management" : tab == "Permisos" ? "audit" : tab == "Gobernanza" ? "lock" : "storage")" />@(tab == "Permisos" ? "Matriz RBAC" : tab)</button> }
+<div class="admin-heading-tools">
+    <a class="button web-link" href="/web" target="_blank" rel="noopener" title="Abrir el buscador y asistente en una página independiente" aria-label="Abrir buscador Web"><AppIcon Name="search" />Web</a>
+    <div class="segmented-control admin-tabs">
+        @foreach (var tab in new[] { "Usuarios", "Departamentos", "Permisos", "Gobernanza", "Migración y datos" })
+        { <button aria-pressed="@(active == tab)" class="@(active == tab ? "active" : "")" @onclick="() => active = tab"><AppIcon Name="@(tab == "Usuarios" ? "rbac" : tab == "Departamentos" ? "management" : tab == "Permisos" ? "audit" : tab == "Gobernanza" ? "lock" : "storage")" />@(tab == "Permisos" ? "Matriz RBAC" : tab)</button> }
+    </div>
 </div>
 </ModuleHeading>
 @if (active == "Usuarios")
