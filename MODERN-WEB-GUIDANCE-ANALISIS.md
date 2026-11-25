@@ -222,3 +222,13 @@ WebMCP y Built-in AI deben esperar: la app ya tiene MCP backend y un pipeline RA
 - [x] Prueba E2E `tests/e2e/theme.spec.js` (pasa).
 
 Fases 2 y 3 quedan pendientes: `<dialog>` nativo, tabs con teclado, drawer, tabla ordenable, toasts y container queries.
+
+
+## 11. Estado aplicado (Fase 2)
+
+- [x] Panel de agentes migrado a `<dialog>` nativo con `showModal()`.
+- [x] `::backdrop`, cierre con botón/Escape y devolución de foco.
+- [x] `aria-expanded`/`aria-haspopup` sincronizados.
+- [x] Pestañas de Auditoría con `aria-controls`, `tabpanel`, `tabindex` y navegación Arrow/Home/End.
+- [x] Pruebas E2E actualizadas: `agent-lights` 2/2 y regresión de tabs.
+- [ ] Drawer móvil, tabla ordenable y toasts: fases siguientes.

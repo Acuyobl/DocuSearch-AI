@@ -2,6 +2,25 @@ window.docusearch = {
     scrollToEnd(element) {
         element.scrollTop = element.scrollHeight;
     },
+    openDialog(target) {
+        const element = typeof target === "string" ? document.getElementById(target) : target;
+        if (!element || element.open) return;
+        if (!element._lightDismiss) {
+            element._lightDismiss = (event) => {
+                if (event.target === element) element.close();
+            };
+            element.addEventListener("click", element._lightDismiss);
+        }
+        element.showModal();
+    },
+    closeDialog(target) {
+        const element = typeof target === "string" ? document.getElementById(target) : target;
+        if (element && element.open) element.close();
+    },
+    focusById(id) {
+        const element = document.getElementById(id);
+        if (element) element.focus();
+    },
     toggleTheme() {
         const theme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
         document.documentElement.dataset.theme = theme;

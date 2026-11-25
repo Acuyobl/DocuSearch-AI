@@ -60,6 +60,12 @@ test("la pestaña Aprobaciones se renderiza correctamente", async ({ page }) => 
   await expect(tab).toHaveText(/Aprobaciones/);
   await expect(tab).not.toContainText("@if");
   await expect(page.locator(".approvals-panel")).toBeVisible();
+  const logTab = page.getByRole("tab", { name: /Bitácora/i });
+  await logTab.focus();
+  await page.keyboard.press("End");
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Home");
+  await expect(logTab).toHaveAttribute("aria-selected", "true");
 });
 
 test("el solicitante ve su solicitud pendiente y puede cancelarla", async ({ page }) => {

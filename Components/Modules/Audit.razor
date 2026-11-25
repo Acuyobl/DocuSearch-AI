@@ -6,8 +6,12 @@
         <button class="primary" @onclick="Export" disabled="@State.Busy"><AppIcon Name="download" />Exportar Evidencia (.CSV)</button>
     </ModuleHeading>
 <div class="segmented-control audit-tabs" role="tablist" aria-label="Secciones de auditoría">
-    <button type="button" role="tab" aria-selected="@(tab == "log")" class="@(tab == "log" ? "active" : "")" @onclick="@(() => tab = "log")"><AppIcon Name="audit" />Bitácora</button>
-    <button type="button" role="tab" aria-selected="@(tab == "approvals")" class="@(tab == "approvals" ? "active" : "")" @onclick="@(() => tab = "approvals")">
+    <button id="audit-tab-log" type="button" role="tab" aria-selected="@(tab == "log" ? "true" : "false")" aria-controls="audit-panel-log"
+            tabindex="@(tab == "log" ? 0 : -1)" class="@(tab == "log" ? "active" : "")"
+            @onclick="@(() => tab = "log")" @onkeydown="OnTabKeyDown"><AppIcon Name="audit" />Bitácora</button>
+    <button id="audit-tab-approvals" type="button" role="tab" aria-selected="@(tab == "approvals" ? "true" : "false")"
+            aria-controls="audit-panel-approvals" tabindex="@(tab == "approvals" ? 0 : -1)"
+            class="@(tab == "approvals" ? "active" : "")" @onclick="@(() => tab = "approvals")" @onkeydown="OnTabKeyDown">
         <AppIcon Name="lock" />
         <span>Aprobaciones</span>
         @if (pendingApprovals > 0)
@@ -16,8 +20,8 @@
         }
     </button>
 </div>
-<div hidden="@(tab != "approvals")"><ApprovalsPanel OnPendingChanged="count => pendingApprovals = count" /></div>
-<div class="module-page" hidden="@(tab != "log")">
+<div id="audit-panel-approvals" role="tabpanel" aria-labelledby="audit-tab-approvals" hidden="@(tab != "approvals")"><ApprovalsPanel OnPendingChanged="count => pendingApprovals = count" /></div>
+<div id="audit-panel-log" role="tabpanel" aria-labelledby="audit-tab-log" class="module-page" hidden="@(tab != "log")">
 <section class="panel audit-risk">
     <div class="section-heading">
         <div><h2><AppIcon Name="audit" />Resumen de riesgos</h2><p>Análisis determinista AG-05 sobre la bitácora cargada; no usa IA ni modifica eventos.</p></div>
@@ -89,6 +93,23 @@
 @code {
     private string text = "", action = "", status = "", entity = "", actor = "", tab = "log";
     private string? expanded;
+    private async Task OnTabKeyDown(KeyboardEventArgs e)
+    {
+        var next = e.Key switch
+        {
+            "ArrowRight" => "approvals",
+            "ArrowLeft" => "log",
+            "Home" => "log",
+            "End" => "approvals",
+            _ => null
+        };
+        if (next is null) return;
+        tab = next;
+        try { await JS.InvokeVoidAsync("docusearch.focusById", $"audit-tab-{next}"); }
+        catch (JSDisconnectedException) { }
+        catch (JSException) { }
+    }
+
     private int pendingApprovals;
     private static string Short(string id) => id.Length > 14 ? id[..12] + "…" : id;
     private static string RoleLabel(string role) => role == "system" ? "Sistema" : Catalog.Roles.Contains(role) ? Catalog.RoleLabel(role) : role;

@@ -78,7 +78,7 @@ test("resumen activa 3 agentes, colores distintos y modal visible", async ({ pag
   expect(new Set(colors).size).toBe(3);
 
   await page.locator(".agent-status-button").click();
-  const panel = page.locator(".agent-panel-backdrop");
+  const panel = page.locator(".agent-dialog");
   await expect(panel).toBeVisible();
   await expect(page.locator(".agent-panel")).toBeVisible();
   await expect(page.locator(".agent-run-card")).toHaveCount(3);
