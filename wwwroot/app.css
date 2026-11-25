@@ -1074,3 +1074,22 @@ nav a.has-agent:hover .agent-mark, nav a.has-agent.active .agent-mark { backgrou
 .admin-heading-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .web-link { white-space: nowrap; }
 @media (max-width: 720px) { .web-topbar { padding: 10px 14px; } .web-main { padding: 14px; } .web-topbar .button { display: none; } .admin-heading-tools { width: 100%; } }
+
+/* /web: versión compacta, sin apariencia de panel interno. */
+.web-connected { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid color-mix(in srgb, var(--success) 35%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--success) 8%, transparent); color: var(--success); font-size: 11px; font-weight: 650; white-space: nowrap; }
+.web-connected .status-dot { background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 15%, transparent); }
+.web-main .smart-search { max-width: 980px; margin: 0 auto; }
+.web-main .search-modes { align-self: flex-start; margin: 0 0 16px; }
+.web-main .search-hero { padding: 0; border: 0; background: none; box-shadow: none; }
+.web-main .search-hero h1, .web-main .search-hero p, .web-main .search-hero .module-kicker,
+.web-main .search-hero .segmented-control, .web-main .search-hero .suggestions { display: none; }
+.web-main .search-hero form { margin: 0; }
+.web-main .search-hero .central-search { max-width: none; margin: 0 0 16px; }
+.web-main .search-panel { display: none; }
+.web-main .assistant-page > .assistant-bar { justify-content: flex-end; padding: 0 0 10px; border: 0; background: none; }
+.web-main .assistant-title, .web-main .engine-status, .web-main .assistant-actions > *:not(.agent-status-button),
+.web-main .assistant-disclaimer, .web-main .memory-note { display: none; }
+.web-main .assistant-page { padding-top: 0; }
+.web-main .conversation { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: var(--surface-glass); max-height: 58vh; overflow-y: auto; }
+.web-main .chat-composer { margin-top: 10px; }
+@media (max-width: 720px) { .web-connected { padding: 4px 8px; font-size: 10px; } .web-main .search-modes .nav-label { display: none; } }

@@ -35,8 +35,13 @@ test("la página Web permite buscar y usar el asistente", async ({ page }) => {
 
   await page.goto("/web");
   await expect(page.locator(".web-topbar")).toBeVisible();
+  await expect(page.locator(".web-connected")).toContainText("Conectado");
   await expect(page.locator(".agent-status-button")).toBeVisible();
   await expect(page.locator("textarea")).toBeVisible();
+  await expect(page.locator(".engine-status")).toBeHidden();
+  await expect(page.locator(".assistant-title")).toBeHidden();
+  await expect(page.locator(".search-panel")).toBeHidden();
+  await expect(page.locator(".search-hero h1")).toBeHidden();
 
   // La pestaña de búsqueda documental sigue disponible.
   await page.getByRole("button", { name: /Buscar documentos/i }).click();
