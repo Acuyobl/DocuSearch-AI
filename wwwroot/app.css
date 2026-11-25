@@ -1120,3 +1120,25 @@ nav a.has-agent:hover .agent-mark, nav a.has-agent.active .agent-mark { backgrou
 .web-main .result:last-of-type { border-bottom: 0; }
 .web-main .search-modes { display: none; }
 @media (max-width: 760px) { .web-sidebar { width: 58px; flex-basis: 58px; } .web-sidebar .web-sidebar-label { display: none; } .web-main { padding: 14px; } .web-main .assistant-page > form.chat-composer { margin-bottom: 14px; } }
+
+/* Composer flotante cuando /web tiene overflow vertical. */
+.web-shell.web-scroll .web-main { padding-bottom: 116px; }
+.web-shell.web-scroll .web-main .assistant-page > form.chat-composer {
+    position: fixed; left: calc(190px + 30px); right: 30px; bottom: 18px;
+    width: auto; max-width: 940px; margin: 0 auto; z-index: 40;
+}
+.web-shell.web-scroll.sidebar-collapsed .web-main .assistant-page > form.chat-composer {
+    left: calc(58px + 30px);
+}
+.web-shell.web-scroll .web-main .search-hero .central-search {
+    position: fixed; left: calc(190px + 30px); right: 30px; bottom: 18px;
+    width: auto; max-width: 940px; margin: 0 auto; z-index: 40;
+}
+.web-shell.web-scroll.sidebar-collapsed .web-main .search-hero .central-search {
+    left: calc(58px + 30px);
+}
+@media (max-width: 760px) {
+    .web-shell.web-scroll .web-main .assistant-page > form.chat-composer,
+    .web-shell.web-scroll .web-main .search-hero .central-search { left: 14px; right: 14px; max-width: none; }
+    .web-shell.web-scroll .web-main { padding-bottom: 104px; }
+}

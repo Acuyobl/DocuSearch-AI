@@ -51,6 +51,14 @@ test("la página Web permite buscar y usar el asistente", async ({ page }) => {
   expect(composerBox.y).toBeLessThan(conversationBox.y);
   await expect(page.locator(".conversation")).toHaveCSS("border-top-width", "0px");
 
+  // Al forzar overflow, el composer pasa a fijo abajo.
+  await page.evaluate(() => {
+    const conversation = document.querySelector(".conversation");
+    if (conversation) conversation.style.minHeight = "1400px";
+  });
+  await expect(page.locator(".web-shell")).toHaveClass(/web-scroll/);
+  await expect(page.locator("form.chat-composer")).toHaveCSS("position", "fixed");
+
   // Menú lateral: cambiar de modo y ocultarlo.
   await page.locator(".web-sidebar").getByRole("button", { name: "Documentos" }).click();
   await expect(page.locator(".central-search input")).toBeVisible();

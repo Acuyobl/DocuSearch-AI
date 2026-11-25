@@ -9,7 +9,7 @@
 
 <PageTitle>Buscador Web — DocuSearch AI</PageTitle>
 
-<div class="web-shell">
+<div class="web-shell @(sidebarCollapsed ? "sidebar-collapsed" : "")" id="web-shell">
     <header class="web-topbar">
         <a class="brand" href="/" title="Volver al panel">
             <span class="brand-mark"><AppIcon Name="document" /></span>
@@ -84,6 +84,14 @@
         await State.RunAsync(State.RefreshAsync);
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { await JS.InvokeVoidAsync("docusearch.bindWebScroll", "web-shell"); }
+        catch (JSDisconnectedException) { }
+        catch (JSException) { }
+    }
+
     private void ToggleSidebar() => sidebarCollapsed = !sidebarCollapsed;
 
     private async Task ShowAssistant()
@@ -128,5 +136,11 @@
         catch (JSException) { }
     }
 
-    public void Dispose() => State.Changed -= OnChanged;
+    public void Dispose()
+    {
+        State.Changed -= OnChanged;
+        try { _ = JS.InvokeVoidAsync("docusearch.unbindWebScroll", "web-shell"); }
+        catch (JSDisconnectedException) { }
+        catch (JSException) { }
+    }
 }

@@ -21,6 +21,31 @@ window.docusearch = {
         const element = document.getElementById(id);
         if (element) element.focus();
     },
+    bindWebScroll(id) {
+        const element = document.getElementById(id);
+        if (!element) return;
+        if (element._webScrollObserver) element._webScrollObserver.disconnect();
+        if (element._webScrollHandler) window.removeEventListener("resize", element._webScrollHandler);
+        const update = () => {
+            // Solo se activa al aparecer overflow; una vez abajo, el composer permanece fijo.
+            if (document.documentElement.scrollHeight > window.innerHeight + 120)
+                element.classList.add("web-scroll");
+        };
+        element._webScrollHandler = update;
+        element._webScrollObserver = new ResizeObserver(update);
+        const main = document.querySelector(".web-main");
+        if (main) element._webScrollObserver.observe(main);
+        window.addEventListener("resize", update);
+        update();
+    },
+    unbindWebScroll(id) {
+        const element = document.getElementById(id);
+        if (!element) return;
+        if (element._webScrollObserver) element._webScrollObserver.disconnect();
+        if (element._webScrollHandler) window.removeEventListener("resize", element._webScrollHandler);
+        delete element._webScrollObserver;
+        delete element._webScrollHandler;
+    },
     toggleTheme() {
         const theme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
         document.documentElement.dataset.theme = theme;
