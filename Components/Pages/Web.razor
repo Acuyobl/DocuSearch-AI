@@ -31,11 +31,6 @@
             <nav class="web-sidebar-nav">
                 <button type="button" @onclick="ShowAssistant" title="Asistente IA"><AppIcon Name="agent" /><span class="web-sidebar-label">Asistente</span></button>
                 <button type="button" @onclick="ShowDocuments" title="Buscar documentos"><AppIcon Name="search" /><span class="web-sidebar-label">Documentos</span></button>
-                <a href="/" title="Volver al panel"><AppIcon Name="dashboard" /><span class="web-sidebar-label">Panel</span></a>
-                @if (State.Data is { } snapshot && Permissions.CanAdmin(snapshot.Actor))
-                {
-                    <a href="/rbac" title="Administración"><AppIcon Name="rbac" /><span class="web-sidebar-label">Administración</span></a>
-                }
             </nav>
         </aside>
         <main class="web-main">
