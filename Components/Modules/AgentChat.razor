@@ -37,7 +37,7 @@
             <span>@(State.Busy ? "Ejecutando agentes…" : lastAgents.Count switch { 0 => "Agentes", 1 => "1 agente", _ => $"{lastAgents.Count} agentes" })</span>
         </button>
         <button class="icon-button" disabled="@State.Busy" @onclick="CheckConnection" title="Comprobar motores y actualizar documentos" aria-label="Comprobar motores y actualizar documentos"><AppIcon Name="refresh" /></button>
-        <button class="icon-button" @onclick="Clear" disabled="@(State.Busy || messages.Count == 0)" title="Nueva conversación" aria-label="Nueva conversación"><AppIcon Name="delete" /></button>
+        <button class="icon-button clear-chat-button" @onclick="Clear" disabled="@(State.Busy || messages.Count == 0)" title="Limpiar conversación" aria-label="Limpiar conversación"><AppIcon Name="delete" /><span class="clear-chat-label">Limpiar</span></button>
     </div>
 </header>
 @if (Runtime.LastError is not null)
