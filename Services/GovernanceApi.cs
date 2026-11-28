@@ -32,26 +32,24 @@ public static class GovernanceApi
 {
     public static void MapGovernanceApi(this WebApplication app)
     {
-        var api = app.MapGroup("/api").RequireAuthorization();
+        var api = app.MapGroup("/api").RequireSession();
 
-        api.MapGet("/audit", async (HttpContext context, LocalSession session, IDbContextFactory<AppDbContext> factory,
+        api.MapGet("/audit", async (IDbContextFactory<AppDbContext> factory,
             string? action, string? entity, string? actor, string? status, DateTimeOffset? from, DateTimeOffset? to,
             string? q, int? page, int? pageSize) =>
         {
             await using var db = await factory.CreateDbContextAsync();
-            if (await AuditorAsync(context, session, db) is null) return Results.Forbid();
             var size = Math.Clamp(pageSize ?? 50, 1, AuditQuery.MaxPageSize);
             var number = Math.Max(1, page ?? 1);
             var query = AuditQuery.Apply(db.Audit.AsNoTracking(), new AuditFilter(action, entity, actor, status, from, to, q));
             var total = await query.CountAsync();
             var items = await query.OrderByDescending(item => item.TimestampUTC).Skip((number - 1) * size).Take(size).ToListAsync();
             return Results.Ok(new { total, page = number, pageSize = size, items });
-        });
+        }).RequireAuthorization(AccessPolicies.Auditor);
 
-        api.MapGet("/audit/summary", async (HttpContext context, LocalSession session, IDbContextFactory<AppDbContext> factory, int? days) =>
+        api.MapGet("/audit/summary", async (IDbContextFactory<AppDbContext> factory, int? days) =>
         {
             await using var db = await factory.CreateDbContextAsync();
-            if (await AuditorAsync(context, session, db) is null) return Results.Forbid();
             var to = DateTimeOffset.UtcNow;
             var from = to.AddDays(-Math.Clamp(days ?? 7, 1, 90));
             var events = await db.Audit.AsNoTracking().Where(item => item.TimestampUTC >= from).ToListAsync();
@@ -64,34 +62,31 @@ public static class GovernanceApi
                 topActions = risk.TopActions,
                 alerts = risk.Alerts
             });
-        });
+        }).RequireAuthorization(AccessPolicies.Auditor);
 
-        api.MapGet("/approvals", async (HttpContext context, LocalSession session, ApprovalService approvals) =>
+        // Aprobaciones, rutinas y consumo de IA comprueban los permisos en su propio servicio.
+        api.MapGet("/approvals", async (ApprovalService approvals) =>
         {
-            session.SignIn(context.User);
             try { return Results.Ok(await approvals.ListAsync()); }
             catch (UnauthorizedAccessException) { return Results.Forbid(); }
         });
 
-        api.MapGet("/routines", async (HttpContext context, LocalSession session, RoutineService routines) =>
+        api.MapGet("/routines", async (RoutineService routines) =>
         {
-            session.SignIn(context.User);
             try { return Results.Ok(await routines.ListAsync()); }
             catch (UnauthorizedAccessException) { return Results.Forbid(); }
         });
 
         // Consumo de IA (ai:usage_read). Usuario siempre desde la cookie; los importes van en micro-dólares enteros.
-        api.MapGet("/ai/usage", async (HttpContext context, LocalSession session, AiGovernanceService governance, string? period) =>
+        api.MapGet("/ai/usage", async (AiGovernanceService governance, string? period) =>
         {
-            session.SignIn(context.User);
             try { return Results.Ok(await governance.GetUsageAsync(period)); }
             catch (UnauthorizedAccessException) { return Results.Forbid(); }
             catch (FormatException) { return Results.BadRequest(new { error = "El periodo debe tener el formato YYYY-MM." }); }
         });
 
-        api.MapGet("/ai/budget", async (HttpContext context, LocalSession session, AiGovernanceService governance) =>
+        api.MapGet("/ai/budget", async (AiGovernanceService governance) =>
         {
-            session.SignIn(context.User);
             try
             {
                 var usage = await governance.GetUsageAsync();
@@ -99,12 +94,5 @@ public static class GovernanceApi
             }
             catch (UnauthorizedAccessException) { return Results.Forbid(); }
         });
-    }
-
-    private static async Task<AppUser?> AuditorAsync(HttpContext context, LocalSession session, AppDbContext db)
-    {
-        session.SignIn(context.User);
-        var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(item => item.Id == session.UserId && item.Status == "Activo");
-        return user is not null && Permissions.CanAudit(user) ? user : null;
     }
 }

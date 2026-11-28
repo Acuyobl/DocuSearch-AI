@@ -1,7 +1,7 @@
 # Multiagentes en DocuSearch AI — análisis profundo y propuesta realista
 
 **Fecha:** 12/11/2026 · **Versión:** 2 (revisada tras dos auditorías independientes) · **Base:** commit `8029295`, `README.md`, `AGENTE-DETALLE.md`, `SECURITY.md`, `LANGFUSE-INTEGRACION.md`, código de `Services/`, `Data/`, `LangChain/` y `tests/`.
-**Prerrequisitos:** [`DE-DEMO-A-PRODUCCION.md`](DE-DEMO-A-PRODUCCION.md) — qué cerrar antes de la plataforma multiagente.
+**Prerrequisitos:** [`DE-DEMO-A-PRODUCCION.md`](../operacion/DE-DEMO-A-PRODUCCION.md) — qué cerrar antes de la plataforma multiagente.
 
 > **Nota de método.** La primera hipótesis de este análisis era implementar primero el **Agente Catalogador**. El mapa de extensión (`obj/multiagent/extension-map.md`) y la auditoría de riesgo (`obj/multiagent/risk-audit.md`) la corrigieron: el Catalogador resuelve poco de lo que ya existe y su parte nueva es la más sensible. **La recomendación final es el `Agente Verificador (AG-02)` como primera implementación**; el Catalogador queda como segunda fase condicionada a un caso de negocio y a una política de confidencialidad.
 

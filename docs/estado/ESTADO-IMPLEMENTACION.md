@@ -1,7 +1,7 @@
 # Estado de implementación — DocuSearch AI
 
 **Fecha:** 13/11/2026 · **Base:** código actual del repositorio
-**Documentos relacionados:** [`DE-DEMO-A-PRODUCCION.md`](DE-DEMO-A-PRODUCCION.md) (hoja de ruta) · [`MULTIAGENTES-ANALISIS.md`](MULTIAGENTES-ANALISIS.md) (catálogo y decisiones) · [`PRODUCCION-CAMBIOS.md`](PRODUCCION-CAMBIOS.md) (detalle de los cambios de producción).
+**Documentos relacionados:** [`DE-DEMO-A-PRODUCCION.md`](../operacion/DE-DEMO-A-PRODUCCION.md) (hoja de ruta) · [`MULTIAGENTES-ANALISIS.md`](../arquitectura/MULTIAGENTES-ANALISIS.md) (catálogo y decisiones) · [`PRODUCCION-CAMBIOS.md`](../operacion/PRODUCCION-CAMBIOS.md) (detalle de los cambios de producción).
 
 ---
 
@@ -66,7 +66,7 @@ Réplica del subsistema «gobernanza del consumo de IA» (modo REPLICAR): regist
 ### 1.3 Pruebas y CI
 
 - CI ejecuta compilación, 87 checks base y las suites `--verifier`, `--inspector`, `--catalog`, `--audit` y `--auth`.
-- Runner local: [`tests/run-all.ps1`](tests/run-all.ps1).
+- Runner local: [`tests/run-all.ps1`](../../tests/run-all.ps1).
 - Suite base: 87 comprobaciones sin servicios.
 - Suites nuevas: 10 (AG-02), 5 (AG-10), 5 (AG-01), 5 (AG-05), 5 (bloqueo de login).
 
@@ -121,7 +121,7 @@ Entorno: sin OpenCode en `:4097` (el asistente queda en modo extractivo); SQL Se
 | Compilación | `dotnet build` | **0 errores, 0 advertencias** |
 | Runtime | login TOTP, `/`, `/quality`, `/observability`, `/health`, `/health/ready` | 200 |
 
-**No ejecutado:** `--database --langchain` (requiere Ollama), `--langchain-opencode` (requiere OpenCode) y la generación real del Catalogador. Ver [`GUIA-PRUEBAS.md`](GUIA-PRUEBAS.md).
+**No ejecutado:** `--database --langchain` (requiere Ollama), `--langchain-opencode` (requiere OpenCode) y la generación real del Catalogador. Ver [`GUIA-PRUEBAS.md`](../operacion/GUIA-PRUEBAS.md).
 
 ---
 
@@ -136,8 +136,8 @@ Entorno: sin OpenCode en `:4097` (el asistente queda en modo extractivo); SQL Se
 
 ## 5. Archivos clave
 
-- Agentes: [`Services/AgentVerifier.cs`](Services/AgentVerifier.cs), [`Services/CatalogSuggester.cs`](Services/CatalogSuggester.cs), [`Services/DocumentInspector.cs`](Services/DocumentInspector.cs), [`Services/RagIndexInspector.cs`](Services/RagIndexInspector.cs), [`Services/Rag/RagObservatory.cs`](Services/Rag/RagObservatory.cs), [`Services/AuditInspector.cs`](Services/AuditInspector.cs).
-- Producción: [`Services/ProductionGuard.cs`](Services/ProductionGuard.cs), [`Services/LoginAttemptLimiter.cs`](Services/LoginAttemptLimiter.cs), [`Services/DemoPolicy.cs`](Services/DemoPolicy.cs).
-- UI: [`Components/Modules/Quality.razor`](Components/Modules/Quality.razor), [`Components/Modules/MetadataDialog.razor`](Components/Modules/MetadataDialog.razor), [`Components/Modules/Audit.razor`](Components/Modules/Audit.razor), [`Components/Modules/Observability.razor`](Components/Modules/Observability.razor).
-- Configuración: [`appsettings.json`](appsettings.json), [`appsettings.Production.example.json`](appsettings.Production.example.json).
-- Pruebas: [`tests/Program.cs`](tests/Program.cs), [`tests/run-all.ps1`](tests/run-all.ps1), [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+- Agentes: [`Services/AgentVerifier.cs`](../../Services/AgentVerifier.cs), [`Services/CatalogSuggester.cs`](../../Services/CatalogSuggester.cs), [`Services/DocumentInspector.cs`](../../Services/DocumentInspector.cs), [`Services/RagIndexInspector.cs`](../../Services/RagIndexInspector.cs), [`Services/Rag/RagObservatory.cs`](../../Services/Rag/RagObservatory.cs), [`Services/AuditInspector.cs`](../../Services/AuditInspector.cs).
+- Producción: [`Services/ProductionGuard.cs`](../../Services/ProductionGuard.cs), [`Services/LoginAttemptLimiter.cs`](../../Services/LoginAttemptLimiter.cs), [`Services/DemoPolicy.cs`](../../Services/DemoPolicy.cs).
+- UI: [`Components/Modules/Quality.razor`](../../Components/Modules/Quality.razor), [`Components/Modules/MetadataDialog.razor`](../../Components/Modules/MetadataDialog.razor), [`Components/Modules/Audit.razor`](../../Components/Modules/Audit.razor), [`Components/Modules/Observability.razor`](../../Components/Modules/Observability.razor).
+- Configuración: [`appsettings.json`](../../appsettings.json), [`appsettings.Production.example.json`](../../appsettings.Production.example.json).
+- Pruebas: [`tests/Program.cs`](../../tests/Program.cs), [`tests/run-all.ps1`](../../tests/run-all.ps1), [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).

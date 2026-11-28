@@ -1,7 +1,7 @@
 # De demo a aplicación real — hoja de ruta de producción para DocuSearch AI
 
 **Fecha:** 12/11/2026 · **Base:** commit `8029295` y código actual · **Pregunta:** ¿qué hay que hacer **antes** de implementar multiagentes?
-**Documento relacionado:** [`MULTIAGENTES-ANALISIS.md`](MULTIAGENTES-ANALISIS.md).
+**Documento relacionado:** [`MULTIAGENTES-ANALISIS.md`](../arquitectura/MULTIAGENTES-ANALISIS.md).
 **Progreso de código (13/11/2026):** ya se aplicó el endurecimiento que no depende de infraestructura: guarda de producción, rate limiting de login, `/enroll` solo loopback, auditoría de `LOGIN_FAILED`/`LOGOUT`, cabeceras y cookies, sondas de salud, bloqueo de reset/seed y plantilla `appsettings.Production.example.json`. Verificado con **87/87** comprobaciones base y **10/10 del Agente Verificador AG-02** (`--verifier`). Detalle y pendientes en [`PRODUCCION-CAMBIOS.md`](PRODUCCION-CAMBIOS.md). Siguen bloqueando IdP, SQL Standard/backups, TLS/proxy, observabilidad, retención y gobierno de IA.
 
 ---
