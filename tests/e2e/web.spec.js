@@ -73,6 +73,7 @@ test("la página Web permite buscar y usar el asistente", async ({ page }) => {
   await page.locator("textarea").fill("¿Cuántos documentos hay?");
   await page.getByRole("button", { name: /^Consultar$/ }).click();
   await expect(page.locator(".chat-turn.assistant .answer-body")).toBeVisible({ timeout: 90_000 });
+  await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 10_000 }).toBeGreaterThan(0);
 
   const clear = page.getByRole("button", { name: "Limpiar conversación" });
   await expect(clear).toBeVisible();

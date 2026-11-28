@@ -1,6 +1,16 @@
 window.docusearch = {
     scrollToEnd(element) {
-        element.scrollTop = element.scrollHeight;
+        if (element) element.scrollTop = element.scrollHeight;
+        // En /web la conversación no tiene scroll interno: hay que llevar la página
+        // al final para que el cierre de la respuesta no quede bajo el composer fijo.
+        if (element && element.closest && element.closest(".web-main")) {
+            requestAnimationFrame(() => {
+                window.scrollTo({
+                    top: document.documentElement.scrollHeight,
+                    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+                });
+            });
+        }
     },
     openDialog(target) {
         const element = typeof target === "string" ? document.getElementById(target) : target;
