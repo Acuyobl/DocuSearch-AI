@@ -10,7 +10,8 @@ namespace DocuSearch.Services.Rag;
 public sealed class SqlRagVectorStore(
     IDbContextFactory<AppDbContext> factory,
     IOptions<EmbeddingOptions>? embeddingOptions = null,
-    ILogger<SqlRagVectorStore>? logger = null) : IRagVectorStore
+    ILogger<SqlRagVectorStore>? logger = null,
+    RagVectorCache? cache = null) : IRagVectorStore
 {
     private readonly string expectedModel = embeddingOptions?.Value.Model ?? "";
 
@@ -57,6 +58,7 @@ public sealed class SqlRagVectorStore(
     {
         if (documentIds.Count == 0) return [];
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        if (cache is not null) return await QueryCachedAsync(db, cache, vector, documentIds, topK, cancellationToken);
         var records = await db.RagChunks.AsNoTracking()
             .Where(record => documentIds.Contains(record.DocumentId))
             .ToListAsync(cancellationToken);
@@ -65,6 +67,42 @@ public sealed class SqlRagVectorStore(
         return compatible.Select(record => new RagScoredChunk(ToChunk(record), Cosine(vector, FromBytes(record.Vector))))
             .OrderByDescending(item => item.Score)
             .Take(Math.Clamp(topK, 1, 200))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Puntúa contra los vectores en memoria y lee de SQL solo el texto de los <paramref name="topK"/>
+    /// ganadores. Mismo filtro de compatibilidad y misma similitud (coseno) que la ruta sin caché.
+    /// </summary>
+    private async Task<IReadOnlyList<RagScoredChunk>> QueryCachedAsync(AppDbContext db, RagVectorCache vectors,
+        float[] vector, IReadOnlyCollection<string> documentIds, int topK, CancellationToken cancellationToken)
+    {
+        var byDocument = await vectors.GetAsync(db, cancellationToken);
+        var query = RagVectorCache.Normalize(vector);
+        var candidates = documentIds.Distinct(StringComparer.Ordinal).SelectMany(id => byDocument[id]).ToList();
+        var compatible = candidates.Where(entry => IsCompatible(entry.Dimensions, entry.Model, vector.Length, expectedModel)).ToList();
+        WarnIncompatible(logger, candidates.Count - compatible.Count, vector.Length, expectedModel);
+        var winners = compatible
+            .Select(entry => (entry.ChunkId, Score: RagVectorCache.Dot(query, entry.Unit)))
+            .OrderByDescending(item => item.Score)
+            .Take(Math.Clamp(topK, 1, 200))
+            .ToList();
+        if (winners.Count == 0) return [];
+        var ids = winners.Select(item => item.ChunkId).ToList();
+        // Sin la columna Vector: solo el texto y los metadatos de los ganadores.
+        var records = await db.RagChunks.AsNoTracking()
+            .Where(record => ids.Contains(record.Id))
+            .Select(record => new RagChunkRecord
+            {
+                Id = record.Id, DocumentId = record.DocumentId, InternalCode = record.InternalCode,
+                SourceType = record.SourceType, PageNumber = record.PageNumber, ChunkIndex = record.ChunkIndex,
+                StartOffset = record.StartOffset, EndOffset = record.EndOffset, Text = record.Text, Hash = record.Hash
+            })
+            .ToDictionaryAsync(record => record.Id, StringComparer.Ordinal, cancellationToken);
+        // Un fragmento borrado entre la huella y esta lectura simplemente no se devuelve.
+        return winners
+            .Where(item => records.ContainsKey(item.ChunkId))
+            .Select(item => new RagScoredChunk(ToChunk(records[item.ChunkId]), item.Score))
             .ToList();
     }
 
@@ -79,9 +117,12 @@ public sealed class SqlRagVectorStore(
     /// mismo modelo. Los registros anteriores sin modelo («») se aceptan hasta reindexar.
     /// </summary>
     public static bool IsCompatible(RagChunkRecord record, int dimensions, string expectedModel) =>
-        record.Dimensions == dimensions &&
-        (record.Model.Length == 0 || expectedModel.Length == 0 ||
-         string.Equals(record.Model, expectedModel, StringComparison.OrdinalIgnoreCase));
+        IsCompatible(record.Dimensions, record.Model, dimensions, expectedModel);
+
+    internal static bool IsCompatible(int recordDimensions, string recordModel, int dimensions, string expectedModel) =>
+        recordDimensions == dimensions &&
+        (recordModel.Length == 0 || expectedModel.Length == 0 ||
+         string.Equals(recordModel, expectedModel, StringComparison.OrdinalIgnoreCase));
 
     internal static void WarnIncompatible(ILogger? logger, int skipped, int dimensions, string expectedModel)
     {

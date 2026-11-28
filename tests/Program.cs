@@ -2316,6 +2316,48 @@ if (args.Contains("--database"))
             await release.ExecuteNonQueryAsync();
         Assert(await routines.RunNowAsync(RoutineSchedule.DailySummary) is { Status: "OK" });
     });
+    // Al final de la suite: reemplaza los fragmentos de dos documentos con datos sintéticos.
+    await Check("SQL Server + RAG: la caché de vectores da los mismos resultados y detecta cambios", async () =>
+    {
+        var docs = (await service.LoadAsync()).Documents.Take(2).ToList();
+        Assert(docs.Count == 2, "Hacen falta dos documentos.");
+        var random = new Random(42);
+        float[] Vector(int dims = 8) => Enumerable.Range(0, dims).Select(_ => (float)(random.NextDouble() * 2 - 1)).ToArray();
+        RagChunkVector Chunk(DocumentItem doc, int index, float[] vector, string model = "fake") =>
+            new(new RagChunk($"{doc.Id}:cache:{index}", doc.Id, doc.InternalCode, "sql", 1, index, 0, 10, $"texto {index}", $"h{index}"),
+                vector, model);
+        var plain = new SqlRagVectorStore(factory);
+        var cache = new RagVectorCache();
+        var cached = new SqlRagVectorStore(factory, cache: cache);
+        await plain.ReplaceDocumentAsync(docs[0].Id, Enumerable.Range(0, 12).Select(i => Chunk(docs[0], i, Vector())).ToList());
+        // Incluye un fragmento de otras dimensiones: ambos caminos deben ignorarlo.
+        await plain.ReplaceDocumentAsync(docs[1].Id,
+            [.. Enumerable.Range(0, 11).Select(i => Chunk(docs[1], i, Vector())), Chunk(docs[1], 11, Vector(4))]);
+        var ids = docs.Select(d => d.Id).ToArray();
+
+        for (var round = 0; round < 5; round++)
+        {
+            var query = Vector();
+            var expected = await plain.QueryAsync(query, ids, 7);
+            var actual = await cached.QueryAsync(query, ids, 7);
+            Assert(expected.Select(x => x.Chunk.Id).SequenceEqual(actual.Select(x => x.Chunk.Id)), $"Mismo orden (ronda {round}).");
+            Assert(expected.Zip(actual).All(pair => Math.Abs(pair.First.Score - pair.Second.Score) < 1e-5), "Misma similitud.");
+            Assert(expected.Zip(actual).All(pair => pair.First.Chunk == pair.Second.Chunk), "Mismo texto y metadatos.");
+        }
+        Assert(cache.Reloads == 1, "Sin cambios en la tabla no se recarga.");
+        Assert((await cached.QueryAsync(Vector(), [docs[0].Id], 50)).All(x => x.Chunk.DocumentId == docs[0].Id), "Filtra por documento.");
+
+        // Cambio hecho por otra instancia (sin caché), como haría --rag-reindex desde otro proceso.
+        var fresh = Vector();
+        await plain.ReplaceDocumentAsync(docs[0].Id, [Chunk(docs[0], 0, fresh)]);
+        var top = await cached.QueryAsync(fresh, [docs[0].Id], 5);
+        Assert(top.Count == 1 && top[0].Score > 0.999, "Ve el reemplazo hecho fuera de su instancia.");
+        await plain.DeleteDocumentAsync(docs[1].Id);
+        Assert((await cached.QueryAsync(Vector(), [docs[1].Id], 5)).Count == 0, "Ve el borrado hecho fuera de su instancia.");
+        Assert(cache.Reloads == 3, "Una recarga por cada cambio detectado.");
+        await plain.DeleteDocumentAsync(docs[0].Id);
+        Assert((await cached.QueryAsync(Vector(), ids, 5)).Count == 0, "Tabla vacía para esos documentos.");
+    });
 }
 else Console.WriteLine("INFO Integración SQL Server no ejecutada. Usa --database con DOCUSEARCH_TEST_CONNECTION.");
 

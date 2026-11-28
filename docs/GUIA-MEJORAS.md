@@ -61,6 +61,8 @@ Separar la «instantánea de pantalla» de la «consulta de permisos»:
 
 Recomendación: **B ahora** (no cambia la infraestructura) y **A** cuando se migre el servidor.
 
+**Estado:** opción B implementada (`RagVectorCache`, `Rag:VectorCache=true`). Medición en SQL Server 2022 con 5.000 fragmentos de 1024 dimensiones: **606 ms → 28 ms por consulta**; la primera consulta tras un cambio recarga la caché (~570 ms); memoria ≈ 26 MB (≈ 4–5 KB por fragmento). La frescura se comprueba en cada consulta con una huella (filas y último `CreatedUtc`), así que también detecta cambios de otras instancias o de `--rag-reindex`.
+
 ### D3 — `Pages` deserializa en cada acceso (P0)
 
 **Evidencia:** el getter de [`DocumentItem.Pages`](../Models/Domain.cs#L49) ejecuta `JsonSerializer.Deserialize` cada vez; hay 34 accesos en servicios y componentes, varios dentro de bucles de búsqueda. `Notes` sigue el mismo patrón.

@@ -144,7 +144,12 @@ builder.Services.AddScoped<FixedRagChunker>();
 builder.Services.AddScoped<SemanticRagChunker>();
 builder.Services.AddScoped<IRagChunker>(provider => provider.GetRequiredService<FixedRagChunker>());
 builder.Services.AddScoped<IRagEmbedder, PineconeRagEmbedder>();
-builder.Services.AddScoped<SqlRagVectorStore>();
+builder.Services.AddSingleton<RagVectorCache>();
+builder.Services.AddScoped(provider => new SqlRagVectorStore(
+    provider.GetRequiredService<IDbContextFactory<AppDbContext>>(),
+    provider.GetRequiredService<IOptions<EmbeddingOptions>>(),
+    provider.GetRequiredService<ILogger<SqlRagVectorStore>>(),
+    provider.GetRequiredService<IOptions<RagOptions>>().Value.VectorCache ? provider.GetRequiredService<RagVectorCache>() : null));
 builder.Services.AddScoped<PineconeRagVectorStore>();
 builder.Services.AddScoped<IRagVectorStore>(provider =>
 {
