@@ -156,6 +156,20 @@ await Check("Pages y Notes se deserializan una vez y se invalidan al cambiar el 
     item.NotesJson = "[]";
     Assert(item.Notes.Count == 0, "Asignar NotesJson debe invalidar la caché.");
 }));
+await Check("Configuración: todos los appsettings*.json son JSON válido sin caracteres de control", () => Sync(() =>
+{
+    var root = AppContext.BaseDirectory;
+    while (root is not null && !File.Exists(Path.Combine(root, "DocuSearch.sln"))) root = Path.GetDirectoryName(root);
+    Assert(root is not null, "No se encontró la raíz del repositorio.");
+    var files = Directory.GetFiles(root!, "appsettings*.json");
+    Assert(files.Length >= 3, "Se esperaban appsettings.json, Development y Production.example.");
+    foreach (var file in files)
+    {
+        var text = File.ReadAllText(file);
+        Assert(!text.Any(ch => char.IsControl(ch) && ch is not ('\n' or '\r' or '\t')), $"{Path.GetFileName(file)} contiene caracteres de control.");
+        using var _ = JsonDocument.Parse(text, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip });
+    }
+}));
 await Check("Configuración: los valores por defecto pasan la validación de arranque", () => Sync(() =>
 {
     IOptionsMonitor<T> Monitor<T>(T value) where T : class => new StaticOptionsMonitor<T>(value);
