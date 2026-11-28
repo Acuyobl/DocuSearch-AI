@@ -24,3 +24,4 @@ tests/e2e/playwright-report/
 .DS_Store
 # Paquetes comprimidos.
 *.zip
+graphify-out/
