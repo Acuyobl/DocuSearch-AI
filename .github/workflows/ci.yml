@@ -33,49 +33,53 @@ jobs:
         run: dotnet build DocuSearch.sln --no-restore -c Release
 
       # Los checks se compilan y ejecutan en Debug para que la suite use la misma
-      # configuración de desarrollo documentada en el README.
+      # configuración de desarrollo documentada en el README. Se compilan una vez y
+      # cada suite corre con --no-build (antes había 11 compilaciones incrementales).
+      - name: Compilar checks en Debug
+        run: dotnet build tests/DocuSearch.Checks.csproj --no-restore -c Debug
+
       - name: Ejecutar checks
-        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug --no-build
 
       # AG-02: verificador determinista de citas, fuentes y páginas. No usa red ni base.
       - name: Ejecutar checks del verificador AG-02
-        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --verifier
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug --no-build -- --verifier
 
       # AG-10: inspector determinista de calidad documental. No usa red ni base.
       - name: Ejecutar checks del inspector AG-10
-        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --inspector
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug --no-build -- --inspector
 
       # AG-01: parser determinista de la ficha propuesta por el Catalogador.
       - name: Ejecutar checks del catalogador AG-01
-        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --catalog
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug --no-build -- --catalog
 
       # AG-05: resumen determinista de riesgos de la bitácora.
       - name: Ejecutar checks del auditor AG-05
-        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --audit
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug --no-build -- --audit
 
       # Gobernanza: bitácora con antes/después, doble control y rutinas.
       - name: Ejecutar checks de gobernanza
-        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --governance
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug --no-build -- --governance
 
       # Consumo de IA: presupuesto, incidentes y registro de llamadas.
       - name: Ejecutar checks de consumo de IA
-        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --ai
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug --no-build -- --ai
 
       # Endurecimiento: bloqueo temporal de login por cuenta.
       - name: Ejecutar checks de bloqueo de login
-        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --auth
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug --no-build -- --auth
 
       # RAG híbrido: coseno, recuperación vectorial y serialización.
       - name: Ejecutar checks de RAG híbrido
-        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --rag
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug --no-build -- --rag
 
       # LangGraph: seam ILangGraphRunner y pruebas con runner falso, sin Python ni red.
       - name: Ejecutar checks C# de LangGraph
-        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --langgraph
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug --no-build -- --langgraph
 
       # MCP: hash determinista de tokens; no requiere SQL ni red.
       - name: Ejecutar checks MCP
-        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug -- --mcp
+        run: dotnet run --project tests/DocuSearch.Checks.csproj -c Debug --no-build -- --mcp
 
       # Verificación de higiene: los secretos TOTP viven en user-secrets, nunca en el repositorio.
       - name: Verificar que no haya secretos TOTP versionados
