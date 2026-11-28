@@ -16,7 +16,7 @@ public static class Permissions
     {
         "admin_general" or "auditor" => Catalog.Levels,
         "admin_depto" or "gestor_documental" => Catalog.Levels[..3],
-        "consultor" => Catalog.Levels[..2],
+        "consultor" or "consultor_web" => Catalog.Levels[..2],
         _ => []
     };
     public static bool CanRead(AppUser user, DocumentItem document) =>

@@ -169,6 +169,12 @@
             Navigation.NavigateTo("/login", forceLoad: true);
             return;
         }
+        if (Catalog.IsWebOnly(principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value))
+        {
+            // Rol confinado al Buscador Web: también cubre la navegación dentro del circuito.
+            Navigation.NavigateTo("/web", forceLoad: true);
+            return;
+        }
         State.Changed += OnChanged;
         Navigation.LocationChanged += OnLocationChanged;
         await Reload();

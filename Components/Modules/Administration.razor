@@ -121,8 +121,9 @@ else
 @code {
     private string active = "Usuarios";
     private static readonly (string Label, Func<AppUser, bool> Allowed)[] Matrix = [
-        ("Dashboard Ejecutivo", _ => true),
-        ("Gestión y Búsqueda de Expedientes", _ => true),
+        ("Dashboard Ejecutivo", actor => !Catalog.IsWebOnly(actor.Role)),
+        ("Gestión y Búsqueda de Expedientes", actor => !Catalog.IsWebOnly(actor.Role)),
+        ("Buscador Web y Asistente (/web)", _ => true),
         ("Carga de PDFs & Ingesta", Permissions.CanWrite),
         ("Edición de Metadatos y Clasificación", Permissions.CanWrite),
         ("Reprocesamiento de Texto y Entidades", Permissions.CanWrite),

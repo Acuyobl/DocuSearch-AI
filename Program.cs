@@ -615,6 +615,25 @@ app.Use(async (context, next) =>
     context.Response.Redirect("/login?returnUrl=" + Uri.EscapeDataString(path + context.Request.QueryString));
 });
 
+// El rol «consultor_web» solo usa el Buscador Web: cualquier ruta del panel principal
+// (las @page de Home) redirige a /web. Home repite la comprobación para la navegación
+// dentro del circuito Blazor, que no pasa por este middleware.
+var mainAppRoutes = typeof(DocuSearch.Components.Pages.Home)
+    .GetCustomAttributes(typeof(Microsoft.AspNetCore.Components.RouteAttribute), inherit: false)
+    .Cast<Microsoft.AspNetCore.Components.RouteAttribute>()
+    .Select(route => route.Template.TrimEnd('/'))
+    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+app.Use(async (context, next) =>
+{
+    var path = (context.Request.Path.Value ?? "/").TrimEnd('/');
+    if (Catalog.IsWebOnly(context.User.FindFirstValue(ClaimTypes.Role)) && mainAppRoutes.Contains(path))
+    {
+        context.Response.Redirect("/web");
+        return;
+    }
+    await next(context);
+});
+
 app.UseAuthorization();
 app.UseAntiforgery();
 
@@ -665,6 +684,7 @@ app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforge
         });
 
     var target = returnUrl.StartsWith('/') && !returnUrl.StartsWith("//", StringComparison.Ordinal) ? returnUrl : "/";
+    if (Catalog.IsWebOnly(user.Role)) target = "/web";
     return Results.Redirect(target);
 }).RequireRateLimiting("login");
 

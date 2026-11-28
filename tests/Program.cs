@@ -169,6 +169,14 @@ await Check("Datos de ejemplo válidos y departamentos referenciados", () => Syn
 await Check("Administrador lee y descarga secretos", () => Sync(() => Assert(Permissions.CanRead(admin, secret) && Permissions.CanDownload(admin, secret))));
 await Check("Consultor no lee documentos confidenciales ni secretos", () => Sync(() => Assert(!Permissions.CanRead(consultant, contract) && !Permissions.CanRead(consultant, secret))));
 await Check("Consultor lee documentos internos", () => Sync(() => Assert(Permissions.CanRead(consultant, policy))));
+await Check("Usuario Buscador Web: lee como consultor, sin escritura y confinado a /web", () => Sync(() =>
+{
+    var webUser = new AppUser { Role = Catalog.WebOnlyRole, Department = consultant.Department };
+    Assert(Catalog.Roles.Contains(Catalog.WebOnlyRole) && Catalog.RoleLabel(Catalog.WebOnlyRole) == "Usuario Buscador Web");
+    Assert(Permissions.ReadableLevels(webUser).SequenceEqual(Permissions.ReadableLevels(consultant)));
+    Assert(Permissions.CanRead(webUser, policy) && !Permissions.CanRead(webUser, contract) && !Permissions.CanWrite(webUser) && !Permissions.CanAudit(webUser));
+    Assert(Catalog.IsWebOnly(Catalog.WebOnlyRole) && !Catalog.Roles.Where(role => role != Catalog.WebOnlyRole).Any(Catalog.IsWebOnly));
+}));
 await Check("Auditor lee secretos, no puede descargarlos explícitamente", () => Sync(() => Assert(Permissions.CanRead(auditor, secret) && !Permissions.CanDownload(auditor, secret))));
 await Check("Administrador departamental solo lee su departamento", () => Sync(() => Assert(Permissions.CanRead(deptAdmin, contract) && !Permissions.CanRead(deptAdmin, policy))));
 await Check("Gestor no asigna clasificación secreta", () => Sync(() => Assert(!Permissions.CanAssign(manager, manager.Department, "Estrictamente Secreto"))));
