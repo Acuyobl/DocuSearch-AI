@@ -154,7 +154,9 @@ public static partial class ConversationContext
         if (DocumentCode().IsMatch(question)) return false;
         var words = Word().Matches(question.ToLowerInvariant()).Select(match => match.Value).ToList();
         if (words.Count == 0) return false;
-        return words[0] is "y" or "e" or "pero" || words.Count <= ShortQuestionWords || words.Any(Anaphora.Contains);
+        // Una pregunta corta sin anáfora puede ser un tema nuevo («Fabic», «Fabric»).
+        // Solo se considera seguimiento si empieza con un conector o contiene una anáfora.
+        return words[0] is "y" or "e" or "pero" || words.Any(Anaphora.Contains);
     }
 
     public static ConversationHint Build(string question, IReadOnlyList<MemoryTurn> history, string? focusDocumentCode)

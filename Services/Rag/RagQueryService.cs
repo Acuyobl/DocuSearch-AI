@@ -98,8 +98,9 @@ public sealed class RagQueryService(
     {
         var snapshot = await documents.LoadAsync();
         var retrievalQuery = hint?.RetrievalQuery ?? question;
+        retrievalQuery = QueryCorrector.Correct(retrievalQuery, snapshot.Documents);
         var queryVector = await embedder.EmbedQueryAsync(retrievalQuery, cancellationToken);
-        var generationQuestion = hint?.GenerationQuestion ?? question;
+        var generationQuestion = hint?.GenerationQuestion ?? retrievalQuery;
 
         // «Resumen», «análisis», «compara…»: síntesis en lenguaje natural de uno o varios documentos.
         var intent = DocumentSynthesis.Detect(question);
@@ -134,6 +135,20 @@ public sealed class RagQueryService(
         if (sourcePairs.Count == 0)
             return new RagQueryResponse("No hay fuentes autorizadas para responder.", [], NoCoverageEngine,
                 timer.ElapsedMilliseconds, RagOutcome.NoCoverage);
+        // Abstención: si ninguna fuente contiene un término de la pregunta y las
+        // similitudes son débiles, es preferible no responder con documentos ajenos.
+        var queryTerms = TextAnalysis.Terms(retrievalQuery)
+            .Where(term => term.Length >= 3).Distinct(StringComparer.Ordinal).ToArray();
+        var lexicalCoverage = sourcePairs.Any(pair =>
+        {
+            var text = TextAnalysis.Normalize($"{pair.Hit.Document.Title} {pair.Hit.Snippet}");
+            return queryTerms.Any(term => text.Contains(term, StringComparison.Ordinal));
+        });
+        if (!lexicalCoverage && sourcePairs.Max(pair => pair.Score) < 0.55)
+            return new RagQueryResponse(
+                "No encontré información suficientemente relacionada con esa consulta. Prueba con otro término o el nombre del expediente.",
+                [], NoCoverageEngine, timer.ElapsedMilliseconds, RagOutcome.NoCoverage);
+
         var sourceHits = sourcePairs.Select(pair => pair.Hit).ToList();
 
         var extractive = string.Join("\n\n", hits.Select(hit =>

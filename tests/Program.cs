@@ -1436,6 +1436,14 @@ if (args.Contains("--rag"))
         Assert(!ConversationContext.IsFollowUp("¿Qué contratos tienen penalizaciones por incumplimiento del SLA?"));
         Assert(!ConversationContext.IsFollowUp("¿Qué norma está vigente para el teletrabajo en la empresa?"), "«está» no es demostrativo");
         Assert(!ConversationContext.IsFollowUp("Resume ese documento CNT-2026-AAA"), "Si nombra un expediente es autónoma");
+        Assert(!ConversationContext.IsFollowUp("Fabic"), "Un tema corto nuevo no debe heredar la conversación anterior");
+        Assert(!ConversationContext.IsFollowUp("¿Qué es Fabic?"), "Una pregunta de definición es autónoma");
+        var corrected = QueryCorrector.Correct("¿Qué es Fabic?", [new DocumentItem
+        {
+            Title = "Estrategia Ejecutiva de Microsoft Fabric", Keywords = ["Fabric", "datos"]
+        }]);
+        Assert(corrected.Contains("fabric", StringComparison.OrdinalIgnoreCase) && !corrected.Contains("fabic", StringComparison.OrdinalIgnoreCase),
+            corrected);
         IReadOnlyList<MemoryTurn> history = [Turn(true, "¿Qué plazo de preaviso fija el contrato marco?"), Turn(false, "30 días")];
         var hint = ConversationContext.Build("¿Y la penalización?", history, "CNT-2026-AAA");
         Assert(hint.IsFollowUp && hint.RetrievalQuery.StartsWith("¿Qué plazo de preaviso") && hint.RetrievalQuery.EndsWith("¿Y la penalización?"));
