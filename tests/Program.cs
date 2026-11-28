@@ -126,9 +126,6 @@ const string catalogModelsJson = """
       {"id":"deepseek-flash","modelID":"deepseek-flash","providerID":"deepseek","name":"DeepSeek Flash","cost":[{"input":0,"output":0}],"status":"active","enabled":true}
     ]}
     """;
-const string localModelJson = """{"details":{"format":"gguf"},"capabilities":["completion"]}""";
-string ChatJson(string content, bool done = true, string reason = "stop") =>
-    JsonSerializer.Serialize(new { done, done_reason = reason, message = new { content } });
 HttpResponseMessage JsonResponse(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
 await Check("Cinco expedientes, tres perfiles y seis departamentos preservados", () => Sync(() =>
@@ -2085,22 +2082,26 @@ if (args.Contains("--database"))
     });
     await Check("SQL Server + OpenCode: solo se envían fuentes autorizadas al consultor", async () =>
     {
+        var allCodes = (await service.LoadAsync()).Documents.Select(d => d.InternalCode).ToList();
         await service.SwitchProfileAsync(consultant.Id);
         try
         {
             var readable = (await service.LoadAsync()).Documents.Select(d => d.InternalCode).ToHashSet();
-            var generated = false;
-            using var http = new HttpClient(new TestHttpHandler(async (request, _) =>
+            var hidden = allCodes.Where(code => !readable.Contains(code)).ToList();
+            Assert(hidden.Count > 0, "El escenario necesita expedientes que el consultor no pueda leer.");
+            string? prompt = null;
+            // Protocolo OpenCode v2 (sesión + prompt + mensajes); el prompt lleva las fuentes enviadas al modelo.
+            using var http = OpenCodeMock("""{"answer":"Resumen autorizado","citations":[1]}""", request =>
             {
-                if (request.RequestUri!.AbsolutePath == "/api/show") return JsonResponse(localModelJson);
-                using var payload = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
-                using var context = JsonDocument.Parse(payload.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!);
-                Assert(context.RootElement.GetProperty("sources").EnumerateArray().All(s => readable.Contains(s.GetProperty("code").GetString()!)));
-                generated = true;
-                return JsonResponse(ChatJson("""{"answer":"Resumen autorizado","citations":[1]}"""));
-            }));
+                if (request.RequestUri!.AbsolutePath.EndsWith("/prompt", StringComparison.Ordinal))
+                    prompt = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            });
             var answer = await new LocalAgent(service, session, telemetry, OpenCodeFor(http)).AskAsync("Resume POL-2025-0012");
-            Assert(generated && answer.Provider.Contains("OpenCode") && answer.Sources.All(s => readable.Contains(s.Document.InternalCode)));
+            Assert(prompt is not null, "Se llegó a llamar al modelo.");
+            Assert(prompt!.Contains("POL-2025-0012", StringComparison.Ordinal), "El prompt lleva la fuente legible.");
+            Assert(hidden.All(code => !prompt.Contains(code, StringComparison.OrdinalIgnoreCase)),
+                "El prompt no menciona expedientes que el consultor no puede leer.");
+            Assert(answer.Provider.Contains("OpenCode") && answer.Sources.All(s => readable.Contains(s.Document.InternalCode)));
         }
         finally { await service.SwitchProfileAsync(admin.Id); }
     });
@@ -2108,13 +2109,16 @@ if (args.Contains("--database"))
     {
         try
         {
-            using var http = new HttpClient(new TestHttpHandler(async (request, _) =>
+            var prompted = false;
+            // El perfil pierde el acceso justo cuando el modelo recibe el prompt.
+            using var http = OpenCodeMock("""{"answer":"Respuesta ahora revocada","citations":[1]}""", request =>
             {
-                if (request.RequestUri!.AbsolutePath == "/api/show") return JsonResponse(localModelJson);
-                await service.SwitchProfileAsync(consultant.Id);
-                return JsonResponse(ChatJson("""{"answer":"Respuesta ahora revocada","citations":[1]}"""));
-            }));
+                if (!request.RequestUri!.AbsolutePath.EndsWith("/prompt", StringComparison.Ordinal)) return;
+                prompted = true;
+                service.SwitchProfileAsync(consultant.Id).GetAwaiter().GetResult();
+            });
             await ThrowsAsync<UnauthorizedAccessException>(() => new LocalAgent(service, session, telemetry, OpenCodeFor(http)).AskAsync("Resume FIN-2024-Q4-01"));
+            Assert(prompted, "La revocación ocurrió durante la generación, no antes.");
         }
         finally { await service.SwitchProfileAsync(admin.Id); }
     });
