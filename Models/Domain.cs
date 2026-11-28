@@ -7,7 +7,10 @@ namespace DocuSearch.Models;
 
 public static class Catalog
 {
-    public static readonly string[] Roles = ["admin_general", "admin_depto", "gestor_documental", "consultor", "auditor"];
+    public static readonly string[] Roles = ["admin_general", "admin_depto", "gestor_documental", "consultor", "consultor_web", "auditor"];
+    /// <summary>Rol confinado al Buscador Web (/web): no puede abrir el panel principal.</summary>
+    public const string WebOnlyRole = "consultor_web";
+    public static bool IsWebOnly(string? role) => role == WebOnlyRole;
     public static readonly string[] Levels = ["Público", "Uso Interno", "Confidencial", "Estrictamente Secreto"];
     public static readonly string[] Categories = ["Contrato", "Política & Norma", "Informe Financiero", "Reglamento", "Dictamen", "Acta de Reunión", "Manual Técnico"];
     public static string RoleLabel(string role) => role switch
@@ -16,6 +19,7 @@ public static class Catalog
         "admin_depto" => "Admin Departamento",
         "gestor_documental" => "Gestor Documental",
         "consultor" => "Usuario Consultor",
+        "consultor_web" => "Usuario Buscador Web",
         "auditor" => "Auditor de Seguridad",
         _ => throw new ValidationException("Rol desconocido.")
     };
