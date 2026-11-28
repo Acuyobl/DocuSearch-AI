@@ -7,12 +7,14 @@ LangChain sobre OpenCode; si ambos están desactivados responde en modo extracti
 
 ## Índice
 
+- [Índice de toda la documentación](docs/README.md)
+- [Guía de mejoras y plan por fases](docs/GUIA-MEJORAS.md)
 - [Especificaciones del agente](#especificaciones-del-agente)
-- [Estado de implementación](ESTADO-IMPLEMENTACION.md)
-- [Guía de pruebas](GUIA-PRUEBAS.md)
-- [Resumen ejecutivo de la presentación](RESUMEN-EJECUTIVO.md)
-- [Detalle completo del agente](AGENTE-DETALLE.md)
-- [Investigación de integración con Langfuse](LANGFUSE-INTEGRACION.md)
+- [Estado de implementación](docs/estado/ESTADO-IMPLEMENTACION.md)
+- [Guía de pruebas](docs/operacion/GUIA-PRUEBAS.md)
+- [Resumen ejecutivo de la presentación](docs/estado/RESUMEN-EJECUTIVO.md)
+- [Detalle completo del agente](docs/arquitectura/AGENTE-DETALLE.md)
+- [Investigación de integración con Langfuse](docs/arquitectura/LANGFUSE-INTEGRACION.md)
 - [Conexión ya configurada](#conexión-ya-configurada)
 - [Arranque](#arranque)
 - [Módulos conservados](#módulos-conservados)
@@ -814,8 +816,8 @@ Antes de exponerla, el arranque valida la configuración con `ProductionGuard`: 
 `Demo:LocalOnly=false` exige TLS, `/enroll` apagado, reset y seed apagados, sin secretos TOTP
 inline, sin `TrustServerCertificate=True` y con `AllowedHosts` real. La plantilla
 `appsettings.Production.example.json` sirve de punto de partida. El endurecimiento aplicado y
-lo que sigue pendiente están en [`PRODUCCION-CAMBIOS.md`](PRODUCCION-CAMBIOS.md); la hoja de
-ruta completa, en [`DE-DEMO-A-PRODUCCION.md`](DE-DEMO-A-PRODUCCION.md).
+lo que sigue pendiente están en [`PRODUCCION-CAMBIOS.md`](docs/operacion/PRODUCCION-CAMBIOS.md); la hoja de
+ruta completa, en [`DE-DEMO-A-PRODUCCION.md`](docs/operacion/DE-DEMO-A-PRODUCCION.md).
 
 ## Cómo se construyó
 

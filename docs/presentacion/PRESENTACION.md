@@ -43,4 +43,4 @@ desde `GET /enroll` con un QR. Esos secretos viven en configuración y deben sus
 por ASP.NET Core Identity u OIDC con TOTP/passkeys antes de publicar, junto con TLS.
 Por defecto el acceso sigue limitado al equipo local (`Demo:LocalOnly`).
 La conexión utiliza autenticación de Windows, instancia `localhost\SQLEXPRESS`
-y base `DocuSearch`, ya inicializada. Detalles en [README](README.md).
+y base `DocuSearch`, ya inicializada. Detalles en [README](../../README.md).

@@ -2,7 +2,7 @@
 
 **Fecha:** 28/11/2026 · **Base:** commit `40897c3` · **Método:** grafo de código con graphify (2.287 nodos, 5.044 aristas, 129 comunidades, sin ciclos de importación) + revisión manual de los archivos con más conexiones.
 
-Esta guía complementa, sin repetirlos, [`DE-DEMO-A-PRODUCCION.md`](../DE-DEMO-A-PRODUCCION.md) (hoja de ruta de producción) y [`ESTADO-IMPLEMENTACION.md`](../ESTADO-IMPLEMENTACION.md) (lo ya hecho). Aquí solo aparecen debilidades **verificadas en el código actual**, con el cambio propuesto y cómo implementarlo.
+Esta guía complementa, sin repetirlos, [`DE-DEMO-A-PRODUCCION.md`](operacion/DE-DEMO-A-PRODUCCION.md) (hoja de ruta de producción) y [`ESTADO-IMPLEMENTACION.md`](estado/ESTADO-IMPLEMENTACION.md) (lo ya hecho). Aquí solo aparecen debilidades **verificadas en el código actual**, con el cambio propuesto y cómo implementarlo.
 
 ---
 
@@ -107,6 +107,8 @@ Atención: si algún código modifica la lista devuelta sin reasignarla, ese cam
 
 ### D6 — Autorización manual repetida (P1)
 
+> **Estado (fase 3):** hecho. Políticas `Admin`/`Auditor` contra el usuario activo en la base y filtro `RequireSession`. Corrigió además que `/api/mcp/tokens` no comprobaba si el usuario seguía activo.
+
 **Evidencia:** los endpoints `/api/mcp/tokens` (GET/POST/DELETE) en [`Program.cs`](../Program.cs#L806) repiten el mismo bloque: comprobar autenticación, `session.SignIn(context.User)`, cargar el actor y comprobar `Permissions.CanAdmin`. No hay ninguna política de autorización (`AddPolicy`) ni `RequireRole`; olvidar una línea abre un endpoint.
 
 **Cambio**
@@ -116,6 +118,8 @@ Atención: si algún código modifica la lista devuelta sin reasignarla, ese cam
 4. Aplicar el mismo patrón en `MapGovernanceApi`.
 
 ### D7 — `Program.cs` monolítico (P1)
+
+> **Estado (fase 3):** hecho. `Program.cs` tiene 20 líneas; el resto vive en `Hosting/` y `Cli/`.
 
 **Evidencia:** 858 líneas. Nueve comandos de consola (`--initialize-database`, `--rag-eval`, `--search`, …) con el mismo patrón copiado de «suplantar al primer administrador activo», middleware de cabeceras, login, MCP y endpoints, todo en línea.
 
@@ -135,6 +139,8 @@ Cli/
 `Program.cs` queda en ~60 líneas. Hacerlo **después de D6** para mover ya el código limpio.
 
 ### D8 — Opciones sin validar al arrancar (P1)
+
+> **Estado (fase 3):** hecho para `Rag`, `Embeddings`, `Pinecone`, `Resilience` y `Auth` (`Services/OptionsValidation.cs`).
 
 **Evidencia:** ninguna sección usa `ValidateDataAnnotations()` ni `ValidateOnStart()`. Un `Rag:TopK = 0` o un `Pinecone:Dimension` distinto de `Embeddings:Dimensions` solo falla en la primera consulta (o degrada en silencio: `SqlRagVectorStore` descarta los fragmentos incompatibles con una simple advertencia).
 
@@ -167,6 +173,8 @@ Cli/
 **Cambio:** si `Assistant:UseLangGraph` o `OpenCode:UseLangChain` van a usarse en producción, convertir el worker en un servicio residente (FastAPI/uvicorn en loopback) con `HttpClient` tipado y `AgentResilience`. Si son experimentales, mantenerlos apagados (como ahora) y documentarlo así.
 
 ### D12 — Raíz del repositorio saturada (P2)
+
+> **Estado (fase 3):** documentación movida a `docs/` con índice en [`docs/README.md`](README.md). Pendiente de decisión: fusionar `ANALISIS_PROYECTO.md` con `ESTADO-IMPLEMENTACION.md` y dejar de versionar los PDF.
 
 **Evidencia:** 25 archivos `.md` en la raíz, PDF/DOCX/PNG versionados (~5,7 MB), tres archivos `Prompt*.txt` (uno con espacio antes de la extensión) y duplicados (`ANALISIS_PROYECTO.md` se titula «Estado de implementación», igual que `ESTADO-IMPLEMENTACION.md`).
 

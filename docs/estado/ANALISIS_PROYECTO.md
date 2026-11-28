@@ -107,4 +107,4 @@ Antes de uso en red faltan sustituir los secretos TOTP y roles de configuración
 ASP.NET Core Identity u OIDC con TOTP/passkeys, TLS y políticas de despliegue.
 OCR de imágenes sigue pendiente; la búsqueda semántica con embeddings locales ya está implementada (14/11/2026).
 
-Consulta [README](README.md) para instalar, configurar, ejecutar y verificar.
+Consulta [README](../../README.md) para instalar, configurar, ejecutar y verificar.

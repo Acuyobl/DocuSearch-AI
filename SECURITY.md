@@ -60,8 +60,8 @@ No se ofrece recompensa económica por los reportes.
 - Sondas `/health/live` y `/health/ready`; esta última falla con migraciones pendientes.
 
 Esto **no sustituye** un IdP, TLS real, SQL Server Standard, respaldos ni observabilidad.
-El detalle está en [`PRODUCCION-CAMBIOS.md`](PRODUCCION-CAMBIOS.md) y la hoja de ruta en
-[`DE-DEMO-A-PRODUCCION.md`](DE-DEMO-A-PRODUCCION.md).
+El detalle está en [`PRODUCCION-CAMBIOS.md`](docs/operacion/PRODUCCION-CAMBIOS.md) y la hoja de ruta en
+[`DE-DEMO-A-PRODUCCION.md`](docs/operacion/DE-DEMO-A-PRODUCCION.md).
 
 ## Secretos TOTP
 
