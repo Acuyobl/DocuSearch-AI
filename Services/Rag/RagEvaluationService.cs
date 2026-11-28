@@ -19,7 +19,11 @@ public sealed record RagEvalCase(string Id, string Question, string ExpectedDocu
 /// <param name="LeakyCases">Preguntas que revelan la respuesta (código o texto literal).</param>
 public sealed record RagEvalReport(int Cases, double ContextRecall, double ContextPrecision,
     double MeanReciprocalRank, double Faithfulness, double AnswerRelevancy,
-    IReadOnlyList<string> FailedCases, IReadOnlyList<string> MissingCases, IReadOnlyList<string> LeakyCases);
+    IReadOnlyList<string> FailedCases, IReadOnlyList<string> MissingCases, IReadOnlyList<string> LeakyCases)
+{
+    /// <summary>Por cada fallo: qué se esperaba y qué fuentes (código y página) se devolvieron.</summary>
+    public IReadOnlyList<string> FailureDetails { get; init; } = [];
+}
 
 public sealed record RagEvalExport(string Question, string Answer, string[] Contexts, string Expected);
 
@@ -42,7 +46,7 @@ public sealed class RagEvaluationService(
         var cases = await ReadCasesAsync(questionsPath, cancellationToken);
         double recall = 0, precision = 0, reciprocalRank = 0, faithfulness = 0, relevancy = 0;
         var evaluated = 0;
-        List<string> failed = [], missing = [], leaky = [];
+        List<string> failed = [], missing = [], leaky = [], details = [];
         foreach (var item in cases)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -68,7 +72,14 @@ public sealed class RagEvaluationService(
             var retrievedText = string.Join("\n", response.Sources.Select(source => source.Text));
             faithfulness += Ratio(TextAnalysis.Terms(response.Answer), TextAnalysis.Terms(retrievedText));
             relevancy += Ratio(TextAnalysis.Terms(item.Question), TextAnalysis.Terms(response.Answer));
-            if (rank == 0) failed.Add(item.Id);
+            if (rank == 0)
+            {
+                failed.Add(item.Id);
+                var got = response.Sources.Count == 0
+                    ? $"sin fuentes ({response.Outcome})"
+                    : string.Join(", ", response.Sources.Select(source => $"{source.DocumentCode} p.{source.PageNumber}"));
+                details.Add($"{item.Id}: esperado {item.ExpectedCode} p.{item.ExpectedPage} · obtenido {got}");
+            }
         }
 
         if (missing.Count > 0)
@@ -76,7 +87,7 @@ public sealed class RagEvaluationService(
                 missing.Count, string.Join(", ", missing));
         double Average(double total) => evaluated == 0 ? 0 : total / evaluated;
         var report = new RagEvalReport(evaluated, Average(recall), Average(precision), Average(reciprocalRank),
-            Average(faithfulness), Average(relevancy), failed, missing, leaky);
+            Average(faithfulness), Average(relevancy), failed, missing, leaky) { FailureDetails = details };
         logger.LogInformation("RAG eval: {Cases} casos, recall={Recall:F3}, precision={Precision:F3}, mrr={Mrr:F3}, " +
             "faithfulness={Faithfulness:F3}, relevancy={Relevancy:F3}, fallos={Failures}, filtradas={Leaky}.",
             report.Cases, report.ContextRecall, report.ContextPrecision, report.MeanReciprocalRank,

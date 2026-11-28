@@ -12,11 +12,12 @@ public sealed class RagOptions
     public int OverlapTokens { get; set; } = 60;
     public double SemanticBreakThreshold { get; set; } = 0.55;
     public int CandidateK { get; set; } = 30;
-    public int TopK { get; set; } = 8;
+    /// <summary>Fragmentos tras la fusión; luego se agrupan por página (máximo RagContextLimits.MaxSources).</summary>
+    public int TopK { get; set; } = 16;
     public double VectorWeight { get; set; } = 0.65;
     public double LexicalWeight { get; set; } = 0.35;
     public bool Rerank { get; set; } = true;
-    public int RerankCandidates { get; set; } = 10;
+    public int RerankCandidates { get; set; } = 16;
     /// <summary>URL del microservicio cross-encoder; vacío usa el reranker semántico local.</summary>
     public string RerankerUrl { get; set; } = "";
     public int RerankerTimeoutSeconds { get; set; } = 60;

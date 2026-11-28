@@ -171,7 +171,8 @@ public static class CliCommands
                 Console.WriteLine($"Answer Relevancy (proxy): {report.AnswerRelevancy:F3}");
                 Console.WriteLine($"Casos sin la fuente esperada: {report.FailedCases.Count}" +
                     (report.FailedCases.Count > 0 ? $" ({string.Join(", ", report.FailedCases)})" : ""));
-                if (report.MissingCases.Count > 0)
+                foreach (var detail in report.FailureDetails) Console.WriteLine("  " + detail);
+            if (report.MissingCases.Count > 0)
                     Console.WriteLine($"Casos omitidos, su documento no existe: {string.Join(", ", report.MissingCases)}");
                 if (report.LeakyCases.Count > 0)
                     Console.WriteLine($"AVISO: {report.LeakyCases.Count} preguntas revelan la respuesta; el recall está inflado.");

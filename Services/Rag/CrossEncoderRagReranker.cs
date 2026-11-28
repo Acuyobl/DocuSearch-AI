@@ -35,7 +35,13 @@ public sealed class CrossEncoderRagReranker(
                 query,
                 documents = limited.Select(hit => TextAnalysis.Truncate(hit.Chunk.Text, 2000)).ToArray()
             };
-            using var response = await http.PostAsJsonAsync("rerank", payload, cancellationToken);
+            // El cliente con nombre no tiene BaseAddress: con la ruta relativa «rerank» la petición fallaba
+            // siempre y se usaba el respaldo sin avisar. Se construye la URL absoluta desde Rag:RerankerUrl.
+            // Cuerpo con Content-Length: PostAsJsonAsync envía «chunked» y el servicio Python
+            // (BaseHTTPRequestHandler) lee Content-Length, recibía 0 bytes y respondía 400.
+            using var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload),
+                System.Text.Encoding.UTF8, "application/json");
+            using var response = await http.PostAsync(Endpoint(settings.RerankerUrl), content, cancellationToken);
             response.EnsureSuccessStatusCode();
             var result = await response.Content.ReadFromJsonAsync<RerankResponse>(cancellationToken: cancellationToken);
             if (result?.Scores is not { Length: > 0 } scores || scores.Length != limited.Count)
@@ -54,6 +60,9 @@ public sealed class CrossEncoderRagReranker(
     private async Task<IReadOnlyList<RagHit>> FallbackAsync(string query, IReadOnlyList<RagHit> candidates,
         CancellationToken cancellationToken) =>
         settings.SemanticRerankFallback ? await fallback.RerankAsync(query, candidates, cancellationToken) : candidates;
+
+    /// <summary>URL absoluta de POST /rerank a partir de la URL base configurada (con o sin barra final).</summary>
+    public static Uri Endpoint(string baseUrl) => new(new Uri(baseUrl.TrimEnd('/') + "/"), "rerank");
 
     /// <summary>
     /// Si el servicio devuelve logits (algún valor fuera de [0, 1]), se aplica la

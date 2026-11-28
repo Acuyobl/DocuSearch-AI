@@ -1673,6 +1673,25 @@ if (args.Contains("--rag"))
         Assert(RagIngestionService.EmbeddingText(document with { Title = " " }, chunk) == chunk.Text, "Sin título, solo el texto");
         Assert(new RagOptions().MaxTokens <= 350, "Fragmentos dentro de la ventana de multilingual-e5-large");
     }));
+    await Check("Reranker: llama al cross-encoder en la URL configurada y aplica sus puntuaciones", async () =>
+    {
+        Uri? called = null;
+        var factory = new FixedHttpFactory(new TestHttpHandler((request, _) =>
+        {
+            called = request.RequestUri;
+            Assert(request.Content?.Headers.ContentLength > 0, "El cuerpo debe llevar Content-Length (el servicio Python no admite chunked)");
+            return Task.FromResult(JsonResponse("""{"scores":[0.1,0.9]}"""));
+        }));
+        var reranker = new CrossEncoderRagReranker(RagSettings(o => o.RerankerUrl = "http://127.0.0.1:4098"), factory,
+            new SemanticRagReranker(new FakeRagEmbedder(_ => [1f, 0f])),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CrossEncoderRagReranker>.Instance);
+        var result = await reranker.RerankAsync("consulta", [
+            new(new RagChunk("c1", "d", "X", "sql", 1, 0, 0, 1, "uno", "h1"), 0.9),
+            new(new RagChunk("c2", "d", "X", "sql", 1, 1, 0, 1, "dos", "h2"), 0.5)]);
+        Assert(called?.ToString() == "http://127.0.0.1:4098/rerank", $"URL llamada: {called}");
+        Assert(result.Select(hit => hit.Chunk.Id).SequenceEqual(["c2", "c1"]) && result[0].Score == 0.9, "Reordena con el cross-encoder");
+        Assert(CrossEncoderRagReranker.Endpoint("http://h:1/base/").ToString() == "http://h:1/base/rerank");
+    });
     await Check("Reranker: sin cross-encoder conserva el orden híbrido salvo que se pida el semántico", async () =>
     {
         var calls = 0;
@@ -2694,4 +2713,10 @@ internal sealed class FailingHttpFactory : IHttpClientFactory
 {
     public HttpClient CreateClient(string name) => new(new TestHttpHandler((_, _) =>
         throw new HttpRequestException("servicio caído"))) { BaseAddress = new Uri("http://127.0.0.1:9/") };
+}
+
+/// <summary>Fábrica HTTP con un manejador fijo (sin BaseAddress, como el cliente con nombre real).</summary>
+internal sealed class FixedHttpFactory(HttpMessageHandler handler) : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
 }
