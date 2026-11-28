@@ -131,7 +131,8 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session,
     private async Task<AgentAnswer> AnswerAsync(string query, AgentTrace trace)
     {
         ValidateQuery(query);
-        var snapshot = await documents.LoadAsync();
+        // La búsqueda híbrida usa los vectores por página; el directorio y la bitácora no hacen falta.
+        var snapshot = await documents.LoadAsync(SnapshotParts.PageVectors);
         await documents.LogQueryAsync("AGENT_QUERY", "Consulta del asistente; contenido omitido por privacidad.");
         float[]? queryVector = null;
         if (embeddings is { Enabled: true })
@@ -211,7 +212,8 @@ public sealed class LocalAgent(DocumentService documents, LocalSession session,
             }
         }
 
-        var current = await documents.LoadAsync();
+        // Revalidación final: solo el actor y los documentos citados, no todo el corpus.
+        var current = await documents.LoadReadableSubsetAsync(ids: extracted.Sources.Select(source => source.Document.Id));
         if (current.Actor.Id != snapshot.Actor.Id ||
             extracted.Sources.Any(s => current.Documents.All(d => d.Id != s.Document.Id)))
             throw new UnauthorizedAccessException("Los permisos cambiaron durante la consulta. La respuesta no se mostrará; vuelve a seleccionar tu perfil.");

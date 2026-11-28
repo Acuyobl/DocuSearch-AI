@@ -96,7 +96,9 @@ public sealed class RagQueryService(
     private async Task<RagQueryResponse> AnswerAsync(string question, bool generate, AgentTrace trace,
         Stopwatch timer, ConversationHint? hint, CancellationToken cancellationToken)
     {
-        var snapshot = await documents.LoadAsync();
+        // El RAG solo necesita el actor y los documentos legibles: los fragmentos y sus vectores
+        // los aporta el VectorStore, no los vectores por página ni el directorio de la instantánea.
+        var snapshot = await documents.LoadAsync(SnapshotParts.None);
         var retrievalQuery = hint?.RetrievalQuery ?? question;
         retrievalQuery = QueryCorrector.Correct(retrievalQuery, snapshot.Documents);
         var queryVector = await embedder.EmbedQueryAsync(retrievalQuery, cancellationToken);
@@ -265,7 +267,9 @@ public sealed class RagQueryService(
     private async Task<bool> StillAuthorizedAsync(IReadOnlyList<RagCitation> sources, CancellationToken cancellationToken)
     {
         if (sources.Count == 0) return true;
-        var current = await documents.LoadAsync();
+        // Revalidación al final de la consulta (los permisos pueden cambiar mientras se genera):
+        // basta con releer el actor y los documentos citados, no todo el corpus.
+        var current = await documents.LoadReadableSubsetAsync(codes: sources.Select(source => source.DocumentCode));
         var byCode = current.Documents.ToDictionary(document => document.InternalCode, StringComparer.OrdinalIgnoreCase);
         return sources.All(source =>
             byCode.TryGetValue(source.DocumentCode, out var document) && Permissions.CanRead(current.Actor, document));

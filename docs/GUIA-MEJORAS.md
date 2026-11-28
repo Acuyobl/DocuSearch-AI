@@ -33,7 +33,7 @@ El proyecto está bien protegido en el perímetro: `ProductionGuard`, TOTP con a
 
 **Evidencia**
 - [`DocumentService.LoadAsync`](../Services/DocumentService.cs#L74) devuelve **todos** los documentos legibles con su texto completo (`PagesJson`), **todos** los `PageEmbeddings` (1024 floats por página), todos los usuarios, todos los departamentos y 1.000 eventos de auditoría.
-- [`RagQueryService`](../Services/Rag/RagQueryService.cs#L99) lo llama en la línea 99 y otra vez en la [268](../Services/Rag/RagQueryService.cs#L268): **dos cargas completas por pregunta**.
+- [`RagQueryService`](../Services/Rag/RagQueryService.cs#L99) lo llama en la línea 99 y otra vez en la [268](../Services/Rag/RagQueryService.cs#L268): **dos cargas completas por pregunta**. La segunda es intencionada (revalida permisos al terminar, por si cambiaron durante la generación), pero no necesita todo el corpus.
 - `CatalogSuggester` y `WorkspaceState` hacen lo mismo; `WorkspaceState` retiene el resultado **por circuito Blazor**, o sea, una copia del corpus por pestaña abierta.
 
 **Cambio**
@@ -41,7 +41,7 @@ Separar la «instantánea de pantalla» de la «consulta de permisos»:
 
 1. Nuevo método `DocumentService.ReadableIdsAsync()` que devuelve solo `Id`, `InternalCode`, `UploadDate` (proyección, sin `PagesJson`).
 2. `RagQueryService` usa esos IDs para filtrar el retriever y carga el texto **solo de los documentos ganadores** (`LoadByIdsAsync(ids)`).
-3. Eliminar la segunda llamada de la línea 268; reutilizar el resultado de la primera.
+3. Mantener la revalidación final, pero solo con el actor y los documentos citados (`LoadReadableSubsetAsync`). **No** reutilizar la primera carga: se perdería la protección frente a revocaciones durante la consulta.
 4. `LoadAsync` deja de adjuntar `PageVectors`; la búsqueda híbrida de [`LocalSearch`](../Services/LocalSearch.cs) pide los vectores al almacén, no al snapshot.
 5. Auditoría, usuarios y departamentos se cargan bajo demanda en sus módulos, no en cada snapshot.
 

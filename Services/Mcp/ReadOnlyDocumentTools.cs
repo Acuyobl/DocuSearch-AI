@@ -32,7 +32,7 @@ public sealed class ReadOnlyDocumentTools(
     {
         return await GuardedAsync("list_documents", async () =>
         {
-            var snapshot = await documents.LoadAsync();
+            var snapshot = await documents.LoadAsync(SnapshotParts.None);
             var result = snapshot.Documents
                 .Take(Math.Clamp(limit, 1, MaxResults))
                 .Select(document => new
@@ -56,7 +56,7 @@ public sealed class ReadOnlyDocumentTools(
         {
             if (string.IsNullOrWhiteSpace(query) || query.Length > 2000)
                 throw new ArgumentException("La consulta debe tener entre 1 y 2000 caracteres.");
-            var snapshot = await documents.LoadAsync();
+            var snapshot = await documents.LoadAsync(SnapshotParts.None);
             var hits = LocalSearch.Search(snapshot.Documents, query, exact: false, minimum: 1)
                 .Take(Math.Clamp(limit, 1, MaxResults))
                 .Select(hit => new
@@ -80,7 +80,7 @@ public sealed class ReadOnlyDocumentTools(
         {
             if (string.IsNullOrWhiteSpace(documentCode) || page < 1 || page > 1000)
                 throw new ArgumentException("documentCode y page son obligatorios y válidos.");
-            var snapshot = await documents.LoadAsync();
+            var snapshot = await documents.LoadAsync(SnapshotParts.None);
             var document = snapshot.Documents.FirstOrDefault(candidate =>
                 candidate.InternalCode.Equals(documentCode.Trim(), StringComparison.OrdinalIgnoreCase));
             if (document is null || !Permissions.CanRead(snapshot.Actor, document))
@@ -105,7 +105,7 @@ public sealed class ReadOnlyDocumentTools(
         {
             if (string.IsNullOrWhiteSpace(question) || question.Length > 2000)
                 throw new ArgumentException("La pregunta debe tener entre 1 y 2000 caracteres.");
-            var snapshot = await documents.LoadAsync();
+            var snapshot = await documents.LoadAsync(SnapshotParts.None);
             var answer = LocalAgent.AnswerFromSources(question, snapshot.Documents, session);
             return Json(new
             {

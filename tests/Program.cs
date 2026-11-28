@@ -2030,6 +2030,59 @@ if (args.Contains("--database"))
         await service.SwitchProfileAsync(admin.Id);
         Assert((await service.ExportAuditAsync()).Any(a => a.Action == "ACCESS_DENIED"));
     });
+    await Check("SQL Server: instantánea parcial y subconjunto legible respetan permisos", async () =>
+    {
+        var full = await service.LoadAsync();
+        var light = await service.LoadAsync(SnapshotParts.None);
+        Assert(light.Documents.Select(d => d.Id).SequenceEqual(full.Documents.Select(d => d.Id)), "Mismos documentos legibles.");
+        Assert(light.Users.Count == 0 && light.Departments.Count == 0 && light.Audit.Count == 0, "Sin directorio ni bitácora.");
+        Assert(light.Documents.All(d => d.PageVectors.Count == 0), "Sin vectores por página.");
+        Assert(full.Users.Count > 0 && full.Departments.Count > 0, "LoadAsync() conserva la instantánea completa.");
+
+        var allCodes = full.Documents.Select(d => d.InternalCode).ToList();
+        var subset = await service.LoadReadableSubsetAsync(codes: allCodes.Select(code => code.ToLowerInvariant()));
+        Assert(subset.Documents.Count == allCodes.Count, "Los códigos no distinguen mayúsculas.");
+        Assert((await service.LoadReadableSubsetAsync()).Documents.Count == 0, "Sin ids ni códigos no devuelve nada.");
+
+        await service.SwitchProfileAsync(consultant.Id);
+        try
+        {
+            var readable = (await service.LoadAsync()).Documents.Select(d => d.Id).ToHashSet();
+            var asConsultant = await service.LoadReadableSubsetAsync(ids: full.Documents.Select(d => d.Id));
+            Assert(asConsultant.Actor.Id == consultant.Id, "El actor es el perfil actual.");
+            Assert(asConsultant.Documents.Count == readable.Count && asConsultant.Documents.All(d => readable.Contains(d.Id)),
+                "El subconjunto excluye lo que el consultor no puede leer.");
+            Assert(readable.Count < full.Documents.Count, "El escenario debe tener documentos no legibles para el consultor.");
+        }
+        finally { await service.SwitchProfileAsync(admin.Id); }
+    });
+    await Check("SQL Server + RAG: la revalidación final bloquea fuentes revocadas durante la consulta", async () =>
+    {
+        var full = await service.LoadAsync();
+        await service.SwitchProfileAsync(consultant.Id);
+        var consultantIds = (await service.LoadAsync()).Documents.Select(d => d.Id).ToHashSet();
+        await service.SwitchProfileAsync(admin.Id);
+        var secret = full.Documents.First(d => !consultantIds.Contains(d.Id) && d.Pages.Count > 0);
+        var page = secret.Pages[0];
+        var term = TextAnalysis.Terms($"{secret.Title} {page.ExtractedText}").First(t => t.Length >= 4);
+        var hit = new RagHit(new RagChunk("chk-1", secret.Id, secret.InternalCode, "sql", page.PageNumber, 0, 0,
+            page.ExtractedText.Length, $"{term} {page.ExtractedText}", "hash"), 0.9);
+        var runtime = new AssistantRuntime(Options.Create(new AssistantOptions()), OpenCodeFor(new HttpClient(), enabled: false),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
+        RagQueryService Rag(Func<Task>? during = null) => new(service, new FakeRagRetriever([hit], during),
+            new FakeRagEmbedder(_ => [1f, 0f]), runtime, null,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<RagQueryService>.Instance);
+        try
+        {
+            var allowed = await Rag().QueryAsync(term, generate: false);
+            Assert(allowed.Outcome != RagOutcome.AccessDenied && allowed.Sources.Any(s => s.DocumentCode == secret.InternalCode),
+                "Sin cambios de permisos, la fuente se devuelve.");
+            var revoked = await Rag(() => service.SwitchProfileAsync(consultant.Id)).QueryAsync(term, generate: false);
+            Assert(revoked.Outcome == RagOutcome.AccessDenied && revoked.Sources.Count == 0,
+                "Si el perfil pierde el acceso durante la consulta, no se muestran fuentes.");
+        }
+        finally { await service.SwitchProfileAsync(admin.Id); }
+    });
     await Check("SQL Server + OpenCode: solo se envían fuentes autorizadas al consultor", async () =>
     {
         await service.SwitchProfileAsync(consultant.Id);
@@ -2332,6 +2385,17 @@ internal sealed class FakeRagEmbedder(Func<string, float[]> embed) : IRagEmbedde
     {
         BatchCalls++;
         return Task.FromResult<IReadOnlyList<float[]>>(texts.Select(embed).ToList());
+    }
+}
+
+/// <summary>Retriever fijo; <paramref name="during"/> se ejecuta en mitad de la recuperación (p. ej. revocar permisos).</summary>
+internal sealed class FakeRagRetriever(IReadOnlyList<RagHit> hits, Func<Task>? during = null) : IRagRetriever
+{
+    public async Task<IReadOnlyList<RagHit>> RetrieveAsync(string query, float[] queryVector,
+        IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default)
+    {
+        if (during is not null) await during();
+        return hits.Where(hit => documentIds.Contains(hit.Chunk.DocumentId)).ToList();
     }
 }
 
