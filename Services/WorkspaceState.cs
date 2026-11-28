@@ -15,10 +15,25 @@ public sealed class WorkspaceState(DocumentService service, ILogger<WorkspaceSta
     public string? Notice { get; private set; }
     public event Action? Changed;
 
+    private AppSnapshot? vectorsLoadedFor;
+
     public async Task RefreshAsync()
     {
         Profiles = await service.ListProfilesAsync();
-        Data = await service.LoadAsync();
+        // Sin vectores por página: cada pestaña retiene esta instantánea y solo la búsqueda de
+        // respaldo los usa (ver EnsurePageVectorsAsync).
+        Data = await service.LoadAsync(SnapshotParts.Directory | SnapshotParts.Audit);
+    }
+
+    /// <summary>
+    /// Carga los vectores por página de la instantánea actual la primera vez que la búsqueda
+    /// híbrida de respaldo los necesita. Una recarga de <see cref="Data"/> los descarta.
+    /// </summary>
+    public async Task EnsurePageVectorsAsync()
+    {
+        if (Data is not { } snapshot || ReferenceEquals(vectorsLoadedFor, snapshot)) return;
+        await service.AttachPageVectorsAsync(snapshot.Documents);
+        vectorsLoadedFor = snapshot;
     }
     public async Task RunAsync(Func<Task> operation, string? success = null)
     {

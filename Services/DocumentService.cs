@@ -71,30 +71,73 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
             throw new ValidationException("Se admiten hasta 100 palabras y etiquetas de 200 caracteres.");
     }
 
-    public async Task<AppSnapshot> LoadAsync()
+    /// <summary>Instantánea completa para la interfaz (documentos, vectores, directorio y bitácora).</summary>
+    public Task<AppSnapshot> LoadAsync() => LoadAsync(SnapshotParts.All);
+
+    /// <summary>
+    /// Instantánea con solo las partes pedidas. Los documentos legibles y el actor siempre se cargan;
+    /// las partes omitidas llegan vacías (sin vectores por página, usuarios, departamentos o bitácora).
+    /// </summary>
+    public async Task<AppSnapshot> LoadAsync(SnapshotParts parts)
     {
         await using var db = await factory.CreateDbContextAsync();
         var actor = await ActorAsync(db);
         var documents = await Readable(db, actor).AsNoTracking().OrderByDescending(d => d.UploadDate).ToListAsync();
-        if (documents.Count > 0)
-        {
-            var ids = documents.Select(document => document.Id).ToList();
-            var embeddings = new List<PageEmbedding>();
-            foreach (var batch in ids.Chunk(100))
-                embeddings.AddRange(await db.PageEmbeddings.AsNoTracking()
-                    .Where(embedding => batch.Contains(embedding.DocumentId)).ToListAsync());
-            foreach (var document in documents)
-            {
-                document.PageVectors = embeddings
-                    .Where(embedding => embedding.DocumentId == document.Id)
-                    .GroupBy(embedding => embedding.PageNumber)
-                    .ToDictionary(group => group.Key, group => EmbeddingIndexer.FromBytes(group.Last().Vector));
-            }
-        }
+        if (parts.HasFlag(SnapshotParts.PageVectors) && documents.Count > 0)
+            await AttachPageVectorsAsync(db, documents);
         return new(actor, documents,
-            await db.Users.AsNoTracking().OrderBy(u => u.Name).ToListAsync(),
-            await db.Departments.AsNoTracking().OrderBy(d => d.Name).ToListAsync(),
-            Permissions.CanAudit(actor) ? await db.Audit.AsNoTracking().OrderByDescending(a => a.TimestampUTC).Take(1000).ToListAsync() : []);
+            parts.HasFlag(SnapshotParts.Directory) ? await db.Users.AsNoTracking().OrderBy(u => u.Name).ToListAsync() : [],
+            parts.HasFlag(SnapshotParts.Directory) ? await db.Departments.AsNoTracking().OrderBy(d => d.Name).ToListAsync() : [],
+            parts.HasFlag(SnapshotParts.Audit) && Permissions.CanAudit(actor)
+                ? await db.Audit.AsNoTracking().OrderByDescending(a => a.TimestampUTC).Take(1000).ToListAsync()
+                : []);
+    }
+
+    /// <summary>
+    /// Actor actual y, de los documentos indicados por id o código, los que sigue pudiendo leer.
+    /// Sirve para revalidar permisos al final de una consulta sin recargar todo el corpus.
+    /// </summary>
+    public async Task<AppSnapshot> LoadReadableSubsetAsync(IEnumerable<string>? ids = null, IEnumerable<string>? codes = null)
+    {
+        await using var db = await factory.CreateDbContextAsync();
+        var actor = await ActorAsync(db);
+        var idList = ids?.Distinct(StringComparer.Ordinal).ToList() ?? [];
+        var codeList = codes?.Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? [];
+        var documents = idList.Count == 0 && codeList.Count == 0
+            ? []
+            : await Readable(db, actor).AsNoTracking()
+                .Where(d => idList.Contains(d.Id) || codeList.Contains(d.InternalCode))
+                .ToListAsync();
+        return new(actor, documents, [], [], []);
+    }
+
+    /// <summary>
+    /// Adjunta bajo demanda los vectores por página a documentos de una instantánea cargada sin ellos.
+    /// Solo lee vectores de documentos que el actor actual puede leer.
+    /// </summary>
+    public async Task AttachPageVectorsAsync(IReadOnlyCollection<DocumentItem> documents)
+    {
+        if (documents.Count == 0) return;
+        await using var db = await factory.CreateDbContextAsync();
+        var actor = await ActorAsync(db);
+        var readable = documents.Where(document => Permissions.CanRead(actor, document)).ToList();
+        if (readable.Count > 0) await AttachPageVectorsAsync(db, readable);
+    }
+
+    private static async Task AttachPageVectorsAsync(AppDbContext db, List<DocumentItem> documents)
+    {
+        var embeddings = new List<PageEmbedding>();
+        foreach (var batch in documents.Select(document => document.Id).Chunk(100))
+            embeddings.AddRange(await db.PageEmbeddings.AsNoTracking()
+                .Where(embedding => batch.Contains(embedding.DocumentId)).ToListAsync());
+        // Un lookup por documento: antes se recorría la lista completa de vectores por cada documento.
+        var byDocument = embeddings.ToLookup(embedding => embedding.DocumentId, StringComparer.Ordinal);
+        foreach (var document in documents)
+        {
+            document.PageVectors = byDocument[document.Id]
+                .GroupBy(embedding => embedding.PageNumber)
+                .ToDictionary(group => group.Key, group => EmbeddingIndexer.FromBytes(group.Last().Vector));
+        }
     }
 
     public async Task<List<AppUser>> ListProfilesAsync()

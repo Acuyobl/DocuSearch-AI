@@ -126,9 +126,6 @@ const string catalogModelsJson = """
       {"id":"deepseek-flash","modelID":"deepseek-flash","providerID":"deepseek","name":"DeepSeek Flash","cost":[{"input":0,"output":0}],"status":"active","enabled":true}
     ]}
     """;
-const string localModelJson = """{"details":{"format":"gguf"},"capabilities":["completion"]}""";
-string ChatJson(string content, bool done = true, string reason = "stop") =>
-    JsonSerializer.Serialize(new { done, done_reason = reason, message = new { content } });
 HttpResponseMessage JsonResponse(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
 await Check("Cinco expedientes, tres perfiles y seis departamentos preservados", () => Sync(() =>
@@ -2030,24 +2027,81 @@ if (args.Contains("--database"))
         await service.SwitchProfileAsync(admin.Id);
         Assert((await service.ExportAuditAsync()).Any(a => a.Action == "ACCESS_DENIED"));
     });
+    await Check("SQL Server: instantánea parcial y subconjunto legible respetan permisos", async () =>
+    {
+        var full = await service.LoadAsync();
+        var light = await service.LoadAsync(SnapshotParts.None);
+        Assert(light.Documents.Select(d => d.Id).SequenceEqual(full.Documents.Select(d => d.Id)), "Mismos documentos legibles.");
+        Assert(light.Users.Count == 0 && light.Departments.Count == 0 && light.Audit.Count == 0, "Sin directorio ni bitácora.");
+        Assert(light.Documents.All(d => d.PageVectors.Count == 0), "Sin vectores por página.");
+        Assert(full.Users.Count > 0 && full.Departments.Count > 0, "LoadAsync() conserva la instantánea completa.");
+
+        var allCodes = full.Documents.Select(d => d.InternalCode).ToList();
+        var subset = await service.LoadReadableSubsetAsync(codes: allCodes.Select(code => code.ToLowerInvariant()));
+        Assert(subset.Documents.Count == allCodes.Count, "Los códigos no distinguen mayúsculas.");
+        Assert((await service.LoadReadableSubsetAsync()).Documents.Count == 0, "Sin ids ni códigos no devuelve nada.");
+
+        await service.SwitchProfileAsync(consultant.Id);
+        try
+        {
+            var readable = (await service.LoadAsync()).Documents.Select(d => d.Id).ToHashSet();
+            var asConsultant = await service.LoadReadableSubsetAsync(ids: full.Documents.Select(d => d.Id));
+            Assert(asConsultant.Actor.Id == consultant.Id, "El actor es el perfil actual.");
+            Assert(asConsultant.Documents.Count == readable.Count && asConsultant.Documents.All(d => readable.Contains(d.Id)),
+                "El subconjunto excluye lo que el consultor no puede leer.");
+            Assert(readable.Count < full.Documents.Count, "El escenario debe tener documentos no legibles para el consultor.");
+        }
+        finally { await service.SwitchProfileAsync(admin.Id); }
+    });
+    await Check("SQL Server + RAG: la revalidación final bloquea fuentes revocadas durante la consulta", async () =>
+    {
+        var full = await service.LoadAsync();
+        await service.SwitchProfileAsync(consultant.Id);
+        var consultantIds = (await service.LoadAsync()).Documents.Select(d => d.Id).ToHashSet();
+        await service.SwitchProfileAsync(admin.Id);
+        var secret = full.Documents.First(d => !consultantIds.Contains(d.Id) && d.Pages.Count > 0);
+        var page = secret.Pages[0];
+        var term = TextAnalysis.Terms($"{secret.Title} {page.ExtractedText}").First(t => t.Length >= 4);
+        var hit = new RagHit(new RagChunk("chk-1", secret.Id, secret.InternalCode, "sql", page.PageNumber, 0, 0,
+            page.ExtractedText.Length, $"{term} {page.ExtractedText}", "hash"), 0.9);
+        var runtime = new AssistantRuntime(Options.Create(new AssistantOptions()), OpenCodeFor(new HttpClient(), enabled: false),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantRuntime>.Instance);
+        RagQueryService Rag(Func<Task>? during = null) => new(service, new FakeRagRetriever([hit], during),
+            new FakeRagEmbedder(_ => [1f, 0f]), runtime, null,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<RagQueryService>.Instance);
+        try
+        {
+            var allowed = await Rag().QueryAsync(term, generate: false);
+            Assert(allowed.Outcome != RagOutcome.AccessDenied && allowed.Sources.Any(s => s.DocumentCode == secret.InternalCode),
+                "Sin cambios de permisos, la fuente se devuelve.");
+            var revoked = await Rag(() => service.SwitchProfileAsync(consultant.Id)).QueryAsync(term, generate: false);
+            Assert(revoked.Outcome == RagOutcome.AccessDenied && revoked.Sources.Count == 0,
+                "Si el perfil pierde el acceso durante la consulta, no se muestran fuentes.");
+        }
+        finally { await service.SwitchProfileAsync(admin.Id); }
+    });
     await Check("SQL Server + OpenCode: solo se envían fuentes autorizadas al consultor", async () =>
     {
+        var allCodes = (await service.LoadAsync()).Documents.Select(d => d.InternalCode).ToList();
         await service.SwitchProfileAsync(consultant.Id);
         try
         {
             var readable = (await service.LoadAsync()).Documents.Select(d => d.InternalCode).ToHashSet();
-            var generated = false;
-            using var http = new HttpClient(new TestHttpHandler(async (request, _) =>
+            var hidden = allCodes.Where(code => !readable.Contains(code)).ToList();
+            Assert(hidden.Count > 0, "El escenario necesita expedientes que el consultor no pueda leer.");
+            string? prompt = null;
+            // Protocolo OpenCode v2 (sesión + prompt + mensajes); el prompt lleva las fuentes enviadas al modelo.
+            using var http = OpenCodeMock("""{"answer":"Resumen autorizado","citations":[1]}""", request =>
             {
-                if (request.RequestUri!.AbsolutePath == "/api/show") return JsonResponse(localModelJson);
-                using var payload = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
-                using var context = JsonDocument.Parse(payload.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!);
-                Assert(context.RootElement.GetProperty("sources").EnumerateArray().All(s => readable.Contains(s.GetProperty("code").GetString()!)));
-                generated = true;
-                return JsonResponse(ChatJson("""{"answer":"Resumen autorizado","citations":[1]}"""));
-            }));
+                if (request.RequestUri!.AbsolutePath.EndsWith("/prompt", StringComparison.Ordinal))
+                    prompt = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            });
             var answer = await new LocalAgent(service, session, telemetry, OpenCodeFor(http)).AskAsync("Resume POL-2025-0012");
-            Assert(generated && answer.Provider.Contains("OpenCode") && answer.Sources.All(s => readable.Contains(s.Document.InternalCode)));
+            Assert(prompt is not null, "Se llegó a llamar al modelo.");
+            Assert(prompt!.Contains("POL-2025-0012", StringComparison.Ordinal), "El prompt lleva la fuente legible.");
+            Assert(hidden.All(code => !prompt.Contains(code, StringComparison.OrdinalIgnoreCase)),
+                "El prompt no menciona expedientes que el consultor no puede leer.");
+            Assert(answer.Provider.Contains("OpenCode") && answer.Sources.All(s => readable.Contains(s.Document.InternalCode)));
         }
         finally { await service.SwitchProfileAsync(admin.Id); }
     });
@@ -2055,13 +2109,16 @@ if (args.Contains("--database"))
     {
         try
         {
-            using var http = new HttpClient(new TestHttpHandler(async (request, _) =>
+            var prompted = false;
+            // El perfil pierde el acceso justo cuando el modelo recibe el prompt.
+            using var http = OpenCodeMock("""{"answer":"Respuesta ahora revocada","citations":[1]}""", request =>
             {
-                if (request.RequestUri!.AbsolutePath == "/api/show") return JsonResponse(localModelJson);
-                await service.SwitchProfileAsync(consultant.Id);
-                return JsonResponse(ChatJson("""{"answer":"Respuesta ahora revocada","citations":[1]}"""));
-            }));
+                if (!request.RequestUri!.AbsolutePath.EndsWith("/prompt", StringComparison.Ordinal)) return;
+                prompted = true;
+                service.SwitchProfileAsync(consultant.Id).GetAwaiter().GetResult();
+            });
             await ThrowsAsync<UnauthorizedAccessException>(() => new LocalAgent(service, session, telemetry, OpenCodeFor(http)).AskAsync("Resume FIN-2024-Q4-01"));
+            Assert(prompted, "La revocación ocurrió durante la generación, no antes.");
         }
         finally { await service.SwitchProfileAsync(admin.Id); }
     });
@@ -2263,6 +2320,86 @@ if (args.Contains("--database"))
             await release.ExecuteNonQueryAsync();
         Assert(await routines.RunNowAsync(RoutineSchedule.DailySummary) is { Status: "OK" });
     });
+    await Check("SQL Server: la pestaña carga los vectores por página solo bajo demanda y con permisos", async () =>
+    {
+        var docs = (await service.LoadAsync()).Documents;
+        await service.SwitchProfileAsync(consultant.Id);
+        var consultantIds = (await service.LoadAsync()).Documents.Select(d => d.Id).ToHashSet();
+        await service.SwitchProfileAsync(admin.Id);
+        var open = docs.First(d => consultantIds.Contains(d.Id));
+        var secret = docs.First(d => !consultantIds.Contains(d.Id));
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            await db.PageEmbeddings.Where(e => e.DocumentId == open.Id || e.DocumentId == secret.Id).ExecuteDeleteAsync();
+            db.PageEmbeddings.AddRange(
+                new PageEmbedding { DocumentId = open.Id, PageNumber = 1, Model = "fake", Dimensions = 2, Vector = EmbeddingIndexer.ToBytes([1f, 0f]) },
+                new PageEmbedding { DocumentId = secret.Id, PageNumber = 1, Model = "fake", Dimensions = 2, Vector = EmbeddingIndexer.ToBytes([0f, 1f]) });
+            await db.SaveChangesAsync();
+        }
+        try
+        {
+            var state = new WorkspaceState(service, Microsoft.Extensions.Logging.Abstractions.NullLogger<WorkspaceState>.Instance);
+            await state.RefreshAsync();
+            Assert(state.Data!.Documents.All(d => d.PageVectors.Count == 0), "La instantánea de la pestaña no trae vectores.");
+            Assert(state.Data.Users.Count > 0 && state.Data.Departments.Count > 0, "La pestaña conserva el directorio.");
+            await state.EnsurePageVectorsAsync();
+            Assert(state.Data.Documents.Single(d => d.Id == open.Id).PageVectors.ContainsKey(1), "Se adjuntan bajo demanda.");
+
+            // Documentos ajenos al perfil actual no reciben vectores aunque se pasen explícitamente.
+            await service.SwitchProfileAsync(consultant.Id);
+            var foreign = new List<DocumentItem> { new() { Id = secret.Id, Confidentiality = secret.Confidentiality, Department = secret.Department } };
+            await service.AttachPageVectorsAsync(foreign);
+            Assert(foreign[0].PageVectors.Count == 0, "Sin permiso de lectura no se adjuntan vectores.");
+        }
+        finally
+        {
+            await service.SwitchProfileAsync(admin.Id);
+            await using var db = await factory.CreateDbContextAsync();
+            await db.PageEmbeddings.Where(e => e.DocumentId == open.Id || e.DocumentId == secret.Id).ExecuteDeleteAsync();
+        }
+    });
+    // Al final de la suite: reemplaza los fragmentos de dos documentos con datos sintéticos.
+    await Check("SQL Server + RAG: la caché de vectores da los mismos resultados y detecta cambios", async () =>
+    {
+        var docs = (await service.LoadAsync()).Documents.Take(2).ToList();
+        Assert(docs.Count == 2, "Hacen falta dos documentos.");
+        var random = new Random(42);
+        float[] Vector(int dims = 8) => Enumerable.Range(0, dims).Select(_ => (float)(random.NextDouble() * 2 - 1)).ToArray();
+        RagChunkVector Chunk(DocumentItem doc, int index, float[] vector, string model = "fake") =>
+            new(new RagChunk($"{doc.Id}:cache:{index}", doc.Id, doc.InternalCode, "sql", 1, index, 0, 10, $"texto {index}", $"h{index}"),
+                vector, model);
+        var plain = new SqlRagVectorStore(factory);
+        var cache = new RagVectorCache();
+        var cached = new SqlRagVectorStore(factory, cache: cache);
+        await plain.ReplaceDocumentAsync(docs[0].Id, Enumerable.Range(0, 12).Select(i => Chunk(docs[0], i, Vector())).ToList());
+        // Incluye un fragmento de otras dimensiones: ambos caminos deben ignorarlo.
+        await plain.ReplaceDocumentAsync(docs[1].Id,
+            [.. Enumerable.Range(0, 11).Select(i => Chunk(docs[1], i, Vector())), Chunk(docs[1], 11, Vector(4))]);
+        var ids = docs.Select(d => d.Id).ToArray();
+
+        for (var round = 0; round < 5; round++)
+        {
+            var query = Vector();
+            var expected = await plain.QueryAsync(query, ids, 7);
+            var actual = await cached.QueryAsync(query, ids, 7);
+            Assert(expected.Select(x => x.Chunk.Id).SequenceEqual(actual.Select(x => x.Chunk.Id)), $"Mismo orden (ronda {round}).");
+            Assert(expected.Zip(actual).All(pair => Math.Abs(pair.First.Score - pair.Second.Score) < 1e-5), "Misma similitud.");
+            Assert(expected.Zip(actual).All(pair => pair.First.Chunk == pair.Second.Chunk), "Mismo texto y metadatos.");
+        }
+        Assert(cache.Reloads == 1, "Sin cambios en la tabla no se recarga.");
+        Assert((await cached.QueryAsync(Vector(), [docs[0].Id], 50)).All(x => x.Chunk.DocumentId == docs[0].Id), "Filtra por documento.");
+
+        // Cambio hecho por otra instancia (sin caché), como haría --rag-reindex desde otro proceso.
+        var fresh = Vector();
+        await plain.ReplaceDocumentAsync(docs[0].Id, [Chunk(docs[0], 0, fresh)]);
+        var top = await cached.QueryAsync(fresh, [docs[0].Id], 5);
+        Assert(top.Count == 1 && top[0].Score > 0.999, "Ve el reemplazo hecho fuera de su instancia.");
+        await plain.DeleteDocumentAsync(docs[1].Id);
+        Assert((await cached.QueryAsync(Vector(), [docs[1].Id], 5)).Count == 0, "Ve el borrado hecho fuera de su instancia.");
+        Assert(cache.Reloads == 3, "Una recarga por cada cambio detectado.");
+        await plain.DeleteDocumentAsync(docs[0].Id);
+        Assert((await cached.QueryAsync(Vector(), ids, 5)).Count == 0, "Tabla vacía para esos documentos.");
+    });
 }
 else Console.WriteLine("INFO Integración SQL Server no ejecutada. Usa --database con DOCUSEARCH_TEST_CONNECTION.");
 
@@ -2332,6 +2469,17 @@ internal sealed class FakeRagEmbedder(Func<string, float[]> embed) : IRagEmbedde
     {
         BatchCalls++;
         return Task.FromResult<IReadOnlyList<float[]>>(texts.Select(embed).ToList());
+    }
+}
+
+/// <summary>Retriever fijo; <paramref name="during"/> se ejecuta en mitad de la recuperación (p. ej. revocar permisos).</summary>
+internal sealed class FakeRagRetriever(IReadOnlyList<RagHit> hits, Func<Task>? during = null) : IRagRetriever
+{
+    public async Task<IReadOnlyList<RagHit>> RetrieveAsync(string query, float[] queryVector,
+        IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default)
+    {
+        if (during is not null) await during();
+        return hits.Where(hit => documentIds.Contains(hit.Chunk.DocumentId)).ToList();
     }
 }
 

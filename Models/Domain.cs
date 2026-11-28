@@ -137,6 +137,20 @@ public sealed class AuditEvent
     public long? DurationMs { get; set; }
 }
 
+/// <summary>Partes opcionales de <see cref="AppSnapshot"/>; el actor y los documentos legibles siempre se cargan.</summary>
+[Flags]
+public enum SnapshotParts
+{
+    None = 0,
+    /// <summary>Vectores por página para la búsqueda híbrida de <c>LocalSearch</c>.</summary>
+    PageVectors = 1,
+    /// <summary>Usuarios y departamentos.</summary>
+    Directory = 2,
+    /// <summary>Últimos 1.000 eventos de la bitácora (solo perfiles de auditoría).</summary>
+    Audit = 4,
+    All = PageVectors | Directory | Audit
+}
+
 public sealed record AppSnapshot(AppUser Actor, List<DocumentItem> Documents, List<AppUser> Users,
     List<DepartmentInfo> Departments, List<AuditEvent> Audit);
 public sealed record SearchHit(DocumentItem Document, int PageNumber, string Snippet, int Score);

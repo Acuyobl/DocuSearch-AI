@@ -30,7 +30,7 @@ public sealed class CatalogSuggester(
 {
     public async Task<CatalogSuggestion> SuggestAsync(string documentId, bool consent)
     {
-        var snapshot = await documents.LoadAsync();
+        var snapshot = await documents.LoadAsync(SnapshotParts.Directory);
         var document = snapshot.Documents.FirstOrDefault(candidate => candidate.Id == documentId)
             ?? throw new InvalidOperationException("El expediente no existe o no está entre los que puedes leer.");
         if (!Permissions.CanWrite(snapshot.Actor) || !Permissions.CanRead(snapshot.Actor, document))

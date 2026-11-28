@@ -18,6 +18,11 @@ public sealed class RagOptions
     public int RerankerTimeoutSeconds { get; set; } = 60;
     /// <summary>sql | pinecone</summary>
     public string VectorStore { get; set; } = "sql";
+    /// <summary>
+    /// Con VectorStore=sql, mantiene los vectores de fragmento en memoria (≈4 KB por fragmento) y
+    /// solo lee de SQL el texto de los ganadores. Desactivar si el índice no cabe en memoria.
+    /// </summary>
+    public bool VectorCache { get; set; } = true;
     public bool AuditContent { get; set; } = true;
     /// <summary>El asistente usa el pipeline por fragmentos; si falla, cae al RAG anterior.</summary>
     public bool UseChunkPipeline { get; set; } = true;
