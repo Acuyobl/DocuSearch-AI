@@ -92,8 +92,11 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.SecurePolicy = httpsEnabled ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
         options.ExpireTimeSpan = TimeSpan.FromHours(builder.Configuration.GetValue("Auth:SessionHours", 8));
         options.SlidingExpiration = true;
+        // La API responde 401/403 con JSON; solo la interfaz web redirige al inicio de sesión.
+        options.Events.OnRedirectToLogin = context => ApiResponses.RedirectOrStatus(context, StatusCodes.Status401Unauthorized);
+        options.Events.OnRedirectToAccessDenied = context => ApiResponses.RedirectOrStatus(context, StatusCodes.Status403Forbidden);
     });
-builder.Services.AddAuthorization();
+builder.Services.AddDocuSearchAuthorization();
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection("Auth"));
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddSingleton<LoginAttemptLimiter>();
@@ -617,6 +620,11 @@ app.Use(async (context, next) =>
         await next(context);
         return;
     }
+    if (ApiResponses.IsApi(context.Request))
+    {
+        await ApiResponses.WriteAsync(context.Response, StatusCodes.Status401Unauthorized);
+        return;
+    }
     context.Response.Redirect("/login?returnUrl=" + Uri.EscapeDataString(path + context.Request.QueryString));
 });
 
@@ -790,15 +798,12 @@ app.MapGet("/assistant/engines", async (AssistantRuntime runtime, AgentResilienc
             })
         })
     });
-});
+}).RequireSession();
 
-app.MapPost("/api/rag/query", async (HttpContext context, LocalSession session, RagQueryService rag,
-    RagQueryRequest request) =>
+app.MapPost("/api/rag/query", async (RagQueryService rag, RagQueryRequest request) =>
 {
-    if (context.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
     try
     {
-        session.SignIn(context.User);
         return Results.Ok(await rag.QueryAsync(request.Question));
     }
     catch (UnauthorizedAccessException)
@@ -809,43 +814,21 @@ app.MapPost("/api/rag/query", async (HttpContext context, LocalSession session, 
     {
         return Results.BadRequest(new { error = ex.Message });
     }
-}).RequireAuthorization();
+}).RequireSession();
 
 // MCP HTTP compartido con OpenCode/Claude/Cursor. El middleware anterior exige bearer.
 app.MapMcp("/mcp").RequireRateLimiting("mcp");
-app.MapGet("/api/mcp/tokens", async (HttpContext context, LocalSession session, McpTokenService tokens) =>
+// Tokens MCP: solo administración activa (la política relee el usuario en la base en cada petición).
+var mcpTokens = app.MapGroup("/api/mcp/tokens").RequireSession(AccessPolicies.Admin);
+mcpTokens.MapGet("", (LocalSession session, McpTokenService tokens) => tokens.ListAsync(session.UserId));
+mcpTokens.MapPost("", async (LocalSession session, McpTokenService tokens, McpTokenCreateRequest request) =>
 {
-    if (context.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
-    session.SignIn(context.User);
-    await using var db = await context.RequestServices.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContextAsync();
-    var actor = await db.Users.AsNoTracking().SingleOrDefaultAsync(user => user.Id == session.UserId);
-    if (actor is null || !Permissions.CanAdmin(actor)) return Results.Forbid();
-    return Results.Ok(await tokens.ListAsync(session.UserId));
-}).RequireAuthorization();
-
-app.MapPost("/api/mcp/tokens", async (HttpContext context, LocalSession session, McpTokenService tokens,
-    McpTokenCreateRequest request) =>
-{
-    if (context.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
-    session.SignIn(context.User);
-    await using var db = await context.RequestServices.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContextAsync();
-    var actor = await db.Users.SingleOrDefaultAsync(user => user.Id == session.UserId);
-    if (actor is null || !Permissions.CanAdmin(actor)) return Results.Forbid();
-    var target = request.UserId ?? actor.Id;
-    var (raw, token) = await tokens.CreateAsync(target, request.Name, request.ValidDays, actorName: actor.Name);
+    var (raw, token) = await tokens.CreateAsync(request.UserId ?? session.UserId!, request.Name, request.ValidDays,
+        actorName: session.DisplayName);
     return Results.Ok(new { token = raw, access = token, warning = "Guarda el token: no se vuelve a mostrar." });
-}).RequireAuthorization();
-
-app.MapDelete("/api/mcp/tokens/{id}", async (HttpContext context, LocalSession session, string id,
-    McpTokenService tokens) =>
-{
-    if (context.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
-    session.SignIn(context.User);
-    await using var db = await context.RequestServices.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContextAsync();
-    var actor = await db.Users.SingleOrDefaultAsync(user => user.Id == session.UserId);
-    if (actor is null || !Permissions.CanAdmin(actor)) return Results.Forbid();
-    return await tokens.RevokeAsync(id, actorName: actor.Name) ? Results.NoContent() : Results.NotFound();
-}).RequireAuthorization();
+});
+mcpTokens.MapDelete("/{id}", async (LocalSession session, string id, McpTokenService tokens) =>
+    await tokens.RevokeAsync(id, actorName: session.DisplayName) ? Results.NoContent() : Results.NotFound());
 
 app.MapGovernanceApi();
 app.MapStaticAssets();
