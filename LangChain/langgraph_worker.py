@@ -34,7 +34,7 @@ from langgraph.graph import END, START, StateGraph  # noqa: E402
 from pydantic import BaseModel, ConfigDict, Field, model_validator  # noqa: E402
 
 MAX_REQUEST_BYTES = 120_000
-MAX_SOURCE_CHARS = 1_500
+MAX_SOURCE_CHARS = 4_000
 MAX_ANSWER_CHARS = 10_000
 
 

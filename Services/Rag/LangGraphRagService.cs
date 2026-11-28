@@ -50,7 +50,7 @@ public sealed class LangGraphRagService(
         var selected = sources
             .Where(source => snapshot.Documents.Any(document => document.Id == source.Document.Id &&
                 Permissions.CanRead(snapshot.Actor, document)))
-            .Take(Math.Clamp(settings.LangGraphMaxSources, 1, 6)).ToList();
+            .Take(Math.Clamp(settings.LangGraphMaxSources, 1, RagContextLimits.MaxModelSources)).ToList();
         if (selected.Count == 0) return null;
         var request = new
         {
@@ -68,7 +68,7 @@ public sealed class LangGraphRagService(
                 code = source.Document.InternalCode,
                 title = source.Document.Title,
                 page = source.PageNumber,
-                text = TextAnalysis.Truncate(source.Snippet, 800)
+                text = TextAnalysis.Truncate(source.Snippet, RagContextLimits.MaxSourceChars)
             }).ToArray(),
             system = AssistantPrompt.For(style),
             max_sources = selected.Count,

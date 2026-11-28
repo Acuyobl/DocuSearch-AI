@@ -13,16 +13,25 @@ public static class AssistantPrompt
         "answer" (respuesta en español) y "citations" (IDs enteros de las fuentes utilizadas).
         Incluye al menos una fuente de las proporcionadas y nunca inventes IDs.
         No presentes extractos incompletos como si fueran el documento completo.
-        No escribas códigos internos de documento, títulos de archivo ni rutas dentro de la
+        No escribas códigos internos de documento, nombres de archivo ni rutas dentro de la
         respuesta; las fuentes se muestran aparte al final. Cita únicamente con [n].
         """;
 
-    private const string Brief = """
-        Formato: respuesta breve pero razonada. Empieza con una respuesta directa en una o dos
-        frases. Después añade de 2 a 4 viñetas con los datos concretos y su significado; no te
-        limites a copiar fragmentos. Si las fuentes no cubren algo, indícalo en una frase final
-        «Límite de las fuentes». No inventes ni completes con conocimiento externo. Cita con [n]
-        al final de cada frase o viñeta, sin concatenar números.
+    private const string Complete = """
+        Formato: respuesta completa y bien explicada, adaptada a la pregunta.
+        1. Empieza con la respuesta directa en una a tres frases.
+        2. Después desarrolla con todos los datos relevantes que consten en las fuentes: cifras,
+           fechas, plazos, condiciones, responsables, requisitos, excepciones y consecuencias.
+           Explica qué significan y cómo se relacionan; no te limites a copiar frases.
+        3. Si la pregunta pide un procedimiento, enumera los pasos en orden. Si abarca varios
+           aspectos, usa encabezados cortos (###) o viñetas; si es simple, basta un párrafo.
+        4. Si varias fuentes o documentos dicen cosas distintas, indícalo y distingue cada una.
+        5. Si las fuentes no cubren parte de la pregunta, termina con «**Límites de las fuentes:**»
+           y una frase sobre lo que falta. No lo completes con conocimiento externo.
+        Puedes nombrar los documentos por su título descriptivo para que se entienda de dónde sale
+        cada dato. Cita con [n] al final de cada frase, viñeta o dato, sin concatenar números.
+        Extensión: la necesaria para que la respuesta sea completa (normalmente 150-450 palabras);
+        no rellenes ni repitas.
         """;
 
     private const string SummaryStyle = """
@@ -64,14 +73,14 @@ public static class AssistantPrompt
     {
         AnswerStyle.Summary => SummaryStyle,
         AnswerStyle.Analysis => AnalysisStyle,
-        _ => Brief
+        _ => Complete
     };
 }
 
 /// <summary>Tipo de respuesta que se pide al motor generativo.</summary>
 public enum AnswerStyle
 {
-    /// <summary>Respuesta breve a una pregunta concreta.</summary>
+    /// <summary>Respuesta completa y explicada a una pregunta concreta.</summary>
     Default,
     /// <summary>Resumen en lenguaje natural, uno o varios documentos.</summary>
     Summary,

@@ -6,6 +6,7 @@
 @inject RagQueryService Rag
 @inject AssistantMemory Memory
 @inject Microsoft.Extensions.Options.IOptions<DocuSearch.Services.Rag.RagOptions> RagOptions
+@inject ILogger<AgentChat> Logger
 @implements IAsyncDisposable
 <div class="assistant-page">
 <header class="assistant-bar">
@@ -268,7 +269,10 @@ else if (!Active.Available)
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
                 {
-                    // El pipeline nuevo nunca debe tumbar el asistente; se usa el RAG anterior.
+                    // El pipeline nuevo nunca debe tumbar el asistente; se usa el RAG anterior,
+                    // pero se registra: antes este respaldo ocurría en silencio (p. ej. sin embeddings).
+                    Logger.LogWarning("Asistente: el RAG por fragmentos falló ({Error}: {Message}); se usa el RAG anterior.",
+                        ex.GetType().Name, TextAnalysis.Truncate(ex.Message, 300));
                     answer = await Agent.AskAsync(text);
                 }
             }

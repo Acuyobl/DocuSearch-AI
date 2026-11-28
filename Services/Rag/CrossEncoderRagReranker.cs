@@ -4,8 +4,9 @@ using Microsoft.Extensions.Options;
 namespace DocuSearch.Services.Rag;
 
 /// <summary>
-/// Reranker cross-encoder real. Llama a un microservicio local FastEmbed/ONNX;
-/// si no está disponible, cae al reranker semántico anterior para no romper la app.
+/// Reranker cross-encoder real. Llama a un microservicio local FastEmbed/ONNX. Si no está configurado o
+/// falla, conserva el orden híbrido; el reranker semántico (pregunta+fragmento) solo se usa con
+/// Rag:SemanticRerankFallback=true, porque favorece fragmentos cortos y cuesta una llamada por candidato.
 /// Las puntuaciones devueltas están siempre en [0, 1].
 /// </summary>
 public sealed class CrossEncoderRagReranker(
@@ -25,8 +26,7 @@ public sealed class CrossEncoderRagReranker(
         if (candidates.Count <= 1) return candidates;
         // El retriever ya decide el tamaño del pool; aquí solo se aplica el tope del servicio.
         var limited = candidates.Take(MaxCandidates).ToList();
-        if (string.IsNullOrWhiteSpace(settings.RerankerUrl))
-            return await fallback.RerankAsync(query, limited, cancellationToken);
+        if (string.IsNullOrWhiteSpace(settings.RerankerUrl)) return await FallbackAsync(query, limited, cancellationToken);
         try
         {
             using var http = httpFactory.CreateClient("rag-reranker");
@@ -46,10 +46,14 @@ public sealed class CrossEncoderRagReranker(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning("Cross-encoder no disponible ({Error}); se usa reranker semántico.", ex.GetType().Name);
-            return await fallback.RerankAsync(query, limited, cancellationToken);
+            logger.LogWarning("Cross-encoder no disponible ({Error}); se conserva el orden híbrido.", ex.GetType().Name);
+            return await FallbackAsync(query, limited, cancellationToken);
         }
     }
+
+    private async Task<IReadOnlyList<RagHit>> FallbackAsync(string query, IReadOnlyList<RagHit> candidates,
+        CancellationToken cancellationToken) =>
+        settings.SemanticRerankFallback ? await fallback.RerankAsync(query, candidates, cancellationToken) : candidates;
 
     /// <summary>
     /// Si el servicio devuelve logits (algún valor fuera de [0, 1]), se aplica la

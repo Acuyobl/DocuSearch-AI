@@ -4,8 +4,12 @@ public sealed class RagOptions
 {
     /// <summary>fixed | semantic</summary>
     public string ChunkingStrategy { get; set; } = "fixed";
-    public int MaxTokens { get; set; } = 512;
-    public int OverlapTokens { get; set; } = 64;
+    /// <summary>
+    /// Palabras por fragmento. multilingual-e5-large trunca a ~512 tokens (≈ 350 palabras en español):
+    /// con fragmentos más largos el final no entra en el vector y no se puede encontrar.
+    /// </summary>
+    public int MaxTokens { get; set; } = 300;
+    public int OverlapTokens { get; set; } = 60;
     public double SemanticBreakThreshold { get; set; } = 0.55;
     public int CandidateK { get; set; } = 30;
     public int TopK { get; set; } = 8;
@@ -16,6 +20,8 @@ public sealed class RagOptions
     /// <summary>URL del microservicio cross-encoder; vacío usa el reranker semántico local.</summary>
     public string RerankerUrl { get; set; } = "";
     public int RerankerTimeoutSeconds { get; set; } = 60;
+    /// <summary>Sin cross-encoder, reordena con el reranker semántico (lento y sesgado a fragmentos cortos).</summary>
+    public bool SemanticRerankFallback { get; set; }
     /// <summary>sql | pinecone</summary>
     public string VectorStore { get; set; } = "sql";
     /// <summary>
@@ -83,6 +89,13 @@ public interface IRagEmbedder
     /// <summary>Embedding de un texto efímero que no merece ocupar la caché (p. ej. consulta + fragmento).</summary>
     Task<float[]> EmbedUncachedAsync(string text, CancellationToken cancellationToken = default) =>
         EmbedAsync(text, cancellationToken);
+}
+
+/// <summary>Similitud de la consulta con fragmentos concretos, para candidatos que llegaron por otra vía (BM25).</summary>
+public interface IRagChunkScorer
+{
+    Task<IReadOnlyDictionary<string, double>> ScoreChunksAsync(float[] vector, IReadOnlyCollection<string> chunkIds,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IRagVectorStore

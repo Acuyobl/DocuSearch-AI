@@ -124,16 +124,17 @@ public sealed class RagQueryService(
                 "No hay fuentes suficientes para responder. No se ha consultado ningún servicio externo.",
                 [], NoCoverageEngine, timer.ElapsedMilliseconds, RagOutcome.NoCoverage);
 
+        // Una fuente por página con el texto de todos sus fragmentos recuperados, en orden de relevancia.
+        // Es la misma lista, en el mismo orden, que recibe el motor: así las citas [n] coinciden con lo mostrado.
         var sourcePairs = new List<(SearchHit Hit, RagChunk Chunk, double Score)>();
-        foreach (var hit in hits)
+        foreach (var page in RagContext.MergeByPage(hits))
         {
-            var document = snapshot.Documents.FirstOrDefault(item => item.Id == hit.Chunk.DocumentId);
-            if (document is null || document.Pages.All(page => page.PageNumber != hit.Chunk.PageNumber)) continue;
-            sourcePairs.Add((new SearchHit(document, hit.Chunk.PageNumber,
-                TextAnalysis.Truncate(hit.Chunk.Text, 1500), Math.Clamp((int)Math.Round(hit.Score * 100), 0, 100)), hit.Chunk, hit.Score));
+            if (sourcePairs.Count >= RagContextLimits.MaxSources) break;
+            var document = snapshot.Documents.FirstOrDefault(item => item.Id == page.First.DocumentId);
+            if (document is null || document.Pages.All(item => item.PageNumber != page.First.PageNumber)) continue;
+            sourcePairs.Add((new SearchHit(document, page.First.PageNumber, page.Text,
+                Math.Clamp((int)Math.Round(page.Score * 100), 0, 100)), page.First, page.Score));
         }
-        // Una fuente por página, en el mismo orden que recibe el motor: así las citas [n] coinciden con la lista.
-        sourcePairs = sourcePairs.DistinctBy(pair => (pair.Hit.Document.Id, pair.Hit.PageNumber)).ToList();
         if (sourcePairs.Count == 0)
             return new RagQueryResponse("No hay fuentes autorizadas para responder.", [], NoCoverageEngine,
                 timer.ElapsedMilliseconds, RagOutcome.NoCoverage);
@@ -346,7 +347,7 @@ public sealed class RagQueryService(
             engine, provider, model, $"assistant.rag.{style.ToString().ToLowerInvariant()}", AssistantPrompt.For(style),
             question + "\n" + string.Join("\n", sources.Take(DocumentSynthesis.MaxSources).Select(source => source.Snippet)),
             aiGovernance?.ResolvePricing(engine, provider, model, profile) ?? AiPricing.Free,
-            style == AnswerStyle.Default ? 600 : 1000, nameof(AgentTrace), traceId);
+            style == AnswerStyle.Default ? 1200 : 1500, nameof(AgentTrace), traceId);
 
     /// <summary>
     /// Detalle JSON del evento RAG_QUERY. Con <paramref name="auditContent"/> desactivado no guarda
