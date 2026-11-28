@@ -986,6 +986,17 @@ if (args.Contains("--auth"))
     LoginAttemptLimiter NewLimiter() => new(new MemoryCache(new MemoryCacheOptions()),
         Options.Create(new AuthOptions { MaxFailedAttempts = 3, LockoutMinutes = 1 }));
 
+    await Check("Bloqueo de login: funciona con MemoryCache SizeLimit", () => Sync(() =>
+    {
+        using var limitedCache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 10 });
+        var limited = new LoginAttemptLimiter(limitedCache,
+            Options.Create(new AuthOptions { MaxFailedAttempts = 3, LockoutMinutes = 1 }));
+        limited.RegisterFailure("size-limit@example.test");
+        limited.RegisterFailure("size-limit@example.test");
+        limited.RegisterFailure("size-limit@example.test");
+        Assert(limited.IsLocked("size-limit@example.test", out _));
+    }));
+
     await Check("Bloqueo de login: tres fallos bloquean la cuenta", () => Sync(() =>
     {
         var limiter = NewLimiter();

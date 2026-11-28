@@ -32,14 +32,24 @@ public sealed class LoginAttemptLimiter(IMemoryCache cache, IOptions<AuthOptions
     public void RegisterFailure(string? email)
     {
         if (string.IsNullOrWhiteSpace(email)) return;
-        var state = cache.GetOrCreate(Key(email), _ => new State())!;
+        var duration = TimeSpan.FromMinutes(Math.Max(1, options.Value.LockoutMinutes) + 1);
+        var state = cache.GetOrCreate(Key(email), entry =>
+        {
+            entry.Size = 1;
+            entry.AbsoluteExpirationRelativeToNow = duration;
+            return new State();
+        })!;
         lock (state)
         {
             state.Failures++;
             if (state.Failures >= Math.Max(1, options.Value.MaxFailedAttempts))
                 state.LockedUntil = DateTimeOffset.UtcNow.AddMinutes(Math.Max(1, options.Value.LockoutMinutes));
         }
-        cache.Set(Key(email), state, TimeSpan.FromMinutes(Math.Max(1, options.Value.LockoutMinutes) + 1));
+        cache.Set(Key(email), state, new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = duration,
+            Size = 1
+        });
     }
 
     public void Reset(string? email)

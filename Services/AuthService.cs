@@ -117,7 +117,12 @@ public sealed class AuthService(
             logger.LogWarning("Código TOTP reutilizado para {Email} (paso {Step}).", config.Email, step);
             return null;
         }
-        cache.Set(CacheKey(config.Email), step, TimeSpan.FromSeconds(Totp.PeriodSeconds * (Math.Clamp(options.Value.TotpWindow, 0, 3) + 2)));
+        cache.Set(CacheKey(config.Email), step, new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(
+                Totp.PeriodSeconds * (Math.Clamp(options.Value.TotpWindow, 0, 3) + 2)),
+            Size = 1
+        });
         limiter.Reset(config.Email);
 
         var user = await EnsureUserAsync(config);

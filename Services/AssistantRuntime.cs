@@ -220,7 +220,10 @@ public sealed class AssistantRuntime(IOptions<AssistantOptions> options, OpenCod
             .OrderBy(profile => profile.Group == "Locales" ? 0 : profile.Group == "Pago" ? 1 : 2)
             .ThenBy(profile => profile.Label, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        return result;
+        // Defensa contra catálogos que repiten el mismo proveedor/modelo.
+        return result
+            .DistinctBy(profile => $"{profile.ProviderId}/{profile.ModelId}", StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private void Apply(List<AssistantProfile> candidates, string? error)
