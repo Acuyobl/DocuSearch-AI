@@ -46,19 +46,47 @@ public sealed class DocumentItem
     public bool HasOriginal { get; set; }
     public int ViewsCount { get; set; }
     public int DownloadsCount { get; set; }
+    // Caché de la última deserialización. Solo vale mientras PagesJson/NotesJson sigan siendo la
+    // misma instancia de cadena, así que cualquier escritura (setter, EF, código directo) la invalida.
+    // Las páginas y notas son records inmutables: para cambiarlas hay que reasignar la lista.
+    private Tuple<string, List<DocumentPage>>? pagesCache;
+    private Tuple<string, List<DocumentNote>>? notesCache;
+
     [NotMapped] public List<DocumentPage> Pages
     {
-        get => JsonSerializer.Deserialize<List<DocumentPage>>(PagesJson, Catalog.Json)
-            ?? throw new InvalidDataException("Páginas almacenadas inválidas.");
-        set => PagesJson = JsonSerializer.Serialize(value, Catalog.Json);
+        get
+        {
+            var json = PagesJson;
+            if (pagesCache is { } cached && ReferenceEquals(cached.Item1, json)) return cached.Item2;
+            var value = JsonSerializer.Deserialize<List<DocumentPage>>(json, Catalog.Json)
+                ?? throw new InvalidDataException("Páginas almacenadas inválidas.");
+            pagesCache = Tuple.Create(json, value);
+            return value;
+        }
+        set
+        {
+            PagesJson = JsonSerializer.Serialize(value, Catalog.Json);
+            pagesCache = null;
+        }
     }
     /// <summary>Vectores normalizados por página para la búsqueda híbrida; no se persisten en Documents.</summary>
     [NotMapped, JsonIgnore] public Dictionary<int, float[]> PageVectors { get; set; } = new();
     [NotMapped] public List<DocumentNote> Notes
     {
-        get => JsonSerializer.Deserialize<List<DocumentNote>>(NotesJson, Catalog.Json)
-            ?? throw new InvalidDataException("Notas almacenadas inválidas.");
-        set => NotesJson = JsonSerializer.Serialize(value, Catalog.Json);
+        get
+        {
+            var json = NotesJson;
+            if (notesCache is { } cached && ReferenceEquals(cached.Item1, json)) return cached.Item2;
+            var value = JsonSerializer.Deserialize<List<DocumentNote>>(json, Catalog.Json)
+                ?? throw new InvalidDataException("Notas almacenadas inválidas.");
+            notesCache = Tuple.Create(json, value);
+            return value;
+        }
+        set
+        {
+            NotesJson = JsonSerializer.Serialize(value, Catalog.Json);
+            notesCache = null;
+        }
     }
 }
 

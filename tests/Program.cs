@@ -144,7 +144,22 @@ await Check("Los perfiles del seed coinciden con las cuentas TOTP configuradas",
 }));
 await Check("Páginas y notas de ejemplo preservadas", () => Sync(() =>
     Assert(seed.Documents.Sum(d => d.PageCount) == 124 && seed.Documents.Sum(d => d.Pages.Count) == 10 && seed.Documents.Sum(d => d.Notes.Count) == 2)));
-await Check("Ejemplos no inventan archivos PDF originales", () => Sync(() => Assert(seed.Documents.All(d => !d.HasOriginal))));
+await Check("Pages y Notes se deserializan una vez y se invalidan al cambiar el JSON", () => Sync(() =>
+{
+    var item = new DocumentItem();
+    item.Pages = [new DocumentPage(1, "uno", "", [])];
+    var first = item.Pages;
+    Assert(ReferenceEquals(first, item.Pages), "Lecturas repetidas deben reutilizar la lista.");
+    item.Pages = [new DocumentPage(1, "dos", "", [])];
+    Assert(item.Pages[0].ExtractedText == "dos", "El setter debe invalidar la caché.");
+    item.PagesJson = """[{"pageNumber":3,"extractedText":"tres","summary":"","entities":[]}]""";
+    Assert(item.Pages[0].PageNumber == 3, "Asignar PagesJson debe invalidar la caché.");
+    item.Notes = [new DocumentNote("n1", "a", "r", DateTimeOffset.UnixEpoch, "nota", null)];
+    Assert(ReferenceEquals(item.Notes, item.Notes) && item.Notes[0].Text == "nota");
+    item.NotesJson = "[]";
+    Assert(item.Notes.Count == 0, "Asignar NotesJson debe invalidar la caché.");
+}));
+await Check("Ejemplos no inventan archivos PDF originales",() => Sync(() => Assert(seed.Documents.All(d => !d.HasOriginal))));
 await Check("Datos de ejemplo válidos y departamentos referenciados", () => Sync(() =>
 {
     foreach (var value in seed.Documents.Cast<object>().Concat(seed.Users).Concat(seed.Departments))
