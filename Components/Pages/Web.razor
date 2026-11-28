@@ -11,7 +11,8 @@
 
 <div class="web-shell @(sidebarCollapsed ? "sidebar-collapsed" : "")" id="web-shell">
     <header class="web-topbar">
-        <a class="brand" href="/" title="Volver al panel">
+        @* La página web es independiente: la marca no lleva al panel principal. *@
+        <a class="brand" href="/web" title="Buscador Web">
             <span class="brand-mark"><AppIcon Name="document" /></span>
             <span>
                 <strong>DocuSearch <em>AI</em></strong>
