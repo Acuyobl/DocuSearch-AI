@@ -5,7 +5,7 @@ Actualizado: 29 de octubre de 2026.
 ## Arquitectura vigente
 
 Blazor Interactive Server + ASP.NET Core 10 + EF Core + SQL Server Express 2019.
-Instancia de referencia: `ICEPALFLOR\SQLEXPRESS`, base `DocuSearch`, autenticación de
+Instancia de referencia: `localhost\SQLEXPRESS`, base `DocuSearch`, autenticación de
 Windows para la base. El acceso web usa autenticación por cookie de ASP.NET Core:
 `GET /login`, `POST /account/login` y `GET /account/logout`; la identidad procede de los
 claims (`NameIdentifier`, `Name`, `Email`, `Role` y departamento), `LocalSession` se
@@ -55,8 +55,8 @@ Resumen de los cambios de esta rama:
    para darlo de alta en Google Authenticator, Microsoft Authenticator, Authy o similar.
    Los códigos son de un solo uso (se rechaza reutilizar el mismo paso de 30 s) y la
    ventana de tolerancia es configurable (`Auth:TotpWindow`). Hay tres usuarios
-   autorizados en `Auth:Users` (`acuyobl@gmail.com`, `carloshm7@gmail.com` y
-   `hubertaf@gmail.com`) con su secreto Base32 y su rol.
+   autorizados en `Auth:Users` (`admin.demo@example.test`, `gestor.demo@example.test` y
+   `auditor.demo@example.test`) con su secreto Base32 y su rol.
 2. **Endurecimiento:** cabeceras `X-Content-Type-Options`, `X-Frame-Options`,
    `Referrer-Policy`, `Permissions-Policy` y `Cross-Origin-Opener-Policy`, más el
    middleware `Demo:LocalOnly`, que rechaza peticiones no loopback y con cabeceras

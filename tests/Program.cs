@@ -138,7 +138,7 @@ await Check("Los perfiles del seed coinciden con las cuentas TOTP configuradas",
     var emails = seed.Users.Select(u => u.Email).OrderBy(e => e, StringComparer.Ordinal).ToArray();
     Assert(emails.SequenceEqual(new[]
     {
-        "acuyobl@gmail.com", "carloshm7@gmail.com", "hubertaf@gmail.com"
+        "admin.demo@example.test", "auditor.demo@example.test", "gestor.demo@example.test"
     }));
     Assert(seed.Users.All(u => u.Status == "Activo"));
 }));
@@ -437,7 +437,7 @@ await Check("TOTP: Base32 tolera minúsculas y separadores y se formatea en grup
 {
     Assert(Totp.Generate("gezd gnbv gy3t qojq gezd gnbv gy3t qojq", DateTimeOffset.FromUnixTimeSeconds(59)) == "287082");
     Assert(Totp.FormatSecret("GEZDGNBVGY3TQOJQ") == "GEZD GNBV GY3T QOJQ");
-    var uri = Totp.OtpAuthUri("DocuSearch AI", "acuyobl@gmail.com", "VL45YEQOYLCSP6TQHG563ULJZBMOO3ZG");
+    var uri = Totp.OtpAuthUri("DocuSearch AI", "admin.demo@example.test", "VL45YEQOYLCSP6TQHG563ULJZBMOO3ZG");
     Assert(uri.StartsWith("otpauth://totp/", StringComparison.Ordinal) && uri.Contains("secret=VL45YEQO", StringComparison.Ordinal));
 }));
 await Check("OpenCode: exige loopback o contraseña para servidores remotos", () => Sync(() =>

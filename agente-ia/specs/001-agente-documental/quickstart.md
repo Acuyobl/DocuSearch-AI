@@ -26,7 +26,7 @@ En la [configuración de aplicación](../../../appsettings.json):
 ```json
 {
   "ConnectionStrings": {
-    "Documents": "Server=ICEPALFLOR\\SQLEXPRESS;Database=DocuSearch;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=8"
+    "Documents": "Server=localhost\\SQLEXPRESS;Database=DocuSearch;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=8"
   },
   "AllowedHosts": "localhost;127.0.0.1;[::1]",
   "Ollama": {
@@ -147,7 +147,7 @@ dotnet run --project .\tests\DocuSearch.Checks.csproj -- --langchain
 Integración SQL **solo contra una base exclusiva y desechable**:
 
 ```powershell
-$env:DOCUSEARCH_TEST_CONNECTION = "Server=ICEPALFLOR\SQLEXPRESS;Database=DocuSearch_tests;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=8"
+$env:DOCUSEARCH_TEST_CONNECTION = "Server=localhost\SQLEXPRESS;Database=DocuSearch_tests;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=8"
 dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database --langchain
 ```
 

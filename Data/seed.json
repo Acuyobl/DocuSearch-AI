@@ -343,24 +343,24 @@
   "users": [
     {
       "id": "usr-1",
-      "name": "Acuyobl",
-      "email": "acuyobl@gmail.com",
+      "name": "Admin Demo",
+      "email": "admin.demo@example.test",
       "role": "admin_general",
       "department": "Tecnología & TI",
       "status": "Activo"
     },
     {
       "id": "usr-2",
-      "name": "Carloshm7",
-      "email": "carloshm7@gmail.com",
+      "name": "Gestor Demo",
+      "email": "gestor.demo@example.test",
       "role": "gestor_documental",
       "department": "Tecnología & TI",
       "status": "Activo"
     },
     {
       "id": "usr-3",
-      "name": "Hubertaf",
-      "email": "hubertaf@gmail.com",
+      "name": "Auditor Demo",
+      "email": "auditor.demo@example.test",
       "role": "auditor",
       "department": "Auditoría & Control",
       "status": "Activo"

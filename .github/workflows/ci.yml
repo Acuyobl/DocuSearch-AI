@@ -88,6 +88,17 @@ jobs:
           fi
           echo "OK: sin secretos TOTP versionados."
 
+      # Verificación de higiene: las cuentas reales viven en user-secrets, no en el repositorio.
+      - name: Verificar que no haya correos personales versionados
+        shell: bash
+        run: |
+          set -e
+          if git grep -nIiE '[A-Za-z0-9._%+-]+@(gmail|googlemail|hotmail|outlook|live|yahoo|icloud|proton|protonmail)\.[a-z.]+' -- . ':!LICENSE'; then
+            echo "::error::Hay correos personales versionados. Usa cuentas @example.test y declara las reales en user-secrets (Auth:Users:N:Email)."
+            exit 1
+          fi
+          echo "OK: sin correos personales versionados."
+
       # Verificación de higiene: los artefactos de compilación nunca deben versionarse.
       - name: Verificar que no haya bin/ u obj/ versionados
         shell: bash

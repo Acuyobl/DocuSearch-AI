@@ -43,7 +43,7 @@ base se crea o se actualiza con `dotnet run -- --initialize-database`.
 
 | Propiedad | Valor de referencia |
 |---|---|
-| Instancia | `ICEPALFLOR\SQLEXPRESS` (ejemplo) |
+| Instancia | `localhost\SQLEXPRESS` (ejemplo) |
 | Motor detectado | SQL Server 2019 Express, versión 15.0.2200.2 |
 | Base de la aplicación | `DocuSearch` |
 | Autenticación | Windows, mediante la identidad que ejecuta ASP.NET Core |
@@ -67,7 +67,7 @@ dotnet run -- --initialize-database
 `ConnectionStrings__Documents`. La cadena de referencia de `appsettings.json` es:
 
 ```text
-Server=ICEPALFLOR\SQLEXPRESS;Database=DocuSearch;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=8
+Server=localhost\SQLEXPRESS;Database=DocuSearch;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=8
 ```
 
 `TrustServerCertificate=True` permite el certificado local autofirmado de la instancia
@@ -581,20 +581,32 @@ Usuarios autorizados en `Auth:Users` de `appsettings.json`:
 
 | Correo | Rol | Departamento |
 |---|---|---|
-| `acuyobl@gmail.com` | Administrador General | Tecnología & TI |
-| `carloshm7@gmail.com` | Gestor Documental | Tecnología & TI |
-| `hubertaf@gmail.com` | Auditor de Seguridad | Auditoría & Control |
+| `admin.demo@example.test` | Administrador General | Tecnología & TI |
+| `gestor.demo@example.test` | Gestor Documental | Tecnología & TI |
+| `auditor.demo@example.test` | Auditor de Seguridad | Auditoría & Control |
 
 Los secretos TOTP **no se versionan** en `appsettings.json`. Cada entrada de `Auth:Users` solo
 declara correo, nombre, rol y departamento; el secreto Base32 se guarda fuera del repositorio,
 en user-secrets o en una variable de entorno (`Auth__TotpSecrets__<correo>`):
 
 ```powershell
-dotnet user-secrets set "Auth:TotpSecrets:acuyobl@gmail.com" "<BASE32_DE_32_CARACTERES>"
-dotnet user-secrets set "Auth:TotpSecrets:carloshm7@gmail.com" "<BASE32_DE_32_CARACTERES>"
-dotnet user-secrets set "Auth:TotpSecrets:hubertaf@gmail.com" "<BASE32_DE_32_CARACTERES>"
+dotnet user-secrets set "Auth:TotpSecrets:admin.demo@example.test" "<BASE32_DE_32_CARACTERES>"
+dotnet user-secrets set "Auth:TotpSecrets:gestor.demo@example.test" "<BASE32_DE_32_CARACTERES>"
+dotnet user-secrets set "Auth:TotpSecrets:auditor.demo@example.test" "<BASE32_DE_32_CARACTERES>"
 dotnet user-secrets list
 ```
+
+Las cuentas del repositorio son de ejemplo (`@example.test`). Las cuentas reales tampoco se
+versionan: se sobrescriben por posición en user-secrets (o con `Auth__Users__0__Email`, etc.):
+
+```powershell
+dotnet user-secrets set "Auth:Users:0:Email" "persona@empresa.com"
+dotnet user-secrets set "Auth:Users:0:Name" "Nombre Apellido"
+dotnet user-secrets set "Auth:TotpSecrets:persona@empresa.com" "<BASE32_DE_32_CARACTERES>"
+```
+
+El CI falla si aparece un correo de un proveedor personal (Gmail, Outlook, Yahoo…) en un
+archivo versionado.
 
 `Auth:EnrollmentEnabled` es `false` por defecto. Para inscribir o reinscribir un teléfono,
 actívalo temporalmente (`dotnet user-secrets set "Auth:EnrollmentEnabled" "true"`) y abre
@@ -759,7 +771,7 @@ sintética. Pruebas Python (ocho, sin modelo ni red):
 Pruebas reales de integración en una base **exclusiva y desechable**:
 
 ```powershell
-$env:DOCUSEARCH_TEST_CONNECTION = "Server=ICEPALFLOR\SQLEXPRESS;Database=DocuSearch_tests;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=8"
+$env:DOCUSEARCH_TEST_CONNECTION = "Server=localhost\SQLEXPRESS;Database=DocuSearch_tests;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=8"
 dotnet run --project .\tests\DocuSearch.Checks.csproj -- --database
 ```
 

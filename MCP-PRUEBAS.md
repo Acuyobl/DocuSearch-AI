@@ -23,7 +23,7 @@ dotnet build DocuSearch.Mcp/DocuSearch.Mcp.csproj -c Debug
 
 ```powershell
 $env:DOCUSEARCH_MCP_CONNECTION = "Server=127.0.0.1,14331;Database=DocuSearch;User Id=sa;Password=<secreto>;TrustServerCertificate=True;Encrypt=False"
-$env:DOCUSEARCH_MCP_USER = "acuyobl@gmail.com"
+$env:DOCUSEARCH_MCP_USER = "admin.demo@example.test"
 ```
 
 `DOCUSEARCH_MCP_USER` debe corresponder a un usuario **activo** de la tabla `Users`. El rol real de ese usuario se aplica automáticamente.

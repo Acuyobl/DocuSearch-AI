@@ -37,10 +37,10 @@ Búsqueda híbrida con embeddings locales (`bge-m3`) y métricas reales, sin cif
 El acceso usa inicio de sesión real con cookie de ASP.NET Core (`/login`) y **verificación
 en dos pasos TOTP**: la clave es el código temporal de 6 dígitos de la app autenticadora.
 Ya no hay selector anónimo de perfiles ni contraseña estática. Tres usuarios autorizados
-(`acuyobl@gmail.com`, `carloshm7@gmail.com` y `hubertaf@gmail.com`) permiten comprobar los
+(`admin.demo@example.test`, `gestor.demo@example.test` y `auditor.demo@example.test`) permiten comprobar los
 permisos aplicados en servidor, con RBAC resuelto a partir de los claims; el alta se hace
 desde `GET /enroll` con un QR. Esos secretos viven en configuración y deben sustituirse
 por ASP.NET Core Identity u OIDC con TOTP/passkeys antes de publicar, junto con TLS.
 Por defecto el acceso sigue limitado al equipo local (`Demo:LocalOnly`).
-La conexión utiliza autenticación de Windows, instancia `ICEPALFLOR\SQLEXPRESS`
+La conexión utiliza autenticación de Windows, instancia `localhost\SQLEXPRESS`
 y base `DocuSearch`, ya inicializada. Detalles en [README](README.md).

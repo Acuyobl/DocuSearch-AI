@@ -116,9 +116,9 @@ Debe informar cuántos vectores sincronizó. Después, `--search` muestra
 
 1. Abre <http://localhost:5068>.
 2. Entra con tu correo autorizado y el código TOTP de 6 dígitos:
-   - `acuyobl@gmail.com` → Administrador General.
-   - `carloshm7@gmail.com` → Gestor Documental.
-   - `hubertaf@gmail.com` → Auditor de Seguridad.
+   - `admin.demo@example.test` → Administrador General.
+   - `gestor.demo@example.test` → Gestor Documental.
+   - `auditor.demo@example.test` → Auditor de Seguridad.
 3. Comprueba la cabecera; **Salir** vuelve a `/login`.
 4. `/enroll` devuelve 404 desde el host del contenedor (solo loopback); es lo esperado.
 

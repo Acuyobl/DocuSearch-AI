@@ -20,7 +20,7 @@ La regla excluye Node.js, no todo JavaScript ejecutado por el navegador.
 
 ## ADR-02. SQL Server local en lugar de PostgreSQL
 
-- **Contexto:** se propuso PostgreSQL, pero el equipo dispone de `ICEPALFLOR\SQLEXPRESS`.
+- **Contexto:** se propuso PostgreSQL, pero el equipo dispone de `localhost\SQLEXPRESS`.
 - **Decisión:** SQL Server Express 2019 con autenticación Windows y EF Core.
 - **Consecuencia:** configuración y migraciones específicas para SQL Server,
   compatibilidad 150 y límite global de 10 GB para datos.
