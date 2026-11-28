@@ -177,6 +177,8 @@
                 // Si el pipeline nuevo falla, se usa el índice anterior.
             }
         }
+        // Búsqueda de respaldo: la híbrida necesita los vectores por página, que se cargan solo ahora.
+        if (queryVector is not null) await State.EnsurePageVectorsAsync();
         results = LocalSearch.Search(filter.Apply(State.Data!.Documents), query, exact, Math.Clamp(minimum, 1, 100),
             queryVector, externalScores);
         elapsed = timer.ElapsedMilliseconds;

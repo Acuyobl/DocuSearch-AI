@@ -111,6 +111,19 @@ public sealed class DocumentService(IDbContextFactory<AppDbContext> factory, Loc
         return new(actor, documents, [], [], []);
     }
 
+    /// <summary>
+    /// Adjunta bajo demanda los vectores por página a documentos de una instantánea cargada sin ellos.
+    /// Solo lee vectores de documentos que el actor actual puede leer.
+    /// </summary>
+    public async Task AttachPageVectorsAsync(IReadOnlyCollection<DocumentItem> documents)
+    {
+        if (documents.Count == 0) return;
+        await using var db = await factory.CreateDbContextAsync();
+        var actor = await ActorAsync(db);
+        var readable = documents.Where(document => Permissions.CanRead(actor, document)).ToList();
+        if (readable.Count > 0) await AttachPageVectorsAsync(db, readable);
+    }
+
     private static async Task AttachPageVectorsAsync(AppDbContext db, List<DocumentItem> documents)
     {
         var embeddings = new List<PageEmbedding>();

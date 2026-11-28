@@ -2316,6 +2316,44 @@ if (args.Contains("--database"))
             await release.ExecuteNonQueryAsync();
         Assert(await routines.RunNowAsync(RoutineSchedule.DailySummary) is { Status: "OK" });
     });
+    await Check("SQL Server: la pestaña carga los vectores por página solo bajo demanda y con permisos", async () =>
+    {
+        var docs = (await service.LoadAsync()).Documents;
+        await service.SwitchProfileAsync(consultant.Id);
+        var consultantIds = (await service.LoadAsync()).Documents.Select(d => d.Id).ToHashSet();
+        await service.SwitchProfileAsync(admin.Id);
+        var open = docs.First(d => consultantIds.Contains(d.Id));
+        var secret = docs.First(d => !consultantIds.Contains(d.Id));
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            await db.PageEmbeddings.Where(e => e.DocumentId == open.Id || e.DocumentId == secret.Id).ExecuteDeleteAsync();
+            db.PageEmbeddings.AddRange(
+                new PageEmbedding { DocumentId = open.Id, PageNumber = 1, Model = "fake", Dimensions = 2, Vector = EmbeddingIndexer.ToBytes([1f, 0f]) },
+                new PageEmbedding { DocumentId = secret.Id, PageNumber = 1, Model = "fake", Dimensions = 2, Vector = EmbeddingIndexer.ToBytes([0f, 1f]) });
+            await db.SaveChangesAsync();
+        }
+        try
+        {
+            var state = new WorkspaceState(service, Microsoft.Extensions.Logging.Abstractions.NullLogger<WorkspaceState>.Instance);
+            await state.RefreshAsync();
+            Assert(state.Data!.Documents.All(d => d.PageVectors.Count == 0), "La instantánea de la pestaña no trae vectores.");
+            Assert(state.Data.Users.Count > 0 && state.Data.Departments.Count > 0, "La pestaña conserva el directorio.");
+            await state.EnsurePageVectorsAsync();
+            Assert(state.Data.Documents.Single(d => d.Id == open.Id).PageVectors.ContainsKey(1), "Se adjuntan bajo demanda.");
+
+            // Documentos ajenos al perfil actual no reciben vectores aunque se pasen explícitamente.
+            await service.SwitchProfileAsync(consultant.Id);
+            var foreign = new List<DocumentItem> { new() { Id = secret.Id, Confidentiality = secret.Confidentiality, Department = secret.Department } };
+            await service.AttachPageVectorsAsync(foreign);
+            Assert(foreign[0].PageVectors.Count == 0, "Sin permiso de lectura no se adjuntan vectores.");
+        }
+        finally
+        {
+            await service.SwitchProfileAsync(admin.Id);
+            await using var db = await factory.CreateDbContextAsync();
+            await db.PageEmbeddings.Where(e => e.DocumentId == open.Id || e.DocumentId == secret.Id).ExecuteDeleteAsync();
+        }
+    });
     // Al final de la suite: reemplaza los fragmentos de dos documentos con datos sintéticos.
     await Check("SQL Server + RAG: la caché de vectores da los mismos resultados y detecta cambios", async () =>
     {
