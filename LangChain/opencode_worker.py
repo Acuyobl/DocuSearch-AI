@@ -69,7 +69,7 @@ class Source(BaseModel):
     code: str = Field(max_length=200)
     title: str = Field(max_length=1000)
     page: int = Field(ge=1)
-    text: str = Field(max_length=1001)
+    text: str = Field(max_length=1501)
 
 
 class Request(BaseModel):

@@ -18,7 +18,11 @@ public static class AssistantPrompt
         """;
 
     private const string Brief = """
-        Formato: respuesta breve y directa, sin códigos internos de documento. Cita con [n].
+        Formato: respuesta breve pero razonada. Empieza con una respuesta directa en una o dos
+        frases. Después añade de 2 a 4 viñetas con los datos concretos y su significado; no te
+        limites a copiar fragmentos. Si las fuentes no cubren algo, indícalo en una frase final
+        «Límite de las fuentes». No inventes ni completes con conocimiento externo. Cita con [n]
+        al final de cada frase o viñeta, sin concatenar números.
         """;
 
     private const string SummaryStyle = """

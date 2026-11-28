@@ -36,6 +36,14 @@ public sealed class HybridRagRetriever(
             var pool = RerankPoolSize(settings.RerankCandidates, topK);
             hits = (await reranker.RerankAsync(query, hits.Take(pool).ToList(), cancellationToken)).ToList();
         }
+        // Descarta colas muy débiles frente al mejor resultado: el prompt debe recibir
+        // fuentes relevantes, no relleno que confunda al modelo.
+        if (hits.Count > 0)
+        {
+            var best = hits[0].Score;
+            var floor = Math.Max(0.05, best * 0.30);
+            hits = hits.Where(hit => hit.Score >= floor).ToList();
+        }
         return hits.Take(topK).ToList();
     }
 

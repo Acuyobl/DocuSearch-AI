@@ -249,7 +249,7 @@ public sealed class OpenCodeClient
             code = source.Document.InternalCode,
             title = source.Document.Title,
             page = source.PageNumber,
-            text = TextAnalysis.Truncate(source.Snippet, 1000)
+            text = TextAnalysis.Truncate(source.Snippet, 1500)
         }).ToArray();
         var payload = JsonSerializer.Serialize(new { question = query, sources = context }, Catalog.Json);
         var body = new Dictionary<string, object?>
@@ -310,7 +310,7 @@ public sealed class OpenCodeClient
             code = source.Document.InternalCode,
             title = source.Document.Title,
             page = source.PageNumber,
-            text = TextAnalysis.Truncate(source.Snippet, 1000)
+            text = TextAnalysis.Truncate(source.Snippet, 1500)
         }).ToArray();
         var request = new
         {

@@ -128,7 +128,7 @@ public sealed class RagQueryService(
             var document = snapshot.Documents.FirstOrDefault(item => item.Id == hit.Chunk.DocumentId);
             if (document is null || document.Pages.All(page => page.PageNumber != hit.Chunk.PageNumber)) continue;
             sourcePairs.Add((new SearchHit(document, hit.Chunk.PageNumber,
-                TextAnalysis.Truncate(hit.Chunk.Text, 1000), Math.Clamp((int)Math.Round(hit.Score * 100), 0, 100)), hit.Chunk, hit.Score));
+                TextAnalysis.Truncate(hit.Chunk.Text, 1500), Math.Clamp((int)Math.Round(hit.Score * 100), 0, 100)), hit.Chunk, hit.Score));
         }
         // Una fuente por página, en el mismo orden que recibe el motor: así las citas [n] coinciden con la lista.
         sourcePairs = sourcePairs.DistinctBy(pair => (pair.Hit.Document.Id, pair.Hit.PageNumber)).ToList();
@@ -151,9 +151,11 @@ public sealed class RagQueryService(
 
         var sourceHits = sourcePairs.Select(pair => pair.Hit).ToList();
 
-        var extractive = string.Join("\n\n", hits.Select(hit =>
-            $"{TextAnalysis.Truncate(hit.Chunk.Text, 700)}\n[{hit.Chunk.InternalCode}, p. {hit.Chunk.PageNumber}]"))
-            + "\n\nRespuesta extractiva con citas verificables.";
+        // La respuesta extractiva de respaldo debe ser útil por sí sola: no concatenar
+        // todos los candidatos (incluidos los de baja relevancia). Usa las primeras fuentes.
+        var extractive = string.Join("\n\n", sourcePairs.Take(3).Select(pair =>
+            $"{TextAnalysis.Truncate(pair.Hit.Snippet, 900)}\n[{pair.Hit.Document.InternalCode}, p. {pair.Hit.PageNumber}]"))
+            + "\n\nRespuesta extractiva basada en las fuentes más relevantes.";
         var (answer, outcome) = await GenerateVerifiedAsync(generationQuestion, sourceHits, AnswerStyle.Default,
             new AgentAnswer(extractive, sourceHits), generate, trace, snapshot);
 
