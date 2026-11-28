@@ -97,6 +97,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Events.OnRedirectToAccessDenied = context => ApiResponses.RedirectOrStatus(context, StatusCodes.Status403Forbidden);
     });
 builder.Services.AddDocuSearchAuthorization();
+// Configuración incoherente: falla al arrancar con un mensaje claro, no en la primera consulta.
+builder.Services.AddDocuSearchOptionsValidation();
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection("Auth"));
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddSingleton<LoginAttemptLimiter>();

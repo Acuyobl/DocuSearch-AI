@@ -156,6 +156,36 @@ await Check("Pages y Notes se deserializan una vez y se invalidan al cambiar el 
     item.NotesJson = "[]";
     Assert(item.Notes.Count == 0, "Asignar NotesJson debe invalidar la caché.");
 }));
+await Check("Configuración: los valores por defecto pasan la validación de arranque", () => Sync(() =>
+{
+    IOptionsMonitor<T> Monitor<T>(T value) where T : class => new StaticOptionsMonitor<T>(value);
+    Assert(new RagOptionsValidator(Monitor(new PineconeOptions())).Validate(null, new RagOptions()).Succeeded);
+    Assert(new EmbeddingOptionsValidator().Validate(null, new EmbeddingOptions()).Succeeded);
+    Assert(new PineconeOptionsValidator(Monitor(new EmbeddingOptions())).Validate(null, new PineconeOptions { Enabled = true }).Succeeded);
+    Assert(new ResilienceOptionsValidator().Validate(null, new ResilienceOptions()).Succeeded);
+    var auth = new AuthOptions { Users = [new() { Email = "a@example.test", Role = "auditor" }] };
+    Assert(new AuthOptionsValidator().Validate(null, auth).Succeeded);
+}));
+await Check("Configuración: rechaza valores sin sentido y desajustes entre secciones", () => Sync(() =>
+{
+    IOptionsMonitor<T> Monitor<T>(T value) where T : class => new StaticOptionsMonitor<T>(value);
+    string Errors(ValidateOptionsResult result) => result.Succeeded ? "" : string.Join(" | ", result.Failures!);
+    var rag = Errors(new RagOptionsValidator(Monitor(new PineconeOptions())).Validate(null,
+        new RagOptions { TopK = 0, OverlapTokens = 600, ChunkingStrategy = "random", VectorStore = "pinecone" }));
+    Assert(rag.Contains("Rag:TopK") && rag.Contains("Rag:OverlapTokens") && rag.Contains("Rag:ChunkingStrategy") &&
+        rag.Contains("Pinecone:Enabled=true"), rag);
+    var pinecone = Errors(new PineconeOptionsValidator(Monitor(new EmbeddingOptions { Dimensions = 768 }))
+        .Validate(null, new PineconeOptions { Enabled = true, Dimension = 1024 }));
+    Assert(pinecone.Contains("debe coincidir con Embeddings:Dimensions (768)"), pinecone);
+    Assert(new PineconeOptionsValidator(Monitor(new EmbeddingOptions { Dimensions = 768 }))
+        .Validate(null, new PineconeOptions { Enabled = false, Dimension = 1024 }).Succeeded, "Pinecone apagado no se valida.");
+    var auth = Errors(new AuthOptionsValidator().Validate(null, new AuthOptions
+    {
+        Users = [new() { Email = "a@example.test", Role = "root" }, new() { Email = "A@example.test", Role = "auditor" }]
+    }));
+    Assert(auth.Contains("«root» no existe") && auth.Contains("repite el correo"), auth);
+    Assert(!new ResilienceOptionsValidator().Validate(null, new ResilienceOptions { MaxAttempts = 0 }).Succeeded);
+}));
 await Check("Ejemplos no inventan archivos PDF originales",() => Sync(() => Assert(seed.Documents.All(d => !d.HasOriginal))));
 await Check("Datos de ejemplo válidos y departamentos referenciados", () => Sync(() =>
 {
@@ -2545,4 +2575,12 @@ internal sealed class FakeLangGraphRunner : ILangGraphRunner
         LastRequest = JsonSerializer.Serialize(request);
         return Failure is null ? Task.FromResult(Response) : Task.FromException<string>(Failure);
     }
+}
+
+/// <summary>IOptionsMonitor fijo para probar validadores que leen otra sección.</summary>
+internal sealed class StaticOptionsMonitor<T>(T value) : IOptionsMonitor<T>
+{
+    public T CurrentValue => value;
+    public T Get(string? name) => value;
+    public IDisposable? OnChange(Action<T, string?> listener) => null;
 }
