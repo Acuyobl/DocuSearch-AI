@@ -95,11 +95,12 @@ Atención: si algún código modifica la lista devuelta sin reasignarla, ese cam
 **Evidencia:** viven en memoria del proceso y se pierden al reiniciar o no se comparten entre instancias:
 - anti-replay TOTP en `IMemoryCache` ([`AuthService`](../Services/AuthService.cs#L120)): con dos instancias, el mismo código vale una vez en cada una;
 - bloqueo por cuenta ([`LoginAttemptLimiter`](../Services/LoginAttemptLimiter.cs)) y rate limit de login;
-- conversación del asistente ([`AssistantMemory`](../Services/AssistantMemory.cs)): además, `AddMemoryCache()` no fija `SizeLimit`, así que el `Size = 1` de cada entrada no limita nada;
+- conversación del asistente ([`AssistantMemory`](../Services/AssistantMemory.cs)), que caduca a las 24 h;
 - circuit breakers ([`AgentResilience`](../Services/AgentResilience.cs)).
 
 **Cambio**
-- Corto plazo: documentar «**una sola instancia**» como requisito en `ProductionGuard` (advertencia si se detecta una configuración de granja) y fijar `SizeLimit` en `AddMemoryCache`.
+- Corto plazo: documentar «**una sola instancia**» como requisito en `ProductionGuard` (advertencia si se detecta una configuración de granja).
+- **No** fijar `SizeLimit` en `AddMemoryCache`: todas las entradas ya caducan, y con un límite global una inundación de entradas (p. ej. conversaciones) impediría registrar el anti-replay TOTP o el bloqueo de cuenta, que comparten esa caché.
 - Antes de escalar: `IDistributedCache` sobre SQL Server (`Microsoft.Extensions.Caching.SqlServer`, sin infraestructura nueva) para el anti-replay TOTP y el bloqueo por cuenta. Blazor Server necesita además sesiones *sticky* en el balanceador.
 
 ### D6 — Autorización manual repetida (P1)
@@ -189,7 +190,7 @@ Orden pensado para que cada paso sea un PR pequeño, revisable y reversible. Cad
 |---|---|---|---|
 | 1 | Correos `@example.test`, cadena de conexión genérica y paso de CI anti-PII | D4 | CI rojo si se reintroduce un correo real |
 | 2 | Caché perezosa en `Pages`/`Notes` + auditoría de los 34 usos | D3 | `--rag` y `--database` en verde |
-| 3 | `/health` mínimo, `SizeLimit` en `AddMemoryCache` | D9, D5 | `curl /health` sin modelo |
+| 3 | `/health` mínimo para anónimos | D9 | `curl /health` sin modelo |
 | 4 | `--all` en los checks; CI con una sola invocación | D10.1 | Tiempo de CI antes y después |
 
 ### Fase 2 — Rendimiento del RAG (≈ 1 semana)

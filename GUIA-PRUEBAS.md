@@ -229,7 +229,7 @@ Luego entra como administrador y pulsa **Actualizar motores**. `/health` debe de
 
 | Síntoma | Causa / acción |
 |---|---|
-| `health.assistant` = `local-extractive` | OpenCode apagado; la búsqueda híbrida sigue funcionando |
+| `health.assistant` = `local-extractive` (visible solo con sesión iniciada) | OpenCode apagado; la búsqueda híbrida sigue funcionando |
 | `--search` dice “Vector: no disponible” | Ollama/bge-m3 no responde; revisa `Embeddings:BaseUrl` |
 | Sin resultados semánticos | Índice vacío: ejecuta `--reindex-embeddings` |
 | `PageEmbeddings` tiene 0 filas | Migración aplicada pero falta backfill |

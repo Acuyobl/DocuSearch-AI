@@ -47,6 +47,8 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents(options =>
 builder.Services.AddCascadingAuthenticationState();
 // El estado de autenticación del circuito interactivo procede de la cookie del handshake.
 builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
+// Sin SizeLimit a propósito: la caché compartida guarda el anti-replay TOTP y el bloqueo de login,
+// y con límite una inundación de entradas impediría registrarlos. Cada entrada lleva su caducidad.
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<AssistantMemory>();
 builder.Services.AddRateLimiter(options =>
@@ -721,13 +723,16 @@ app.MapGet("/enroll", (HttpContext context, IOptions<AuthOptions> auth) =>
     return Results.Content(AuthPages.Enroll(options.Issuer, users), "text/html; charset=utf-8");
 });
 
-app.MapGet("/health", async (IDbContextFactory<AppDbContext> factory, ILogger<Program> logger,
+app.MapGet("/health", async (HttpContext context, IDbContextFactory<AppDbContext> factory, ILogger<Program> logger,
     AssistantRuntime runtime, IOptions<OpenCodeOptions> openCodeOptions) =>
 {
     try
     {
         await using var db = await factory.CreateDbContextAsync();
         _ = await db.Users.CountAsync();
+        // Sin sesión no se revela el proveedor ni el modelo de IA configurado.
+        if (context.User.Identity?.IsAuthenticated != true)
+            return Results.Ok(new { status = "ready", database = "SQL Server" });
         var active = runtime.Active;
         var engine = active.Engine.ToLowerInvariant() switch
         {
