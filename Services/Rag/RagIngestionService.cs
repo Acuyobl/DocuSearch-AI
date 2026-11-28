@@ -79,7 +79,7 @@ public sealed class RagIngestionService(
             logger.LogWarning("RAG: {Truncated} de {Chunks} fragmentos de {Source} superan Embeddings:MaxChars ({MaxChars}); " +
                 "su vector no cubrirá el texto completo. Sube MaxChars o baja Rag:MaxTokens.",
                 truncated, chunks.Count, document.SourceId, maxEmbeddingChars);
-        var vectors = await embedder.EmbedBatchAsync(chunks.Select(chunk => chunk.Text).ToList(), cancellationToken);
+        var vectors = await embedder.EmbedBatchAsync(chunks.Select(chunk => EmbeddingText(document, chunk)).ToList(), cancellationToken);
         if (vectors.Count != chunks.Count)
             throw new InvalidOperationException($"El embedder devolvió {vectors.Count} vectores para {chunks.Count} fragmentos.");
         var items = chunks.Zip(vectors, (chunk, vector) => new RagChunkVector(chunk, vector, embedder.Model)).ToList();
@@ -88,6 +88,16 @@ public sealed class RagIngestionService(
             items.Count, document.SourceId, document.SourceType);
         return items.Count;
     }
+
+    /// <summary>
+    /// Texto que se convierte en vector: el título del documento y la página delante del fragmento.
+    /// Un fragmento como «la tasa es del 99,99 %» no dice de qué documento es; con el título, las
+    /// preguntas que nombran el documento o su tema lo encuentran. El texto guardado y citado no cambia.
+    /// </summary>
+    public static string EmbeddingText(RagDocument document, RagChunk chunk) =>
+        string.IsNullOrWhiteSpace(document.Title)
+            ? chunk.Text
+            : $"{document.Title.Trim()} · página {chunk.PageNumber}\n{chunk.Text}";
 
     /// <summary>
     /// Elimina los fragmentos de un expediente borrado. En SQL ya los quita la FK en

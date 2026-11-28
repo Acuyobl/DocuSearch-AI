@@ -11,7 +11,7 @@ public sealed class SqlRagVectorStore(
     IDbContextFactory<AppDbContext> factory,
     IOptions<EmbeddingOptions>? embeddingOptions = null,
     ILogger<SqlRagVectorStore>? logger = null,
-    RagVectorCache? cache = null) : IRagVectorStore
+    RagVectorCache? cache = null) : IRagVectorStore, IRagChunkScorer
 {
     private readonly string expectedModel = embeddingOptions?.Value.Model ?? "";
 
@@ -104,6 +104,31 @@ public sealed class SqlRagVectorStore(
             .Where(item => records.ContainsKey(item.ChunkId))
             .Select(item => new RagScoredChunk(ToChunk(records[item.ChunkId]), item.Score))
             .ToList();
+    }
+
+    /// <summary>Coseno de la consulta con los fragmentos indicados; los incompatibles o inexistentes no aparecen.</summary>
+    public async Task<IReadOnlyDictionary<string, double>> ScoreChunksAsync(float[] vector, IReadOnlyCollection<string> chunkIds,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new Dictionary<string, double>(StringComparer.Ordinal);
+        if (chunkIds.Count == 0) return result;
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        if (cache is not null)
+        {
+            var byId = await cache.GetByIdAsync(db, cancellationToken);
+            var query = RagVectorCache.Normalize(vector);
+            foreach (var id in chunkIds)
+                if (byId.TryGetValue(id, out var entry) && IsCompatible(entry.Dimensions, entry.Model, vector.Length, expectedModel))
+                    result[id] = RagVectorCache.Dot(query, entry.Unit);
+            return result;
+        }
+        var ids = chunkIds.ToList();
+        var rows = await db.RagChunks.AsNoTracking().Where(record => ids.Contains(record.Id))
+            .Select(record => new { record.Id, record.Model, record.Dimensions, record.Vector })
+            .ToListAsync(cancellationToken);
+        foreach (var row in rows.Where(row => IsCompatible(row.Dimensions, row.Model, vector.Length, expectedModel)))
+            result[row.Id] = Cosine(vector, FromBytes(row.Vector));
+        return result;
     }
 
     public async Task DeleteDocumentAsync(string documentId, CancellationToken cancellationToken = default)

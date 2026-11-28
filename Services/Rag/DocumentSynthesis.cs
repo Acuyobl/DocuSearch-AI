@@ -16,7 +16,7 @@ public sealed record AnswerIntent(AnswerStyle Style, bool MultiDocument, IReadOn
 public static partial class DocumentSynthesis
 {
     /// <summary>Límite de fuentes que aceptan los motores (C# y workers Python).</summary>
-    public const int MaxSources = 6;
+    public const int MaxSources = RagContextLimits.MaxSynthesisSources;
     public const int MaxDocuments = 5;
     /// <summary>Un documento entra en la síntesis si su mejor fragmento llega a esta fracción del mejor global.</summary>
     public const double RelatedThreshold = 0.6;
@@ -114,12 +114,12 @@ public static partial class DocumentSynthesis
             foreach (var hit in hitsByDocument.GetValueOrDefault(document.Id) ?? [])
             {
                 if (textPages.All(page => page.PageNumber != hit.Chunk.PageNumber) || !pages.Add(hit.Chunk.PageNumber)) continue;
-                queue.Enqueue(new SearchHit(document, hit.Chunk.PageNumber, TextAnalysis.Truncate(hit.Chunk.Text, 1000),
+                queue.Enqueue(new SearchHit(document, hit.Chunk.PageNumber, TextAnalysis.Truncate(hit.Chunk.Text, RagContextLimits.MaxSynthesisSourceChars),
                     Math.Clamp((int)Math.Round(hit.Score * 100), 0, 100)));
             }
             foreach (var page in SpreadPages(textPages).Where(page => pages.Add(page.PageNumber)))
                 queue.Enqueue(new SearchHit(document, page.PageNumber,
-                    TextAnalysis.Truncate(string.IsNullOrWhiteSpace(page.Summary) ? page.ExtractedText : page.Summary, 1000), 100));
+                    TextAnalysis.Truncate(page.ExtractedText, RagContextLimits.MaxSynthesisSourceChars), 100));
             return queue;
         }).Where(queue => queue.Count > 0).ToList();
 

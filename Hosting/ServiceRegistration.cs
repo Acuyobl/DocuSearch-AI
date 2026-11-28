@@ -118,6 +118,13 @@ public static class ServiceRegistration
         builder.Services.AddScoped<DocumentQualityService>();
         builder.Services.AddScoped<CatalogSuggester>();
         builder.Services.Configure<EmbeddingOptions>(builder.Configuration.GetSection("Embeddings"));
+        // Embeddings e índice usan la misma cuenta de Pinecone: sin Embeddings:ApiKey se reutiliza Pinecone:ApiKey.
+        builder.Services.PostConfigure<EmbeddingOptions>(options =>
+        {
+            if (string.IsNullOrWhiteSpace(options.ApiKey) &&
+                string.Equals(options.Provider, "pinecone", StringComparison.OrdinalIgnoreCase))
+                options.ApiKey = builder.Configuration["Pinecone:ApiKey"] ?? "";
+        });
         var embeddingBase = builder.Configuration["Embeddings:BaseUrl"] ?? "https://api.pinecone.io";
         if (!Uri.TryCreate(embeddingBase, UriKind.Absolute, out var embeddingUri) || embeddingUri.Scheme is not ("http" or "https"))
             throw new InvalidOperationException("Embeddings:BaseUrl debe ser una URL HTTP, por ejemplo https://api.pinecone.io.");

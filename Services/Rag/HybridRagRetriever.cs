@@ -1,17 +1,23 @@
 using System.Text.RegularExpressions;
+using DocuSearch.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace DocuSearch.Services.Rag;
 
 /// <summary>
-/// Retrieval híbrido: candidatos vectoriales reordenados con BM25 sobre ese mismo
-/// conjunto. El reranker recibe un pool mayor que TopK y el corte final se hace al
-/// terminar, para que pueda rescatar candidatos que la fusión dejó fuera.
+/// Retrieval híbrido. Con <see cref="RagLexicalIndex"/> une los mejores candidatos por vector y por BM25
+/// sobre todo el corpus legible, y puntúa cada candidato con ambas señales (coseno y BM25 con IDF del
+/// corpus): un fragmento que solo coincide literalmente (código, cifra, nombre) ya no se pierde.
+/// Sin índice léxico, BM25 reordena solo los candidatos vectoriales (comportamiento anterior).
+/// El reranker recibe un pool mayor que TopK y el corte final se hace al terminar.
 /// </summary>
 public sealed class HybridRagRetriever(
     IRagVectorStore vectorStore,
     IOptions<RagOptions> options,
-    IRagReranker reranker) : IRagRetriever
+    IRagReranker reranker,
+    RagLexicalIndex? lexicalIndex = null,
+    IDbContextFactory<AppDbContext>? factory = null) : IRagRetriever
 {
     private readonly RagOptions settings = options.Value;
 
@@ -19,22 +25,44 @@ public sealed class HybridRagRetriever(
         IReadOnlyCollection<string> documentIds, CancellationToken cancellationToken = default)
     {
         var topK = Math.Clamp(settings.TopK, 1, 50);
-        var candidates = await vectorStore.QueryAsync(queryVector, documentIds,
-            Math.Clamp(settings.CandidateK, 5, 100), cancellationToken);
-        if (candidates.Count == 0) return [];
-        var lexical = Bm25Scores(Tokens(query).Distinct().ToList(),
-            candidates.Select(candidate => candidate.Chunk.Text).ToList());
-        var maxLexical = lexical.Max();
-        var hits = candidates.Select((candidate, index) =>
+        var candidateK = Math.Clamp(settings.CandidateK, 5, 100);
+        var vectorHits = await vectorStore.QueryAsync(queryVector, documentIds, candidateK, cancellationToken);
+        var pool = vectorHits.ToDictionary(hit => hit.Chunk.Id, hit => (hit.Chunk, Cosine: hit.Score), StringComparer.Ordinal);
+        IReadOnlyDictionary<string, double> lexical;
+        if (lexicalIndex is not null && factory is not null)
         {
-            var lexicalScore = maxLexical <= 0 ? 0 : lexical[index] / maxLexical;
-            var score = settings.VectorWeight * candidate.Score + settings.LexicalWeight * lexicalScore;
-            return new RagHit(candidate.Chunk, score);
+            await using var db = await factory.CreateDbContextAsync(cancellationToken);
+            var lexicalHits = await lexicalIndex.SearchAsync(db, query, documentIds, candidateK, cancellationToken);
+            var lexicalOnly = lexicalHits.Where(hit => !pool.ContainsKey(hit.Chunk.Id)).ToList();
+            if (lexicalOnly.Count > 0)
+            {
+                var cosines = vectorStore is IRagChunkScorer scorer
+                    ? await scorer.ScoreChunksAsync(queryVector, lexicalOnly.Select(hit => hit.Chunk.Id).ToList(), cancellationToken)
+                    : new Dictionary<string, double>();
+                foreach (var hit in lexicalOnly)
+                    pool[hit.Chunk.Id] = (hit.Chunk, cosines.GetValueOrDefault(hit.Chunk.Id));
+            }
+            lexical = await lexicalIndex.ScoreAsync(db, query, pool.Keys.ToList(), cancellationToken);
+        }
+        else
+        {
+            var ids = pool.Keys.ToList();
+            var scores = Bm25Scores(Tokens(query).Distinct().ToList(), ids.Select(id => pool[id].Chunk.Text).ToList());
+            lexical = ids.Select((id, index) => (id, scores[index])).ToDictionary(item => item.id, item => item.Item2, StringComparer.Ordinal);
+        }
+        if (pool.Count == 0) return [];
+        var maxLexical = lexical.Count == 0 ? 0 : lexical.Values.Max();
+        var hits = pool.Values.Select(item =>
+        {
+            var lexicalScore = maxLexical <= 0 ? 0 : lexical.GetValueOrDefault(item.Chunk.Id) / maxLexical;
+            var score = settings.VectorWeight * item.Cosine + settings.LexicalWeight * lexicalScore;
+            return new RagHit(item.Chunk, score);
         }).OrderByDescending(hit => hit.Score).ToList();
         if (settings.Rerank && hits.Count > 1)
         {
-            var pool = RerankPoolSize(settings.RerankCandidates, topK);
-            hits = (await reranker.RerankAsync(query, hits.Take(pool).ToList(), cancellationToken)).ToList();
+            var size = RerankPoolSize(settings.RerankCandidates, topK);
+            // El reranker puntúa en otra escala: solo se conserva el pool reordenado (nunca menor que TopK).
+            hits = (await reranker.RerankAsync(query, hits.Take(size).ToList(), cancellationToken)).ToList();
         }
         // Descarta colas muy débiles frente al mejor resultado: el prompt debe recibir
         // fuentes relevantes, no relleno que confunda al modelo.

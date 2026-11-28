@@ -17,12 +17,16 @@ public sealed class PineconeRagVectorStore(
     SqlRagVectorStore sqlStore,
     IDbContextFactory<AppDbContext> factory,
     ILogger<PineconeRagVectorStore> logger,
-    IOptions<EmbeddingOptions>? embeddingOptions = null) : IRagVectorStore
+    IOptions<EmbeddingOptions>? embeddingOptions = null) : IRagVectorStore, IRagChunkScorer
 {
     public const string IdPrefix = "rag:";
     private readonly string expectedModel = embeddingOptions?.Value.Model ?? "";
 
     public string Name => "pinecone";
+
+    /// <summary>SQL guarda los mismos vectores que Pinecone: la puntuación puntual se resuelve allí.</summary>
+    public Task<IReadOnlyDictionary<string, double>> ScoreChunksAsync(float[] vector, IReadOnlyCollection<string> chunkIds,
+        CancellationToken cancellationToken = default) => sqlStore.ScoreChunksAsync(vector, chunkIds, cancellationToken);
 
     public static string VectorId(string chunkId) => IdPrefix + chunkId;
     public static string DocumentPrefix(string documentId) => $"{IdPrefix}{documentId}:";

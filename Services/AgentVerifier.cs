@@ -123,24 +123,22 @@ public static class AgentVerifier
             if (string.IsNullOrWhiteSpace(page.ExtractedText) || string.IsNullOrWhiteSpace(source.Snippet))
                 continue;
 
-            // El contexto se trunca con «…»; se compara el texto normalizado y también el
-            // resumen extractivo de la página, que es una selección de su propio texto.
-            var rawSnippet = source.Snippet.Trim().TrimEnd('…');
-            if (rawSnippet.Length == 0) continue;
-            if (page.ExtractedText.Contains(rawSnippet, StringComparison.Ordinal) ||
-                (page.Summary ?? "").Contains(rawSnippet, StringComparison.Ordinal))
-                continue;
-
-            var snippet = TextAnalysis.Normalize(rawSnippet);
-            if (snippet.Length == 0) continue;
-
+            // El contexto se trunca con «…» y une con «…» fragmentos no contiguos de la misma página:
+            // cada trozo debe constar en la página (texto o resumen extractivo), tal cual o normalizado.
+            var parts = source.Snippet.Split('…', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) continue;
             var pageText = TextAnalysis.Normalize(page.ExtractedText);
             var pageSummary = TextAnalysis.Normalize(page.Summary ?? "");
-            if (!pageText.Contains(snippet, StringComparison.Ordinal) &&
-                !pageSummary.Contains(snippet, StringComparison.Ordinal))
+            bool InPage(string part)
             {
-                issues.Add(new VerificationIssue(VerificationCode.TextNotInPage, document.InternalCode, source.PageNumber));
+                if (page.ExtractedText.Contains(part, StringComparison.Ordinal) ||
+                    (page.Summary ?? "").Contains(part, StringComparison.Ordinal)) return true;
+                var normalized = TextAnalysis.Normalize(part);
+                return normalized.Length == 0 || pageText.Contains(normalized, StringComparison.Ordinal) ||
+                    pageSummary.Contains(normalized, StringComparison.Ordinal);
             }
+            if (!parts.All(InPage))
+                issues.Add(new VerificationIssue(VerificationCode.TextNotInPage, document.InternalCode, source.PageNumber));
         }
 
         return new VerificationResult(issues.Count == 0, issues);

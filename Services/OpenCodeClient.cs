@@ -202,7 +202,7 @@ public sealed class OpenCodeClient
             throw new InvalidOperationException("La consulta debe tener entre 1 y 2000 caracteres.");
         if (sources.Count == 0) throw new InvalidOperationException("No hay fuentes autorizadas para consultar al modelo.");
 
-        var selected = sources.DistinctBy(source => (source.Document.Id, source.PageNumber)).Take(6).ToList();
+        var selected = sources.DistinctBy(source => (source.Document.Id, source.PageNumber)).Take(Rag.RagContextLimits.MaxModelSources).ToList();
         await CheckAsync(agentName);
         if (settings.UseLangChain)
             return await GenerateWithLangChainAsync(query, selected, provider, model, agentName, style, cancellationToken);
@@ -249,7 +249,7 @@ public sealed class OpenCodeClient
             code = source.Document.InternalCode,
             title = source.Document.Title,
             page = source.PageNumber,
-            text = TextAnalysis.Truncate(source.Snippet, 1500)
+            text = TextAnalysis.Truncate(source.Snippet, Rag.RagContextLimits.MaxSourceChars)
         }).ToArray();
         var payload = JsonSerializer.Serialize(new { question = query, sources = context }, Catalog.Json);
         var body = new Dictionary<string, object?>
@@ -310,7 +310,7 @@ public sealed class OpenCodeClient
             code = source.Document.InternalCode,
             title = source.Document.Title,
             page = source.PageNumber,
-            text = TextAnalysis.Truncate(source.Snippet, 1500)
+            text = TextAnalysis.Truncate(source.Snippet, Rag.RagContextLimits.MaxSourceChars)
         }).ToArray();
         var request = new
         {

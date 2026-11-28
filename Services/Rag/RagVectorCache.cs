@@ -18,7 +18,8 @@ public sealed class RagVectorCache(ILogger<RagVectorCache>? logger = null)
 {
     public sealed record Entry(string ChunkId, string DocumentId, string Model, int Dimensions, float[] Unit);
 
-    private sealed record State(long Count, DateTimeOffset? LastWrite, ILookup<string, Entry> ByDocument);
+    private sealed record State(long Count, DateTimeOffset? LastWrite, ILookup<string, Entry> ByDocument,
+        IReadOnlyDictionary<string, Entry> ById);
 
     private readonly SemaphoreSlim gate = new(1, 1);
     private volatile State? state;
@@ -27,30 +28,39 @@ public sealed class RagVectorCache(ILogger<RagVectorCache>? logger = null)
     public int Reloads { get; private set; }
 
     /// <summary>Fragmentos en memoria agrupados por documento, recargados si la tabla cambió.</summary>
-    public async Task<ILookup<string, Entry>> GetAsync(AppDbContext db, CancellationToken cancellationToken = default)
+    public async Task<ILookup<string, Entry>> GetAsync(AppDbContext db, CancellationToken cancellationToken = default) =>
+        (await GetStateAsync(db, cancellationToken)).ByDocument;
+
+    /// <summary>Fragmentos en memoria indexados por id.</summary>
+    public async Task<IReadOnlyDictionary<string, Entry>> GetByIdAsync(AppDbContext db, CancellationToken cancellationToken = default) =>
+        (await GetStateAsync(db, cancellationToken)).ById;
+
+    private async Task<State> GetStateAsync(AppDbContext db, CancellationToken cancellationToken)
     {
         var (count, lastWrite) = await FingerprintAsync(db, cancellationToken);
         if (state is { } current && current.Count == count && current.LastWrite == lastWrite)
-            return current.ByDocument;
+            return current;
 
         await gate.WaitAsync(cancellationToken);
         try
         {
             if (state is { } fresh && fresh.Count == count && fresh.LastWrite == lastWrite)
-                return fresh.ByDocument;
+                return fresh;
             // La huella se leyó antes que las filas: si alguien escribe entre ambas lecturas, la
             // siguiente consulta verá otra huella y volverá a recargar. Nunca se sirve algo más viejo.
             var rows = await db.RagChunks.AsNoTracking()
                 .Select(record => new { record.Id, record.DocumentId, record.Model, record.Dimensions, record.Vector })
                 .ToListAsync(cancellationToken);
-            var byDocument = rows
+            var entries = rows
                 .Select(row => new Entry(row.Id, row.DocumentId, row.Model, row.Dimensions,
                     Normalize(SqlRagVectorStore.FromBytes(row.Vector))))
-                .ToLookup(entry => entry.DocumentId, StringComparer.Ordinal);
-            state = new State(count, lastWrite, byDocument);
+                .ToList();
+            var built = new State(count, lastWrite, entries.ToLookup(entry => entry.DocumentId, StringComparer.Ordinal),
+                entries.ToDictionary(entry => entry.ChunkId, StringComparer.Ordinal));
+            state = built;
             Reloads++;
             logger?.LogInformation("RAG: caché de vectores recargada con {Count} fragmentos.", rows.Count);
-            return byDocument;
+            return built;
         }
         finally
         {
@@ -58,7 +68,7 @@ public sealed class RagVectorCache(ILogger<RagVectorCache>? logger = null)
         }
     }
 
-    private static async Task<(long Count, DateTimeOffset? LastWrite)> FingerprintAsync(AppDbContext db,
+    internal static async Task<(long Count, DateTimeOffset? LastWrite)> FingerprintAsync(AppDbContext db,
         CancellationToken cancellationToken)
     {
         var fingerprint = await db.RagChunks.AsNoTracking()

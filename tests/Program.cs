@@ -156,6 +156,20 @@ await Check("Pages y Notes se deserializan una vez y se invalidan al cambiar el 
     item.NotesJson = "[]";
     Assert(item.Notes.Count == 0, "Asignar NotesJson debe invalidar la caché.");
 }));
+await Check("Configuración: todos los appsettings*.json son JSON válido sin caracteres de control", () => Sync(() =>
+{
+    var root = AppContext.BaseDirectory;
+    while (root is not null && !File.Exists(Path.Combine(root, "DocuSearch.sln"))) root = Path.GetDirectoryName(root);
+    Assert(root is not null, "No se encontró la raíz del repositorio.");
+    var files = Directory.GetFiles(root!, "appsettings*.json");
+    Assert(files.Length >= 3, "Se esperaban appsettings.json, Development y Production.example.");
+    foreach (var file in files)
+    {
+        var text = File.ReadAllText(file);
+        Assert(!text.Any(ch => char.IsControl(ch) && ch is not ('\n' or '\r' or '\t')), $"{Path.GetFileName(file)} contiene caracteres de control.");
+        using var _ = JsonDocument.Parse(text, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip });
+    }
+}));
 await Check("Configuración: los valores por defecto pasan la validación de arranque", () => Sync(() =>
 {
     IOptionsMonitor<T> Monitor<T>(T value) where T : class => new StaticOptionsMonitor<T>(value);
@@ -1569,7 +1583,8 @@ if (args.Contains("--rag"))
         {
             [synthA.Id] = [SynthesisHit(synthA, 2, 0.9), SynthesisHit(synthA, 2, 0.8), SynthesisHit(synthA, 3, 0.6)]
         };
-        var sources = DocumentSynthesis.SelectSources([synthA, synthB], byDocument);
+        var sources = DocumentSynthesis.SelectSources([synthA, synthB], byDocument, max: 6);
+        Assert(DocumentSynthesis.MaxSources == RagContextLimits.MaxSynthesisSources);
         Assert(sources.Count == 6 && sources.DistinctBy(source => (source.Document.Id, source.PageNumber)).Count() == 6);
         Assert(sources[0].Document == synthA && sources[0].PageNumber == 2 && sources[1].Document == synthB && sources[1].PageNumber == 1,
             "Turnos: primero la página donde se encontró la consulta, luego la primera página del otro documento");
@@ -1621,8 +1636,86 @@ if (args.Contains("--rag"))
     {
         foreach (var style in Enum.GetValues<AnswerStyle>()) Assert(AssistantPrompt.For(style).Length < 4000, style.ToString());
         Assert(AssistantPrompt.For(AnswerStyle.Summary).Contains("Resumen general") && AssistantPrompt.For(AnswerStyle.Analysis).Contains("Comparación"));
-        Assert(AssistantPrompt.For(AnswerStyle.Default).Contains("breve") && AssistantPrompt.For(AnswerStyle.Default).StartsWith(AssistantPrompt.System));
+        Assert(AssistantPrompt.For(AnswerStyle.Default).Contains("completa y bien explicada") &&
+            AssistantPrompt.For(AnswerStyle.Default).Contains("Límites de las fuentes") &&
+            AssistantPrompt.For(AnswerStyle.Default).StartsWith(AssistantPrompt.System));
     }));
+    await Check("Contexto: fusiona los fragmentos de una página sin repetir el solape y el Verificador lo acepta", () => Sync(() =>
+    {
+        const string page = "Uno dos tres cuatro cinco. Seis siete ocho nueve diez. Once doce trece catorce quince.";
+        var doc = SynthesisDoc("CTX-2026-001", "Contrato", [], page, "Otra página distinta.");
+        doc.Id = "doc-ctx";
+        RagChunk Piece(int index, int start, int end) =>
+            new($"doc-ctx:{index}", "doc-ctx", doc.InternalCode, "sql", 1, index, start, end, page[start..end], $"h{index}");
+        var a = Piece(0, 0, page.IndexOf("ocho", StringComparison.Ordinal) + 4);           // «Uno … ocho»
+        var b = Piece(1, page.IndexOf("Seis", StringComparison.Ordinal), page.IndexOf("diez", StringComparison.Ordinal) + 4); // solapa con a
+        var c = Piece(2, page.IndexOf("Once", StringComparison.Ordinal), page.Length);     // no contiguo con b
+        var other = new RagChunk("doc-ctx:3", "doc-ctx", doc.InternalCode, "sql", 2, 3, 0, 21, "Otra página distinta.", "h3");
+        var merged = RagContext.MergeByPage([new(c, 0.5), new(other, 0.7), new(a, 0.9), new(b, 0.4)]);
+        Assert(merged.Count == 2 && merged[0].First.PageNumber == 1 && merged[0].ChunkCount == 3 && merged[0].Score == 0.9,
+            "Una fuente por página, ordenada por su mejor fragmento");
+        Assert(merged[0].Text == "Uno dos tres cuatro cinco. Seis siete ocho nueve diez\n…\nOnce doce trece catorce quince.",
+            $"Solape recortado y hueco entre fragmentos marcado: «{merged[0].Text}»");
+        var gap = RagContext.Join([a, c]);
+        Assert(gap.Contains("\n…\n") && gap.StartsWith(a.Text) && gap.EndsWith(c.Text), "Los huecos se marcan con «…»");
+        var sources = new List<SearchHit> { new(doc, 1, gap, 90) };
+        Assert(AgentVerifier.Verify(new AgentAnswer("Respuesta [1]", sources), [doc], admin).IsValid,
+            "Cada trozo del texto fusionado consta en la página");
+        Assert(!AgentVerifier.Verify(new AgentAnswer("Respuesta [1]", [new(doc, 1, gap + "\n…\nFrase inventada.", 90)]), [doc], admin).IsValid,
+            "Un trozo que no está en la página sigue bloqueándose");
+        Assert(RagContext.MergeByPage([new(a, 0.9)], maxChars: 10)[0].Text.Length <= 11, "Respeta el tope de caracteres");
+    }));
+    await Check("Indexación: el vector se calcula con el título y la página delante del fragmento", () => Sync(() =>
+    {
+        var document = new RagDocument("doc-1", "sql", "Contrato Marco Cloud", "", [], new Dictionary<string, string>());
+        var chunk = new RagChunk("doc-1:0", "doc-1", "CNT", "sql", 4, 0, 0, 20, "la tasa es del 99,99 %", "h");
+        Assert(RagIngestionService.EmbeddingText(document, chunk) == "Contrato Marco Cloud · página 4\nla tasa es del 99,99 %");
+        Assert(RagIngestionService.EmbeddingText(document with { Title = " " }, chunk) == chunk.Text, "Sin título, solo el texto");
+        Assert(new RagOptions().MaxTokens <= 350, "Fragmentos dentro de la ventana de multilingual-e5-large");
+    }));
+    await Check("Reranker: llama al cross-encoder en la URL configurada y aplica sus puntuaciones", async () =>
+    {
+        Uri? called = null;
+        var factory = new FixedHttpFactory(new TestHttpHandler((request, _) =>
+        {
+            called = request.RequestUri;
+            Assert(request.Content?.Headers.ContentLength > 0, "El cuerpo debe llevar Content-Length (el servicio Python no admite chunked)");
+            return Task.FromResult(JsonResponse("""{"scores":[0.1,0.9]}"""));
+        }));
+        var reranker = new CrossEncoderRagReranker(RagSettings(o => o.RerankerUrl = "http://127.0.0.1:4098"), factory,
+            new SemanticRagReranker(new FakeRagEmbedder(_ => [1f, 0f])),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CrossEncoderRagReranker>.Instance);
+        var result = await reranker.RerankAsync("consulta", [
+            new(new RagChunk("c1", "d", "X", "sql", 1, 0, 0, 1, "uno", "h1"), 0.9),
+            new(new RagChunk("c2", "d", "X", "sql", 1, 1, 0, 1, "dos", "h2"), 0.5)]);
+        Assert(called?.ToString() == "http://127.0.0.1:4098/rerank", $"URL llamada: {called}");
+        Assert(result.Select(hit => hit.Chunk.Id).SequenceEqual(["c2", "c1"]) && result[0].Score == 0.9, "Reordena con el cross-encoder");
+        Assert(CrossEncoderRagReranker.Endpoint("http://h:1/base/").ToString() == "http://h:1/base/rerank");
+    });
+    await Check("Reranker: sin cross-encoder conserva el orden híbrido salvo que se pida el semántico", async () =>
+    {
+        var calls = 0;
+        var embedder = new FakeRagEmbedder(_ => { calls++; return [1f, 0f]; });
+        var candidates = new List<RagHit>
+        {
+            new(new RagChunk("c1", "d", "X", "sql", 1, 0, 0, 1, "uno", "h1"), 0.9),
+            new(new RagChunk("c2", "d", "X", "sql", 1, 1, 0, 1, "dos", "h2"), 0.5)
+        };
+        var factory = new FailingHttpFactory();
+        var plain = new CrossEncoderRagReranker(RagSettings(), factory, new SemanticRagReranker(embedder),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CrossEncoderRagReranker>.Instance);
+        var kept = await plain.RerankAsync("consulta", candidates);
+        Assert(kept.Select(hit => hit.Chunk.Id).SequenceEqual(["c1", "c2"]) && calls == 0, "Sin URL ni opción, no se llama a embeddings");
+        var semantic = new CrossEncoderRagReranker(RagSettings(o => o.SemanticRerankFallback = true), factory,
+            new SemanticRagReranker(embedder), Microsoft.Extensions.Logging.Abstractions.NullLogger<CrossEncoderRagReranker>.Instance);
+        await semantic.RerankAsync("consulta", candidates);
+        Assert(calls > 0, "Con SemanticRerankFallback=true se usa el reranker semántico");
+        var failing = new CrossEncoderRagReranker(RagSettings(o => o.RerankerUrl = "http://127.0.0.1:9/"), factory,
+            new SemanticRagReranker(embedder), Microsoft.Extensions.Logging.Abstractions.NullLogger<CrossEncoderRagReranker>.Instance);
+        calls = 0;
+        var afterFailure = await failing.RerankAsync("consulta", candidates);
+        Assert(afterFailure.Select(hit => hit.Chunk.Id).SequenceEqual(["c1", "c2"]) && calls == 0, "Si el servicio falla, conserva el orden");
+    });
     await Check("Chat: el marcado de un documento se conserva como texto", () => Sync(() =>
     {
         var blocks = AnswerFormatter.Format("<script>alert(1)</script> texto");
@@ -2430,6 +2523,36 @@ if (args.Contains("--database"))
         await plain.DeleteDocumentAsync(docs[0].Id);
         Assert((await cached.QueryAsync(Vector(), ids, 5)).Count == 0, "Tabla vacía para esos documentos.");
     });
+    await Check("SQL Server + RAG: la búsqueda híbrida encuentra coincidencias literales que el vector no trae", async () =>
+    {
+        var doc = (await service.LoadAsync()).Documents.First();
+        float[] Axis(int index) { var vector = new float[8]; vector[index] = 1; return vector; }
+        var random = new Random(7);
+        float[] Near() { var vector = Axis(0); for (var i = 1; i < 8; i++) vector[i] = (float)(random.NextDouble() * 0.5); return vector; }
+        RagChunkVector Chunk(int index, string text, float[] vector) =>
+            new(new RagChunk($"{doc.Id}:hyb:{index}", doc.Id, doc.InternalCode, "sql", 1, index, 0, text.Length, text, $"h{index}"), vector, "fake");
+        var chunks = Enumerable.Range(0, 12).Select(i => Chunk(i, $"Texto general número {i} sobre servicios y condiciones.", Near())).ToList();
+        // El dato buscado solo coincide literalmente: su vector es ortogonal a la consulta.
+        chunks.Add(Chunk(12, "El expediente ZX-4471 fija una penalización del 3 % mensual.", Axis(1)));
+        var store = new SqlRagVectorStore(factory, cache: new RagVectorCache());
+        await store.ReplaceDocumentAsync(doc.Id, chunks);
+        try
+        {
+            var settings = Options.Create(new RagOptions { CandidateK = 5, TopK = 8, Rerank = false });
+            var noRerank = new ReversingReranker();
+            const string question = "¿Qué penalización fija ZX-4471?";
+            var before = await new HybridRagRetriever(store, settings, noRerank).RetrieveAsync(question, Axis(0), [doc.Id]);
+            Assert(before.All(hit => hit.Chunk.ChunkIndex != 12), "Sin índice léxico, el fragmento literal no entra (comportamiento anterior)");
+            var hybrid = new HybridRagRetriever(store, settings, noRerank, new RagLexicalIndex(), factory);
+            var after = await hybrid.RetrieveAsync(question, Axis(0), [doc.Id]);
+            Assert(after.Any(hit => hit.Chunk.ChunkIndex == 12), "Con índice léxico, el fragmento literal se recupera");
+            Assert((await hybrid.RetrieveAsync(question, Axis(0), ["otro-documento"])).Count == 0, "Respeta los documentos legibles");
+        }
+        finally
+        {
+            await store.DeleteDocumentAsync(doc.Id);
+        }
+    });
 }
 else Console.WriteLine("INFO Integración SQL Server no ejecutada. Usa --database con DOCUSEARCH_TEST_CONNECTION.");
 
@@ -2583,4 +2706,17 @@ internal sealed class StaticOptionsMonitor<T>(T value) : IOptionsMonitor<T>
     public T CurrentValue => value;
     public T Get(string? name) => value;
     public IDisposable? OnChange(Action<T, string?> listener) => null;
+}
+
+/// <summary>Fábrica HTTP cuyo cliente siempre falla: simula el cross-encoder caído.</summary>
+internal sealed class FailingHttpFactory : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new(new TestHttpHandler((_, _) =>
+        throw new HttpRequestException("servicio caído"))) { BaseAddress = new Uri("http://127.0.0.1:9/") };
+}
+
+/// <summary>Fábrica HTTP con un manejador fijo (sin BaseAddress, como el cliente con nombre real).</summary>
+internal sealed class FixedHttpFactory(HttpMessageHandler handler) : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
 }
